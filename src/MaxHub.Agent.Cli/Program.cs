@@ -22,6 +22,7 @@ return args switch
     ["tools", var server, var year] => await Tools(server, int.Parse(year)),
     ["sync-connectors", var server] => await SyncConnectors(server),
     ["uninstall-connector", var year] => UninstallConnector(int.Parse(year)),
+    ["serve", var server] => await Serve(server),
     ["install", var server, var toolId, var version, var year] => await Install(server, toolId, version, int.Parse(year)),
     ["uninstall", var toolId, var year] => Uninstall(toolId, int.Parse(year)),
     ["rollback", var toolId, var year] => Rollback(toolId, int.Parse(year)),
@@ -149,6 +150,15 @@ async Task<int> SyncConnectors(string server)
     return results.All(r => r.Success) ? 0 : 1;
 }
 
+async Task<int> Serve(string server)
+{
+    var hub = new HubClient(CreateHttp(server, withToken: true));
+    var app = MaxHub.Agent.Service.AgentLocalServer.Build(agentRoot, resolver, hub);
+    Console.WriteLine($"MaxHub Agent 本地服务已启动: http://127.0.0.1:{MaxHub.Agent.Service.AgentLocalServer.DefaultPort}（Ctrl+C 停止）");
+    await app.RunAsync();
+    return 0;
+}
+
 int UninstallConnector(int year)
 {
     var installer = new ConnectorInstaller(agentRoot, resolver, new LedgerStore(Path.Combine(agentRoot, "installed.json")), null!);
@@ -214,6 +224,7 @@ int Usage()
           tools <server> <maxYear>                   列出兼容工具
           sync-connectors <server>                   为本机所有 Max 安装匹配的 Connector
           uninstall-connector <maxYear>              卸载指定 Max 年份的 Connector
+          serve <server>                             启动本地 Agent 服务（供 Max 内面板连接）
           install <server> <toolId> <version> <maxYear>
           uninstall <toolId> <maxYear>
           rollback <toolId> <maxYear>

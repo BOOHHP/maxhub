@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MaxHub.Agent.Core\MaxHub.Agent.Core.csproj" />
+    <ProjectReference Include="..\MaxHub.Agent.Service\MaxHub.Agent.Service.csproj" />
   </ItemGroup>
 
   <ItemGroup>
