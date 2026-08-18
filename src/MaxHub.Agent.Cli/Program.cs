@@ -16,6 +16,7 @@ return args switch
     ["detect"] => Detect(),
     ["login", var server] => await Login(server),
     ["tools", var server, var year] => await Tools(server, int.Parse(year)),
+    ["sync-connectors", var server] => await SyncConnectors(server),
     ["install", var server, var toolId, var version, var year] => await Install(server, toolId, version, int.Parse(year)),
     ["uninstall", var toolId, var year] => Uninstall(toolId, int.Parse(year)),
     ["rollback", var toolId, var year] => Rollback(toolId, int.Parse(year)),
@@ -61,6 +62,22 @@ async Task<int> Tools(string server, int year)
     foreach (var tool in await hub.GetToolsAsync(year))
         Console.WriteLine($"{tool.ToolId}  {tool.LatestVersion}  [{tool.Channel}]  {tool.Name}");
     return 0;
+}
+
+async Task<int> SyncConnectors(string server)
+{
+    var installations = new MaxInstallationDetector(new WindowsMaxRegistryReader()).Detect();
+    if (installations.Count == 0)
+    {
+        Console.WriteLine("未检测到受支持的 3ds Max 安装，无需安装 Connector。");
+        return 1;
+    }
+    var hub = new HubClient(CreateHttp(server, withToken: true));
+    var installer = new ConnectorInstaller(agentRoot, resolver, new LedgerStore(Path.Combine(agentRoot, "installed.json")), hub);
+    var results = await installer.SyncAsync(installations);
+    foreach (var result in results)
+        Console.WriteLine($"Max {result.MaxYear}: {(result.Success ? result.Version : "失败")} - {result.Message}");
+    return results.All(r => r.Success) ? 0 : 1;
 }
 
 async Task<int> Install(string server, string toolId, string version, int year)
@@ -114,6 +131,7 @@ int Usage()
           detect                                     检测本机 3ds Max 安装
           login <server>                             飞书扫码登录
           tools <server> <maxYear>                   列出兼容工具
+          sync-connectors <server>                   为本机所有 Max 安装匹配的 Connector
           install <server> <toolId> <version> <maxYear>
           uninstall <toolId> <maxYear>
           rollback <toolId> <maxYear>
