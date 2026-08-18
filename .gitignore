@@ -6,3 +6,5 @@ artifacts/
 appsettings.Local.json
 test-out.txt
 out/
+src/MaxHub.Server/data/
+*.db
