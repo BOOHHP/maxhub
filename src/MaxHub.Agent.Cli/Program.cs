@@ -236,9 +236,11 @@ int Usage()
 
 HttpClient CreateHttp(string server, bool withToken)
 {
-    var http = new HttpClient { BaseAddress = new Uri(server) };
-    if (withToken)
-        http.DefaultRequestHeaders.Authorization = new("Bearer", LoadToken(server));
+    if (!withToken)
+        return new HttpClient { BaseAddress = new Uri(server) };
+    // 服务端重启会使内存中的访问令牌失效（本地未到期），收到 401 时强制刷新并重试一次
+    var http = new HttpClient(new SessionRefreshHandler(() => RefreshSession(server))) { BaseAddress = new Uri(server) };
+    http.DefaultRequestHeaders.Authorization = new("Bearer", LoadToken(server));
     return http;
 }
 
@@ -264,7 +266,14 @@ string LoadToken(string server)
         : DateTimeOffset.MinValue;
     if (expiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
         return Unprotect(json.RootElement.GetProperty("accessToken").GetString()!);
+    return RefreshSession(server);
+}
 
+string RefreshSession(string server)
+{
+    if (!File.Exists(settingsPath))
+        throw new InvalidOperationException("尚未登录，请先执行 login。");
+    var json = JsonDocument.Parse(File.ReadAllText(settingsPath));
     if (!json.RootElement.TryGetProperty("refreshToken", out var rt))
         throw new InvalidOperationException("会话已过期，请重新执行 login。");
     using var http = new HttpClient { BaseAddress = new Uri(server) };
@@ -283,3 +292,27 @@ string Protect(string value) =>
 
 string Unprotect(string value) =>
     Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(value), null, DataProtectionScope.CurrentUser));
+
+/// <summary>401 时用刷新令牌强制续期并重试一次（覆盖服务端重启使未到期访问令牌失效的场景）。</summary>
+sealed class SessionRefreshHandler : DelegatingHandler
+{
+    private readonly Func<string> _forceRefresh;
+
+    public SessionRefreshHandler(Func<string> forceRefresh) : base(new HttpClientHandler()) => _forceRefresh = forceRefresh;
+
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        var response = await base.SendAsync(request, cancellationToken);
+        if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized)
+            return response;
+
+        string newToken;
+        try { newToken = _forceRefresh(); }
+        catch { return response; }
+
+        response.Dispose();
+        var retry = new HttpRequestMessage(request.Method, request.RequestUri) { Content = request.Content };
+        retry.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", newToken);
+        return await base.SendAsync(retry, cancellationToken);
+    }
+}
