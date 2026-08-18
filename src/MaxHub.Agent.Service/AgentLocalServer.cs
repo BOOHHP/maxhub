@@ -54,28 +54,78 @@ public static class AgentLocalServer
             return Results.Text(string.Join("\n", lines));
         });
 
-        app.MapPost("/max/install", async (string toolId, string version, int maxYear) =>
+        // 安装改为异步任务：POST 返回 job|{id}，面板轮询 /max/install-status 获取进度
+        var jobs = new System.Collections.Concurrent.ConcurrentDictionary<string, InstallJob>();
+
+        app.MapPost("/max/install", (string toolId, string version, int maxYear) =>
         {
-            try
-            {
-                var plan = await hub.GetInstallPlanAsync(toolId, version);
-                var zipPath = Path.Combine(agentRoot, "cache", $"{toolId}-{version}.zip");
-                await hub.DownloadToolAsync(toolId, version, zipPath);
+            var jobId = Guid.NewGuid().ToString("N");
+            var job = new InstallJob();
+            jobs[jobId] = job;
 
-                var outcome = engine.Install(zipPath, plan.Sha256, maxYear);
-                if (!outcome.Success)
-                    return Results.Text($"error {outcome.Error}", statusCode: 409);
-
-                await hub.PostInstallEventAsync(Guid.NewGuid().ToString("N"), "install", $"{toolId}@{version}", "agent-service/0.1");
-                return Results.Text($"ok {toolId} {version}");
-            }
-            catch (Exception ex)
+            _ = Task.Run(async () =>
             {
-                return Results.Text($"error {ex.Message}", statusCode: 502);
-            }
+                // 模拟层：小包秒装时仍有平滑推进感（与托盘同策略：50ms 随机 +0.5~1.5%，封顶 95%）
+                var ticker = Task.Run(async () =>
+                {
+                    while (job.State == "running" && job.Progress < 95)
+                    {
+                        await Task.Delay(50);
+                        job.Progress = Math.Min(95, job.Progress + 0.5 + Random.Shared.NextDouble());
+                    }
+                });
+                try
+                {
+                    var plan = await hub.GetInstallPlanAsync(toolId, version);
+                    var zipPath = Path.Combine(agentRoot, "cache", $"{toolId}-{version}.zip");
+                    // 真实下载字节映射到 0-80%，与模拟值取大
+                    var download = new Progress<double>(p => job.Progress = Math.Max(job.Progress, Math.Min(80, p * 0.8)));
+                    await hub.DownloadToolAsync(toolId, version, zipPath, download);
+
+                    var outcome = engine.Install(zipPath, plan.Sha256, maxYear);
+                    if (!outcome.Success)
+                    {
+                        job.Message = outcome.Error ?? "安装失败";
+                        job.State = "error";
+                        return;
+                    }
+                    await hub.PostInstallEventAsync(Guid.NewGuid().ToString("N"), "install", $"{toolId}@{version}", "agent-service/0.1");
+                    job.Progress = 100;
+                    job.Message = $"{toolId} {version}";
+                    job.State = "ok";
+                }
+                catch (Exception ex)
+                {
+                    job.Message = ex.Message;
+                    job.State = "error";
+                }
+                finally
+                {
+                    await ticker;
+                }
+            });
+
+            return Results.Text($"job|{jobId}");
+        });
+
+        app.MapGet("/max/install-status", (string jobId) =>
+        {
+            if (!jobs.TryGetValue(jobId, out var job))
+                return Results.Text("error|未知任务", statusCode: 404);
+            if (job.State == "running")
+                return Results.Text($"running|{(int)job.Progress}");
+            jobs.TryRemove(jobId, out _); // 终态只投递一次
+            return Results.Text($"{job.State}|{job.Message}");
         });
 
         return app;
+    }
+
+    private sealed class InstallJob
+    {
+        public volatile string State = "running"; // running | ok | error
+        public double Progress;
+        public string Message = "";
     }
 
     /// <summary>测试用：获取实际绑定地址（端口 0 时由 Kestrel 分配）。</summary>

@@ -66,9 +66,26 @@ public class AgentLocalServiceTests(ServerFixture fixture) : IClassFixture<Serve
             var tools = await panel.GetStringAsync("/max/tools?maxYear=2024");
             Assert.Contains("com.company.scene-batch-renamer|1.4.0|Scene Batch Renamer", tools);
 
-            var install = await panel.PostAsync("/max/install?toolId=com.company.scene-batch-renamer&version=1.4.0&maxYear=2024", null);
-            Assert.Equal(HttpStatusCode.OK, install.StatusCode);
-            Assert.StartsWith("ok", await install.Content.ReadAsStringAsync());
+            // 安装为异步任务：返回 job|{id}，轮询状态直到终态
+            static async Task<string> InstallAndWaitAsync(HttpClient panel, string query)
+            {
+                var install = await panel.PostAsync($"/max/install?{query}", null);
+                Assert.Equal(HttpStatusCode.OK, install.StatusCode);
+                var body = await install.Content.ReadAsStringAsync();
+                Assert.StartsWith("job|", body);
+                var jobId = body.Split('|')[1];
+                for (var i = 0; i < 100; i++)
+                {
+                    var status = await (await panel.GetAsync($"/max/install-status?jobId={jobId}")).Content.ReadAsStringAsync();
+                    if (!status.StartsWith("running", StringComparison.Ordinal))
+                        return status;
+                    await Task.Delay(100);
+                }
+                return "error|轮询超时";
+            }
+
+            var result = await InstallAndWaitAsync(panel, "toolId=com.company.scene-batch-renamer&version=1.4.0&maxYear=2024");
+            Assert.StartsWith("ok|", result);
 
             var resolver = new DefaultMaxPathResolver(Path.Combine(agentRoot, "maxuser"));
             Assert.True(File.Exists(Path.Combine(resolver.Resolve(2024, "userScripts"), "SceneBatchRenamer.ms")));
@@ -76,10 +93,9 @@ public class AgentLocalServiceTests(ServerFixture fixture) : IClassFixture<Serve
             var installed = await panel.GetStringAsync("/max/installed?maxYear=2024");
             Assert.Contains("com.company.scene-batch-renamer|1.4.0", installed);
 
-            // 不存在的工具：错误以文本返回而非 500
-            var bad = await panel.PostAsync("/max/install?toolId=com.x.none&version=1.0.0&maxYear=2024", null);
-            Assert.NotEqual(HttpStatusCode.OK, bad.StatusCode);
-            Assert.StartsWith("error", await bad.Content.ReadAsStringAsync());
+            // 不存在的工具：任务终态为 error
+            var badResult = await InstallAndWaitAsync(panel, "toolId=com.x.none&version=1.0.0&maxYear=2024");
+            Assert.StartsWith("error|", badResult);
         }
         finally
         {

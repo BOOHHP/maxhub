@@ -35,11 +35,15 @@ global MaxHubConnector
     (
         label lblStatus "正在连接 MaxHub Agent…" align:#left
         listbox lstTools "可用工具:" items:#() height:12
+        progressBar pbInstall "" width:290 height:8 value:0 visible:false color:(color 76 159 224)
         button btnRefresh "刷新" width:100 align:#left across:2
         button btnInstall "安装选中" width:100 align:#right
+        timer pollTimer interval:200 active:false
 
         local toolIds = #()
         local toolVersions = #()
+        local currentJobId = undefined
+        local currentToolLabel = ""
 
         fn httpPost url timeoutMs:60000 =
         (
@@ -90,14 +94,54 @@ global MaxHubConnector
             ) else (
                 local toolId = toolIds[lstTools.selection]
                 local version = toolVersions[lstTools.selection]
-                lblStatus.text = "正在安装 " + toolId + " …"
                 local result = httpPost (agentBaseUrl + "/max/install?toolId=" + toolId + "&version=" + version + "&maxYear=" + (currentMaxYear() as string))
-                if result != undefined and (findString result "ok" == 1) then (
-                    messageBox ("安装成功：" + toolId + " v" + version + "\n脚本类工具立即可用，Startup 类工具重启 Max 后生效。") title:"MaxHub"
+                local parts = if result != undefined then (filterString result "|") else #()
+                if parts.count >= 2 and parts[1] == "job" then (
+                    -- 异步任务：启动轮询，进度条推进由 Agent 侧统一计算
+                    currentJobId = parts[2]
+                    currentToolLabel = toolId + " v" + version
+                    pbInstall.value = 0
+                    pbInstall.visible = true
+                    btnInstall.enabled = false
+                    lblStatus.text = "正在安装 " + currentToolLabel + " … 0%"
+                    pollTimer.active = true
                 ) else (
                     messageBox ("安装失败：" + (if result == undefined then "Agent 无响应" else result)) title:"MaxHub"
                 )
-                refreshState()
+            )
+        )
+
+        fn finishInstall message success =
+        (
+            pollTimer.active = false
+            currentJobId = undefined
+            pbInstall.visible = false
+            btnInstall.enabled = true
+            if success then (
+                messageBox ("安装成功：" + message + "\n脚本类工具立即可用，Startup 类工具重启 Max 后生效。") title:"MaxHub"
+            ) else (
+                messageBox ("安装失败：" + message) title:"MaxHub"
+            )
+            refreshState()
+        )
+
+        on pollTimer tick do
+        (
+            if currentJobId == undefined then ( pollTimer.active = false )
+            else (
+                local body = httpGet (agentBaseUrl + "/max/install-status?jobId=" + currentJobId) timeoutMs:2000
+                local parts = if body != undefined then (filterString body "|") else #()
+                if parts.count >= 1 then (
+                    case parts[1] of (
+                        "running": (
+                            local percent = if parts.count >= 2 then (parts[2] as integer) else 0
+                            pbInstall.value = percent
+                            lblStatus.text = "正在安装 " + currentToolLabel + " … " + (percent as string) + "%"
+                        )
+                        "ok": ( pbInstall.value = 100; finishInstall (if parts.count >= 2 then parts[2] else currentToolLabel) true )
+                        default: ( finishInstall (if parts.count >= 2 then parts[2] else "未知错误") false )
+                    )
+                )
             )
         )
 
