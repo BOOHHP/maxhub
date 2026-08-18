@@ -82,6 +82,15 @@ public static class AgentLocalServer
                     var download = new Progress<double>(p => job.Progress = Math.Max(job.Progress, Math.Min(80, p * 0.8)));
                     await hub.DownloadToolAsync(toolId, version, zipPath, download);
 
+                    var publicKey = await TrustedKeyStore.GetOrPinAsync(hub, agentRoot);
+                    if (!MaxHub.Core.Packaging.PackageSignature.Verify(publicKey, plan.Sha256, plan.Signature))
+                    {
+                        File.Delete(zipPath);
+                        job.Message = "制品签名校验失败，拒绝安装。";
+                        job.State = "error";
+                        return;
+                    }
+
                     var outcome = engine.Install(zipPath, plan.Sha256, maxYear);
                     if (!outcome.Success)
                     {

@@ -6,8 +6,8 @@ namespace MaxHub.Agent.Core.Remote;
 public sealed record QrSessionInfo(string SessionId, string AuthorizeUrl);
 public sealed record HubSession(string AccessToken, string RefreshToken, string EmployeeId, string Username, DateTimeOffset ExpiresAtUtc);
 public sealed record ToolIndexItem(string ToolId, string Name, string? Description, string LatestVersion, string Channel);
-public sealed record RemoteInstallPlan(string ToolId, string Version, string Sha256, long SizeBytes, bool RestartRequired, string RiskLevel);
-public sealed record ConnectorInfo(string Version, int MinMaxYear, int MaxMaxYear, string Sha256, long SizeBytes);
+public sealed record RemoteInstallPlan(string ToolId, string Version, string Sha256, long SizeBytes, bool RestartRequired, string RiskLevel, string? Signature = null);
+public sealed record ConnectorInfo(string Version, int MinMaxYear, int MaxMaxYear, string Sha256, long SizeBytes, string? Signature = null);
 
 /// <summary>Agent 侧的 Hub API 客户端。所有请求携带 MaxHub 会话令牌。</summary>
 public sealed class HubClient(HttpClient http)
@@ -55,6 +55,12 @@ public sealed class HubClient(HttpClient http)
 
     public Task<ConnectorInfo[]> GetConnectorsAsync(int maxYear) =>
         http.GetFromJsonAsync<ConnectorInfo[]>($"/api/v1/connectors?maxVersion={maxYear}")!;
+
+    public async Task<string> GetSigningPublicKeyAsync()
+    {
+        var json = await http.GetFromJsonAsync<JsonElement>("/api/v1/signing/public-key");
+        return json.GetProperty("publicKey").GetString()!;
+    }
 
     public async Task DownloadToolAsync(string toolId, string version, string targetPath, IProgress<double>? progress = null)
     {

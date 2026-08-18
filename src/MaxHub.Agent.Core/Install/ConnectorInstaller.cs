@@ -48,6 +48,12 @@ public sealed class ConnectorInstaller(string agentRoot, IMaxPathResolver pathRe
             File.Delete(cachePath);
             return new ConnectorSyncResult(maxYear, false, release.Version, "Connector 制品哈希与服务端声明不一致，拒绝安装。");
         }
+        var publicKey = await TrustedKeyStore.GetOrPinAsync(hub, agentRoot);
+        if (!PackageSignature.Verify(publicKey, release.Sha256, release.Signature))
+        {
+            File.Delete(cachePath);
+            return new ConnectorSyncResult(maxYear, false, release.Version, "Connector 制品签名校验失败，拒绝安装。");
+        }
 
         var versionDir = Path.Combine(agentRoot, "connectors", $"max{maxYear}", release.Version);
         if (Directory.Exists(versionDir))

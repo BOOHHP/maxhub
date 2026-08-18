@@ -35,6 +35,7 @@ public sealed class ReleaseRow
     public ReleaseStatus Status { get; set; }
     public required string Channel { get; set; }
     public string? ReviewedBy { get; set; }
+    public string? SignatureBase64 { get; set; }
     public DateTimeOffset SubmittedAtUtc { get; set; }
 }
 
@@ -47,6 +48,7 @@ public sealed class ConnectorRow
     public required string ArtifactPath { get; set; }
     public required string Sha256 { get; set; }
     public long SizeBytes { get; set; }
+    public string? SignatureBase64 { get; set; }
 }
 
 public sealed class ActivityEventRow

@@ -19,6 +19,7 @@ public sealed class ToolRelease
     public ReleaseStatus Status { get; set; } = ReleaseStatus.PendingReview;
     public string Channel { get; set; } = "internal";
     public string? ReviewedBy { get; set; }
+    public string? SignatureBase64 { get; set; }
     public DateTimeOffset SubmittedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 }
 
@@ -30,6 +31,7 @@ public sealed class ConnectorRelease
     public required string ArtifactPath { get; init; }
     public required string Sha256 { get; init; }
     public required long SizeBytes { get; init; }
+    public string? SignatureBase64 { get; init; }
 }
 
 public sealed record ActivityEvent(

@@ -3,14 +3,15 @@ using MaxHub.Core.Manifests;
 using MaxHub.Core.Packaging;
 using MaxHub.Server.Data;
 using MaxHub.Server.Domain;
+using MaxHub.Server.Storage;
 using Microsoft.EntityFrameworkCore;
 
 namespace MaxHub.Server.Services;
 
 public sealed record SubmitOutcome(bool Success, string? ReleaseId, IReadOnlyList<string> Errors);
 
-/// <summary>SQLite 持久化的注册表；制品文件在 dataDir，元数据在 maxhub.db。</summary>
-public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> dbFactory)
+/// <summary>SQLite 持久化的注册表；制品文件在 dataDir，元数据在 maxhub.db。已发布制品均携带 ECDSA 签名。</summary>
+public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> dbFactory, SigningKeyStore signer)
 {
     private readonly object _writeLock = new();
 
@@ -88,7 +89,10 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
                 return false;
             row.Status = approve ? ReleaseStatus.Published : ReleaseStatus.Rejected;
             if (approve)
+            {
                 row.Channel = channel;
+                row.SignatureBase64 = signer.Sign(row.Sha256); // 发布即签名，Agent 验签后才允许安装
+            }
             row.ReviewedBy = reviewer.EmployeeId;
             db.SaveChanges();
             return true;
@@ -133,6 +137,7 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
             ArtifactPath = release.ArtifactPath,
             Sha256 = release.Sha256,
             SizeBytes = release.SizeBytes,
+            SignatureBase64 = signer.Sign(release.Sha256),
         });
         db.SaveChanges();
     }
@@ -151,6 +156,7 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
                 ArtifactPath = c.ArtifactPath,
                 Sha256 = c.Sha256,
                 SizeBytes = c.SizeBytes,
+                SignatureBase64 = c.SignatureBase64,
             })
             .ToList();
     }
@@ -201,6 +207,20 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
         return db.ActivityEvents.Count(e => e.EmployeeId == employeeId && e.Type == type);
     }
 
+    /// <summary>启动时对存量无签名的已发布制品补签（签名功能上线前的历史数据）。</summary>
+    public void SignMissingSignatures()
+    {
+        lock (_writeLock)
+        {
+            using var db = dbFactory.CreateDbContext();
+            foreach (var row in db.Releases.Where(r => r.Status == ReleaseStatus.Published && r.SignatureBase64 == null))
+                row.SignatureBase64 = signer.Sign(row.Sha256);
+            foreach (var row in db.Connectors.Where(c => c.SignatureBase64 == null))
+                row.SignatureBase64 = signer.Sign(row.Sha256);
+            db.SaveChanges();
+        }
+    }
+
     private static ToolRelease ToDomain(ReleaseRow row) => new()
     {
         ReleaseId = row.ReleaseId,
@@ -212,6 +232,7 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
         Status = row.Status,
         Channel = row.Channel,
         ReviewedBy = row.ReviewedBy,
+        SignatureBase64 = row.SignatureBase64,
         SubmittedAtUtc = row.SubmittedAtUtc,
     };
 

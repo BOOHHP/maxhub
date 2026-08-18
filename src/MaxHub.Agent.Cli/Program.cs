@@ -173,6 +173,13 @@ async Task<int> Install(string server, string toolId, string version, int year)
 
     var zipPath = Path.Combine(agentRoot, "cache", $"{toolId}-{version}.zip");
     await hub.DownloadToolAsync(toolId, version, zipPath);
+    var publicKey = await TrustedKeyStore.GetOrPinAsync(hub, agentRoot);
+    if (!MaxHub.Core.Packaging.PackageSignature.Verify(publicKey, plan.Sha256, plan.Signature))
+    {
+        File.Delete(zipPath);
+        Console.WriteLine("失败：制品签名校验失败，拒绝安装。");
+        return 1;
+    }
     var outcome = engine.Install(zipPath, plan.Sha256, year);
     Console.WriteLine(outcome.Success ? $"已安装 {toolId} {version} 到 Max {year}" : $"失败：{outcome.Error}");
     if (outcome.Success)

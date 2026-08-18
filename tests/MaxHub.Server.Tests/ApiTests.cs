@@ -94,6 +94,9 @@ public class ApiTests(ServerFixture fixture) : IClassFixture<ServerFixture>
         return releaseId;
     }
 
+    internal Task<HttpClient> LoginPublicAsync(string employeeId, string username) => LoginAsync(employeeId, username);
+    internal Task<string> PublishAndApprovePublicAsync(string sampleName) => PublishAndApproveAsync(sampleName);
+
     [Fact]
     public async Task Anonymous_requests_are_rejected()
     {

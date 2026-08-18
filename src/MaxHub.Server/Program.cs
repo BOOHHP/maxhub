@@ -1,6 +1,7 @@
 using MaxHub.Server.Data;
 using MaxHub.Server.Domain;
 using MaxHub.Server.Services;
+using MaxHub.Server.Storage;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,12 +32,26 @@ Directory.CreateDirectory(dataDir);
 var dbPath = Path.Combine(dataDir, "maxhub.db");
 builder.Services.AddDbContextFactory<MaxHubDb>(o => o.UseSqlite($"Data Source={dbPath}"));
 builder.Services.AddSingleton<IRefreshTokenStore, SqliteRefreshTokenStore>();
-builder.Services.AddSingleton(sp => new RegistryStore(dataDir, sp.GetRequiredService<IDbContextFactory<MaxHubDb>>()));
+builder.Services.AddSingleton(new SigningKeyStore(dataDir));
+builder.Services.AddSingleton(sp => new RegistryStore(dataDir, sp.GetRequiredService<IDbContextFactory<MaxHubDb>>(), sp.GetRequiredService<SigningKeyStore>()));
 
 var app = builder.Build();
 
 using (var db = app.Services.GetRequiredService<IDbContextFactory<MaxHubDb>>().CreateDbContext())
+{
     db.Database.EnsureCreated();
+    // EnsureCreated 不追加列：对旧库做容错加列（列已存在则忽略）
+    foreach (var sql in new[]
+    {
+        "ALTER TABLE Releases ADD COLUMN SignatureBase64 TEXT",
+        "ALTER TABLE Connectors ADD COLUMN SignatureBase64 TEXT",
+    })
+    {
+        try { db.Database.ExecuteSqlRaw(sql); }
+        catch (Microsoft.Data.Sqlite.SqliteException) { }
+    }
+}
+app.Services.GetRequiredService<RegistryStore>().SignMissingSignatures();
 
 var auth = app.Services.GetRequiredService<AuthService>();
 var registry = app.Services.GetRequiredService<RegistryStore>();
@@ -159,6 +174,7 @@ app.MapGet("/api/v1/tools/{toolId}/releases/{version}/install-plan", (HttpContex
         sizeBytes = release.SizeBytes,
         restartRequired = manifest.Install.RestartRequired,
         riskLevel = manifest.Install.Targets.Any(t => t.Destination == "userStartup") ? "medium" : "low",
+        signature = release.SignatureBase64,
         targets = manifest.Install.Targets,
         entryPoints = manifest.EntryPoints,
         dependencies = manifest.Dependencies,
@@ -228,7 +244,15 @@ app.MapGet("/api/v1/connectors", (HttpContext ctx, int maxVersion) =>
         maxMaxYear = c.MaxMaxYear,
         sha256 = c.Sha256,
         sizeBytes = c.SizeBytes,
+        signature = c.SignatureBase64,
     }));
+});
+
+// 签名公钥（SPKI Base64）：Agent 首次获取后固定（TOFU）
+app.MapGet("/api/v1/signing/public-key", () =>
+{
+    var signer = app.Services.GetRequiredService<SigningKeyStore>();
+    return Results.Ok(new { publicKey = signer.PublicKeyBase64, algorithm = "ECDSA_P256_SHA256" });
 });
 
 // ---- 下载（服务端按认证主体记账） ----
