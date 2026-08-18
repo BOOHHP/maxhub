@@ -24,7 +24,12 @@ public static class ToolPackage
 
         using (var zip = ZipFile.Open(outputZipPath, ZipArchiveMode.Create))
         {
-            foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+            var outputFullPath = Path.GetFullPath(outputZipPath);
+            var files = Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories)
+                .Where(f => !string.Equals(Path.GetFullPath(f), outputFullPath, StringComparison.OrdinalIgnoreCase))
+                .Order(StringComparer.Ordinal)
+                .ToList();
+            foreach (var file in files)
             {
                 var entryName = Path.GetRelativePath(sourceDirectory, file).Replace('\\', '/');
                 zip.CreateEntryFromFile(file, entryName, CompressionLevel.Optimal);
