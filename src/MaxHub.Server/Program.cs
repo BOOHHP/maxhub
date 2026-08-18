@@ -60,9 +60,11 @@ EmployeeIdentity? CurrentUser(HttpContext ctx) => auth.Resolve(ctx.Request.Heade
 bool IsIn(string[] roleMembers, EmployeeIdentity user) => roleMembers.Contains(user.EmployeeId);
 
 // ---- 认证：飞书扫码会话 ----
-app.MapPost("/api/v1/auth/feishu/qr-sessions", () =>
+app.MapPost("/api/v1/auth/feishu/qr-sessions", (HttpContext ctx) =>
 {
-    var session = auth.CreateQrSession();
+    // client=web 时授权回调指向管理后台页面（需在飞书后台登记 WebRedirectUri）
+    var isWeb = ctx.Request.Query["client"] == "web" && feishuOptions.WebRedirectUri.Length > 0;
+    var session = auth.CreateQrSession(isWeb ? feishuOptions.WebRedirectUri : null);
     return Results.Ok(new { sessionId = session.SessionId, authorizeUrl = session.AuthorizeUrl, expiresAtUtc = session.ExpiresAtUtc });
 });
 
@@ -100,7 +102,8 @@ app.MapPost("/api/v1/auth/feishu/qr-sessions/{sessionId}/complete", async (HttpC
     EmployeeIdentity identity;
     try
     {
-        identity = await exchanger.ExchangeAsync(request.Code, ctx.RequestAborted);
+        var redirectUri = request.Client == "web" && feishuOptions.WebRedirectUri.Length > 0 ? feishuOptions.WebRedirectUri : null;
+        identity = await exchanger.ExchangeAsync(request.Code, redirectUri, ctx.RequestAborted);
     }
     catch (FeishuAuthException ex)
     {
@@ -255,6 +258,29 @@ app.MapGet("/api/v1/signing/public-key", () =>
     return Results.Ok(new { publicKey = signer.PublicKeyBase64, algorithm = "ECDSA_P256_SHA256" });
 });
 
+// ---- 管理后台 ----
+app.UseStaticFiles();
+app.MapGet("/admin", () => Results.Redirect("/admin.html"));
+
+app.MapGet("/api/v1/admin/releases", (HttpContext ctx) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    if (!IsIn(reviewers, user) && !IsIn(admins, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    return Results.Ok(registry.GetAllReleases().Select(r => new
+    {
+        releaseId = r.ReleaseId,
+        toolId = r.Manifest.Id,
+        name = r.Manifest.Name,
+        version = r.Manifest.Version,
+        status = r.Status.ToString(),
+        channel = r.Channel,
+        submittedBy = r.SubmittedBy,
+        reviewedBy = r.ReviewedBy,
+        submittedAtUtc = r.SubmittedAtUtc,
+        signed = r.SignatureBase64 != null,
+    }));
+});
+
 // ---- 下载（服务端按认证主体记账） ----
 app.MapGet("/downloads/{toolId}/{version}/package.zip", (HttpContext ctx, string toolId, string version) =>
 {
@@ -293,7 +319,7 @@ app.Run();
 
 internal sealed record RefreshRequest(string RefreshToken);
 internal sealed record ReviewRequest(bool Approve, string? Channel);
-internal sealed record CompleteQrRequest(string Code, string State);
+internal sealed record CompleteQrRequest(string Code, string State, string? Client = null);
 internal sealed record ClientEvent(string EventId, string Type, string Subject, string? ClientVersion);
 
 public partial class Program;

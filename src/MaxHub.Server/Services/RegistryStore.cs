@@ -126,6 +126,17 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
     public ToolRelease? GetPublished(string toolId, string version) =>
         GetToolReleases(toolId).FirstOrDefault(r => r.Manifest.Version == version);
 
+    /// <summary>管理后台：全部版本（含待审核/已拒绝），按提交时间倒序。</summary>
+    public IReadOnlyList<ToolRelease> GetAllReleases()
+    {
+        using var db = dbFactory.CreateDbContext();
+        return db.Releases.AsNoTracking()
+            .ToList() // SQLite 不支持 DateTimeOffset ORDER BY，取回后内存排序
+            .OrderByDescending(r => r.SubmittedAtUtc)
+            .Select(ToDomain)
+            .ToList();
+    }
+
     public void RegisterConnector(ConnectorRelease release)
     {
         using var db = dbFactory.CreateDbContext();

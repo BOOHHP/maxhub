@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MaxHub 管理后台</title>
+<style>
+  :root {
+    --bg-window: #26282B; --bg-sidebar: #1E2023; --bg-card: #2E3136; --bg-card-hover: #35393F;
+    --border: #3D4147; --text-1: #E8EAED; --text-2: #9BA0A6; --text-3: #5F6368;
+    --accent: #4C9FE0; --accent-hover: #63AFE8; --ok: #4CC38A; --warn: #F0B429; --danger: #E5534B;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg-window); color: var(--text-1); font: 13px "Microsoft YaHei UI", "Segoe UI", sans-serif; }
+  header { background: var(--bg-sidebar); padding: 12px 24px; display: flex; align-items: center; gap: 10px; }
+  header .dot { color: var(--accent); }
+  header .who { margin-left: auto; color: var(--text-2); font-size: 12px; }
+  main { max-width: 1080px; margin: 24px auto; padding: 0 24px; }
+  h2 { font-size: 15px; margin: 24px 0 10px; }
+  table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 4px; overflow: hidden; }
+  th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  th { color: var(--text-2); font-weight: normal; background: var(--bg-sidebar); }
+  tr:hover td { background: var(--bg-card-hover); }
+  .badge { padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+  .badge.PendingReview { background: #3D3320; color: var(--warn); }
+  .badge.Published { background: #1B3B2A; color: var(--ok); }
+  .badge.Rejected { background: #42272A; color: var(--danger); }
+  button { font: inherit; border: 0; border-radius: 4px; padding: 5px 14px; cursor: pointer; }
+  .primary { background: var(--accent); color: #fff; }
+  .primary:hover { background: var(--accent-hover); }
+  .outline { background: transparent; color: var(--text-2); border: 1px solid var(--border); }
+  .danger-outline { background: transparent; color: var(--danger); border: 1px solid var(--border); }
+  select, input { font: inherit; background: var(--bg-sidebar); color: var(--text-1); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; }
+  #login-panel { max-width: 360px; margin: 80px auto; text-align: center; }
+  #login-panel p { color: var(--text-2); margin: 8px 0 20px; }
+  .hint { color: var(--text-3); font-size: 12px; margin-top: 12px; }
+  .row-actions { display: flex; gap: 6px; align-items: center; }
+  #msg { position: fixed; top: 16px; right: 16px; padding: 10px 16px; border-radius: 4px; display: none; font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot">⬤</span><strong>MaxHub 管理后台</strong>
+  <span class="who" id="who"></span>
+  <button class="outline" id="logout" style="display:none">退出</button>
+</header>
+
+<div id="login-panel">
+  <h2 style="font-size:18px">登录 MaxHub 管理后台</h2>
+  <p>使用飞书账号授权（需要审核者或管理员角色）</p>
+  <button class="primary" id="feishu-login" style="width:200px;height:38px">飞书扫码登录</button>
+  <div class="hint">将跳转到飞书授权页，请勿关闭本页</div>
+</div>
+
+<main id="app" style="display:none">
+  <h2>待审核（<span id="pending-count">0</span>）</h2>
+  <table id="pending-table">
+    <thead><tr><th>工具</th><th>版本</th><th>提交人</th><th>提交时间</th><th>操作</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>全部版本</h2>
+  <table id="all-table">
+    <thead><tr><th>工具</th><th>版本</th><th>状态</th><th>频道</th><th>签名</th><th>审核人</th><th>提交时间</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</main>
+
+<div id="msg"></div>
+
+<script>
+const api = (path, opts = {}) => fetch(path, {
+  ...opts,
+  headers: {
+    'Content-Type': 'application/json',
+    ...(localStorage.maxhubToken ? { Authorization: 'Bearer ' + localStorage.maxhubToken } : {}),
+    ...opts.headers,
+  },
+});
+
+function toast(text, ok = true) {
+  const el = document.getElementById('msg');
+  el.textContent = text;
+  el.style.display = 'block';
+  el.style.background = ok ? '#1B3B2A' : '#42272A';
+  el.style.color = ok ? 'var(--ok)' : 'var(--danger)';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+// ---- 登录 ----
+async function startLogin() {
+  const res = await api('/api/v1/auth/feishu/qr-sessions?client=web', { method: 'POST' });
+  const s = await res.json();
+  if (s.authorizeUrl.startsWith('https://')) {
+    location.href = s.authorizeUrl; // state=sessionId 随回调带回
+  } else {
+    toast('服务端为 mock 模式，无法跳转飞书；请用测试端点授权', false);
+  }
+}
+
+// 飞书回调落回本页：?code=..&state=<sessionId>
+async function handleCallback(code, state) {
+  const done = await api(`/api/v1/auth/feishu/qr-sessions/${state}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ code, state, client: 'web' }),
+  });
+  if (!done.ok) { toast('授权码交换失败', false); return; }
+  const polled = await (await api(`/api/v1/auth/feishu/qr-sessions/${state}`)).json();
+  if (polled.status === 'authorized' && polled.session) {
+    localStorage.maxhubToken = polled.session.accessToken;
+    localStorage.maxhubUser = polled.session.user.username;
+    history.replaceState(null, '', location.pathname);
+    render();
+  } else {
+    toast('登录会话已过期，请重试', false);
+  }
+}
+
+function logout() {
+  delete localStorage.maxhubToken;
+  delete localStorage.maxhubUser;
+  render();
+}
+
+// ---- 数据与渲染 ----
+async function loadReleases() {
+  const res = await api('/api/v1/admin/releases');
+  if (res.status === 401) { logout(); return null; }
+  if (res.status === 403) { toast('当前账号无审核者/管理员角色', false); return null; }
+  return res.json();
+}
+
+async function review(releaseId, approve, channel) {
+  const res = await api(`/api/v1/releases/${releaseId}/review`, {
+    method: 'POST',
+    body: JSON.stringify({ approve, channel }),
+  });
+  toast(res.ok ? (approve ? `已发布到 ${channel}` : '已退回') : '操作失败', res.ok);
+  if (res.ok) refresh();
+}
+
+const fmt = (t) => new Date(t).toLocaleString('zh-CN', { hour12: false });
+
+async function refresh() {
+  const releases = await loadReleases();
+  if (!releases) return;
+
+  const pending = releases.filter(r => r.status === 'PendingReview');
+  document.getElementById('pending-count').textContent = pending.length;
+  document.querySelector('#pending-table tbody').innerHTML = pending.map(r => `
+    <tr>
+      <td>${r.name}<div style="color:var(--text-3);font-size:11px">${r.toolId}</div></td>
+      <td>${r.version}</td>
+      <td>${r.submittedBy}</td>
+      <td>${fmt(r.submittedAtUtc)}</td>
+      <td><div class="row-actions">
+        <select id="ch-${r.releaseId}"><option>stable</option><option>beta</option><option>internal</option></select>
+        <button class="primary" onclick="review('${r.releaseId}', true, document.getElementById('ch-${r.releaseId}').value)">通过</button>
+        <button class="danger-outline" onclick="review('${r.releaseId}', false, null)">退回</button>
+      </div></td>
+    </tr>`).join('') || '<tr><td colspan="5" style="color:var(--text-3)">暂无待审核版本</td></tr>';
+
+  document.querySelector('#all-table tbody').innerHTML = releases.map(r => `
+    <tr>
+      <td>${r.name}<div style="color:var(--text-3);font-size:11px">${r.toolId}</div></td>
+      <td>${r.version}</td>
+      <td><span class="badge ${r.status}">${{ PendingReview: '待审核', Published: '已发布', Rejected: '已退回', Withdrawn: '已撤回' }[r.status] ?? r.status}</span></td>
+      <td>${r.channel}</td>
+      <td>${r.signed ? '✓ 已签名' : '—'}</td>
+      <td>${r.reviewedBy ?? '—'}</td>
+      <td>${fmt(r.submittedAtUtc)}</td>
+    </tr>`).join('');
+}
+
+function render() {
+  const loggedIn = !!localStorage.maxhubToken;
+  document.getElementById('login-panel').style.display = loggedIn ? 'none' : 'block';
+  document.getElementById('app').style.display = loggedIn ? 'block' : 'none';
+  document.getElementById('logout').style.display = loggedIn ? 'inline-block' : 'none';
+  document.getElementById('who').textContent = loggedIn ? `✓ ${localStorage.maxhubUser ?? '已登录'}` : '';
+  if (loggedIn) refresh();
+}
+
+document.getElementById('feishu-login').addEventListener('click', startLogin);
+document.getElementById('logout').addEventListener('click', logout);
+
+const params = new URLSearchParams(location.search);
+if (params.has('code') && params.has('state')) {
+  handleCallback(params.get('code'), params.get('state'));
+} else {
+  render();
+}
+</script>
+</body>
+</html>

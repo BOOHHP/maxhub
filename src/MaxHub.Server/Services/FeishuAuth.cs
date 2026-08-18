@@ -9,6 +9,8 @@ public sealed class FeishuAuthOptions
     public string AppSecret { get; init; } = "";
     /// <summary>必须与飞书开发者后台【安全设置-重定向URL】完全一致。</summary>
     public string RedirectUri { get; init; } = "http://127.0.0.1:47811/callback";
+    /// <summary>管理后台 Web 登录回调，同样需在飞书后台登记；留空则 Web 登录不可用。</summary>
+    public string WebRedirectUri { get; init; } = "";
     public string PassportBaseUrl { get; init; } = "https://passport.feishu.cn";
 
     public bool IsConfigured => AppId.Length > 0 && AppSecret.Length > 0;
@@ -17,10 +19,10 @@ public sealed class FeishuAuthOptions
 /// <summary>真实飞书扫码：授权页 URL，state 绑定 MaxHub 会话防 CSRF。</summary>
 public sealed class RealFeishuAuthProvider(FeishuAuthOptions options) : IFeishuAuthProvider
 {
-    public string BuildAuthorizeUrl(string sessionId) =>
+    public string BuildAuthorizeUrl(string sessionId, string? redirectUri = null) =>
         $"{options.PassportBaseUrl}/suite/passport/oauth/authorize" +
         $"?client_id={Uri.EscapeDataString(options.AppId)}" +
-        $"&redirect_uri={Uri.EscapeDataString(options.RedirectUri)}" +
+        $"&redirect_uri={Uri.EscapeDataString(redirectUri ?? options.RedirectUri)}" +
         "&response_type=code" +
         $"&state={Uri.EscapeDataString(sessionId)}";
 }
@@ -28,14 +30,14 @@ public sealed class RealFeishuAuthProvider(FeishuAuthOptions options) : IFeishuA
 /// <summary>授权码换员工身份。仅服务端实现，AppSecret 不出服务端。</summary>
 public interface IFeishuCodeExchanger
 {
-    Task<EmployeeIdentity> ExchangeAsync(string code, CancellationToken cancellationToken = default);
+    Task<EmployeeIdentity> ExchangeAsync(string code, string? redirectUri = null, CancellationToken cancellationToken = default);
 }
 
 public sealed class FeishuAuthException(string message) : Exception(message);
 
 public sealed class FeishuPassportClient(HttpClient http, FeishuAuthOptions options) : IFeishuCodeExchanger
 {
-    public async Task<EmployeeIdentity> ExchangeAsync(string code, CancellationToken cancellationToken = default)
+    public async Task<EmployeeIdentity> ExchangeAsync(string code, string? redirectUri = null, CancellationToken cancellationToken = default)
     {
         // 第一步：authorization_code 换 user access_token
         using var tokenResponse = await http.PostAsync(
@@ -46,7 +48,7 @@ public sealed class FeishuPassportClient(HttpClient http, FeishuAuthOptions opti
                 ["client_id"] = options.AppId,
                 ["client_secret"] = options.AppSecret,
                 ["code"] = code,
-                ["redirect_uri"] = options.RedirectUri,
+                ["redirect_uri"] = redirectUri ?? options.RedirectUri,
             }),
             cancellationToken);
 

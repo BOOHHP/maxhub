@@ -15,12 +15,12 @@ public sealed record IssuedSession(string AccessToken, string RefreshToken, Empl
 /// </summary>
 public interface IFeishuAuthProvider
 {
-    string BuildAuthorizeUrl(string sessionId);
+    string BuildAuthorizeUrl(string sessionId, string? redirectUri = null);
 }
 
 public sealed class MockFeishuAuthProvider : IFeishuAuthProvider
 {
-    public string BuildAuthorizeUrl(string sessionId) => $"maxhub-mock://qr/{sessionId}";
+    public string BuildAuthorizeUrl(string sessionId, string? redirectUri = null) => $"maxhub-mock://qr/{sessionId}";
 }
 
 public sealed class AuthService(IFeishuAuthProvider provider, IRefreshTokenStore refreshTokens)
@@ -42,11 +42,11 @@ public sealed class AuthService(IFeishuAuthProvider provider, IRefreshTokenStore
     private readonly ConcurrentDictionary<string, QrSession> _qrSessions = new();
     private readonly ConcurrentDictionary<string, TokenState> _accessTokens = new();
 
-    public QrSessionView CreateQrSession()
+    public QrSessionView CreateQrSession(string? redirectUri = null)
     {
         var session = new QrSession { Id = NewToken(), ExpiresAtUtc = DateTimeOffset.UtcNow + QrTtl };
         _qrSessions[session.Id] = session;
-        return new QrSessionView(session.Id, provider.BuildAuthorizeUrl(session.Id), session.ExpiresAtUtc);
+        return new QrSessionView(session.Id, provider.BuildAuthorizeUrl(session.Id, redirectUri), session.ExpiresAtUtc);
     }
 
     /// <summary>由授权回调（生产为飞书重定向，测试为 mock 端点）确认扫码人身份。</summary>

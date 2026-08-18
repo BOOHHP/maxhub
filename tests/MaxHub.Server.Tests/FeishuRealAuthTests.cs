@@ -17,7 +17,7 @@ public sealed class FeishuServerFixture : WebApplicationFactory<Program>
 
     private sealed class FakeExchanger : IFeishuCodeExchanger
     {
-        public Task<EmployeeIdentity> ExchangeAsync(string code, CancellationToken cancellationToken = default) =>
+        public Task<EmployeeIdentity> ExchangeAsync(string code, string? redirectUri = null, CancellationToken cancellationToken = default) =>
             code == "good-code"
                 ? Task.FromResult(new EmployeeIdentity("fs-emp-001", "测试员工"))
                 : throw new FeishuAuthException("授权码无效或已过期");
