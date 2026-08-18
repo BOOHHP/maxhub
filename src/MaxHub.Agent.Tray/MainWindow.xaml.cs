@@ -41,15 +41,22 @@ public partial class MainWindow : Window
 
     private void NavAccount_Checked(object sender, RoutedEventArgs e)
     {
-        AccountPage.Visibility = Visibility.Visible;
         ConnectorsPage.Visibility = Visibility.Collapsed;
+        ShowPageWithFade(AccountPage);
     }
 
     private void NavConnectors_Checked(object sender, RoutedEventArgs e)
     {
         AccountPage.Visibility = Visibility.Collapsed;
-        ConnectorsPage.Visibility = Visibility.Visible;
+        ShowPageWithFade(ConnectorsPage);
         _ = _connectors.RefreshAsync();
+    }
+
+    private static void ShowPageWithFade(UIElement page)
+    {
+        page.Visibility = Visibility.Visible;
+        page.BeginAnimation(OpacityProperty,
+            new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)));
     }
 
     private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e) => DragMove();

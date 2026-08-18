@@ -241,6 +241,8 @@ public sealed class ConnectorsViewModel : ViewModelBase
     private string _banner = "";
     private string _installAllText = "全部安装";
     private bool _busy;
+    private bool _isBatchInstalling;
+    private double _batchProgress;
 
     /// <summary>可更新数量变化，供托盘图标叠加提醒点。</summary>
     public event Action<int>? UpdateCountChanged;
@@ -258,6 +260,8 @@ public sealed class ConnectorsViewModel : ViewModelBase
     public string Banner { get => _banner; private set { Set(ref _banner, value); Raise(nameof(HasBanner)); } }
     public bool HasBanner => !string.IsNullOrEmpty(Banner);
     public string InstallAllText { get => _installAllText; private set => Set(ref _installAllText, value); }
+    public bool IsBatchInstalling { get => _isBatchInstalling; private set => Set(ref _isBatchInstalling, value); }
+    public double BatchProgress { get => _batchProgress; private set => Set(ref _batchProgress, value); }
     public RelayCommand RefreshCommand { get; }
     public RelayCommand InstallAllCommand { get; }
 
@@ -328,10 +332,12 @@ public sealed class ConnectorsViewModel : ViewModelBase
         row.StatusText = "◌ 安装中 0%";
         using var animCts = new CancellationTokenSource();
         var animation = AnimateProgressAsync(row, animCts.Token);
+        // 真实下载进度映射到 0-80%，与模拟值取大，包体变大时进度仍真实可信
+        var download = new Progress<double>(p => row.Progress = Math.Max(row.Progress, Math.Min(80, p * 0.8)));
         try
         {
             var installer = new ConnectorInstaller(_services.AgentRoot, _services.Resolver, _services.Ledger, _services.Hub);
-            var result = (await Task.Run(() => installer.SyncAsync([row.Installation]))).Single();
+            var result = (await Task.Run(() => installer.SyncAsync([row.Installation], download))).Single();
             animCts.Cancel();
             await animation;
             if (result.Success)
@@ -411,18 +417,38 @@ public sealed class ConnectorsViewModel : ViewModelBase
         if (pending.Count == 0)
             return;
         _busy = true;
+        IsBatchInstalling = true;
+        BatchProgress = 0;
         InstallAllCommand.RaiseCanExecuteChanged();
         try
         {
             for (var i = 0; i < pending.Count; i++)
             {
                 InstallAllText = $"全部安装中… ({i + 1}/{pending.Count})";
-                await InstallAsync(pending[i]); // 串行执行，避免并发写 agentRoot
+                var row = pending[i];
+                var completedBase = i * 100.0 / pending.Count;
+                void OnRowProgress(object? _, System.ComponentModel.PropertyChangedEventArgs e)
+                {
+                    if (e.PropertyName == nameof(ConnectorRowViewModel.Progress))
+                        BatchProgress = completedBase + row.Progress / pending.Count;
+                }
+                row.PropertyChanged += OnRowProgress;
+                try
+                {
+                    await InstallAsync(row); // 串行执行，避免并发写 agentRoot
+                }
+                finally
+                {
+                    row.PropertyChanged -= OnRowProgress;
+                }
+                BatchProgress = (i + 1) * 100.0 / pending.Count;
             }
         }
         finally
         {
             _busy = false;
+            IsBatchInstalling = false;
+            BatchProgress = 0;
             InstallAllText = "全部安装";
             InstallAllCommand.RaiseCanExecuteChanged();
         }

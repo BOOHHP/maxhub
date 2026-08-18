@@ -103,6 +103,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="40"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
@@ -118,14 +119,21 @@
                     </StackPanel>
                 </DockPanel>
 
+                <!-- 批量安装总进度 -->
+                <ProgressBar Grid.Row="1" Height="4" Minimum="0" Maximum="100" Margin="0,0,0,8"
+                             Value="{Binding BatchProgress, Mode=OneWay}"
+                             Background="{StaticResource Bg.Card}" BorderThickness="0"
+                             Foreground="{StaticResource Accent.Primary}"
+                             Visibility="{Binding IsBatchInstalling, Converter={StaticResource BoolToVis}}"/>
+
                 <!-- 提示条 -->
-                <Border Grid.Row="1" Background="{StaticResource Bg.Card}" CornerRadius="4" Padding="10,6" Margin="0,0,0,8"
+                <Border Grid.Row="2" Background="{StaticResource Bg.Card}" CornerRadius="4" Padding="10,6" Margin="0,0,0,8"
                         Visibility="{Binding HasBanner, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="{Binding Banner}" FontSize="12" Foreground="{StaticResource Status.Warning}"/>
                 </Border>
 
                 <!-- 版本列表 -->
-                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding Rows}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -240,7 +248,7 @@
                 </ScrollViewer>
 
                 <!-- 底部提示 -->
-                <TextBlock Grid.Row="3" Text="ⓘ 安装后请重启 3ds Max，面板将出现在 宏/工具栏 中" FontSize="12"
+                <TextBlock Grid.Row="4" Text="ⓘ 安装后请重启 3ds Max，面板将出现在 宏/工具栏 中" FontSize="12"
                            Foreground="{StaticResource Text.Secondary}" Margin="0,8,0,0"/>
             </Grid>
         </Grid>

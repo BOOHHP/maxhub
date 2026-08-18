@@ -21,16 +21,16 @@ public sealed class ConnectorInstaller(string agentRoot, IMaxPathResolver pathRe
     // 0_ 前缀使 loader 在启动队列中靠前执行：第三方启动脚本抛异常会中断后续队列（真机回归实测）
     private const string LoaderFileName = "0_maxhub_connector_loader.ms";
 
-    /// <summary>为每个检测到的 Max 实例安装或更新匹配的 Connector。</summary>
-    public async Task<IReadOnlyList<ConnectorSyncResult>> SyncAsync(IReadOnlyList<MaxInstallation> installations)
+    /// <summary>为每个检测到的 Max 实例安装或更新匹配的 Connector。downloadProgress 报告当前制品的下载百分比。</summary>
+    public async Task<IReadOnlyList<ConnectorSyncResult>> SyncAsync(IReadOnlyList<MaxInstallation> installations, IProgress<double>? downloadProgress = null)
     {
         var results = new List<ConnectorSyncResult>();
         foreach (var max in installations)
-            results.Add(await SyncOneAsync(max.Year));
+            results.Add(await SyncOneAsync(max.Year, downloadProgress));
         return results;
     }
 
-    private async Task<ConnectorSyncResult> SyncOneAsync(int maxYear)
+    private async Task<ConnectorSyncResult> SyncOneAsync(int maxYear, IProgress<double>? downloadProgress = null)
     {
         var candidates = await hub.GetConnectorsAsync(maxYear);
         if (candidates.Length == 0)
@@ -42,7 +42,7 @@ public sealed class ConnectorInstaller(string agentRoot, IMaxPathResolver pathRe
             return new ConnectorSyncResult(maxYear, true, release.Version, "已是最新版本。");
 
         var cachePath = Path.Combine(agentRoot, "cache", $"connector-{release.Version}-max{maxYear}.zip");
-        await hub.DownloadConnectorAsync(maxYear, release.Version, cachePath);
+        await hub.DownloadConnectorAsync(maxYear, release.Version, cachePath, downloadProgress);
         if (!string.Equals(ToolPackage.ComputeSha256(cachePath), release.Sha256, StringComparison.OrdinalIgnoreCase))
         {
             File.Delete(cachePath);

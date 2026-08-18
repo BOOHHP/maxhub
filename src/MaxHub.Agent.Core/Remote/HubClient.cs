@@ -56,14 +56,14 @@ public sealed class HubClient(HttpClient http)
     public Task<ConnectorInfo[]> GetConnectorsAsync(int maxYear) =>
         http.GetFromJsonAsync<ConnectorInfo[]>($"/api/v1/connectors?maxVersion={maxYear}")!;
 
-    public async Task DownloadToolAsync(string toolId, string version, string targetPath)
+    public async Task DownloadToolAsync(string toolId, string version, string targetPath, IProgress<double>? progress = null)
     {
-        await DownloadAsync($"/downloads/{toolId}/{version}/package.zip", targetPath);
+        await DownloadAsync($"/downloads/{toolId}/{version}/package.zip", targetPath, progress);
     }
 
-    public async Task DownloadConnectorAsync(int maxYear, string version, string targetPath)
+    public async Task DownloadConnectorAsync(int maxYear, string version, string targetPath, IProgress<double>? progress = null)
     {
-        await DownloadAsync($"/downloads/connectors/{maxYear}/{version}/package.zip", targetPath);
+        await DownloadAsync($"/downloads/connectors/{maxYear}/{version}/package.zip", targetPath, progress);
     }
 
     public async Task PostInstallEventAsync(string eventId, string type, string subject, string? clientVersion = null)
@@ -111,12 +111,23 @@ public sealed class HubClient(HttpClient http)
         response.EnsureSuccessStatusCode();
     }
 
-    private async Task DownloadAsync(string url, string targetPath)
+    private async Task DownloadAsync(string url, string targetPath, IProgress<double>? progress = null)
     {
         using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(targetPath))!);
+        var totalBytes = response.Content.Headers.ContentLength;
         await using var file = File.Create(targetPath);
-        await response.Content.CopyToAsync(file);
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        var buffer = new byte[81920];
+        long readTotal = 0;
+        int read;
+        while ((read = await stream.ReadAsync(buffer)) > 0)
+        {
+            await file.WriteAsync(buffer.AsMemory(0, read));
+            readTotal += read;
+            if (totalBytes > 0)
+                progress?.Report(readTotal * 100.0 / totalBytes.Value);
+        }
     }
 }
