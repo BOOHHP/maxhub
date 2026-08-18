@@ -1,14 +1,10 @@
-﻿using System.Net.Http.Json;
-using System.Security.Cryptography;
-using System.Text;
-using System.Text.Json;
-using MaxHub.Agent.Core.Detection;
+﻿using MaxHub.Agent.Core.Detection;
 using MaxHub.Agent.Core.Install;
 using MaxHub.Agent.Core.Paths;
 using MaxHub.Agent.Core.Remote;
 
 var agentRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MaxHub");
-var settingsPath = Path.Combine(agentRoot, "agent-settings.json");
+var sessionStore = new AgentSessionStore(Path.Combine(agentRoot, "agent-settings.json"));
 var resolver = new DefaultMaxPathResolver();
 var engine = new InstallEngine(agentRoot, resolver, new LedgerStore(Path.Combine(agentRoot, "installed.json")));
 
@@ -79,7 +75,8 @@ async Task<int> Login(string server)
         await Task.Delay(TimeSpan.FromSeconds(2));
         if (await hub.PollQrAsync(qr.SessionId) is { } session)
         {
-            SaveTokens(session.AccessToken, session.RefreshToken, session.ExpiresAtUtc);
+            sessionStore.Save(session.AccessToken, session.RefreshToken, session.ExpiresAtUtc,
+                new AgentUser(session.EmployeeId, session.Username));
             Console.WriteLine($"登录成功：{session.Username} ({session.EmployeeId})");
             return 0;
         }
@@ -238,81 +235,7 @@ HttpClient CreateHttp(string server, bool withToken)
 {
     if (!withToken)
         return new HttpClient { BaseAddress = new Uri(server) };
-    // 服务端重启会使内存中的访问令牌失效（本地未到期），收到 401 时强制刷新并重试一次
-    var http = new HttpClient(new SessionRefreshHandler(() => RefreshSession(server))) { BaseAddress = new Uri(server) };
-    http.DefaultRequestHeaders.Authorization = new("Bearer", LoadToken(server));
+    var http = new HttpClient(new SessionRefreshHandler(() => sessionStore.ForceRefresh(server))) { BaseAddress = new Uri(server) };
+    http.DefaultRequestHeaders.Authorization = new("Bearer", sessionStore.LoadAccessToken(server));
     return http;
-}
-
-void SaveTokens(string accessToken, string refreshToken, DateTimeOffset expiresAtUtc)
-{
-    Directory.CreateDirectory(agentRoot);
-    File.WriteAllText(settingsPath, JsonSerializer.Serialize(new
-    {
-        accessToken = Protect(accessToken),
-        refreshToken = Protect(refreshToken),
-        expiresAtUtc,
-    }));
-}
-
-/// <remarks>访问令牌临近到期时用持久化刷新令牌自动续期，服务端重启后无需重新扫码。</remarks>
-string LoadToken(string server)
-{
-    if (!File.Exists(settingsPath))
-        throw new InvalidOperationException("尚未登录，请先执行 login。");
-    var json = JsonDocument.Parse(File.ReadAllText(settingsPath));
-    var expiresAtUtc = json.RootElement.TryGetProperty("expiresAtUtc", out var exp)
-        ? exp.GetDateTimeOffset()
-        : DateTimeOffset.MinValue;
-    if (expiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
-        return Unprotect(json.RootElement.GetProperty("accessToken").GetString()!);
-    return RefreshSession(server);
-}
-
-string RefreshSession(string server)
-{
-    if (!File.Exists(settingsPath))
-        throw new InvalidOperationException("尚未登录，请先执行 login。");
-    var json = JsonDocument.Parse(File.ReadAllText(settingsPath));
-    if (!json.RootElement.TryGetProperty("refreshToken", out var rt))
-        throw new InvalidOperationException("会话已过期，请重新执行 login。");
-    using var http = new HttpClient { BaseAddress = new Uri(server) };
-    var response = http.PostAsJsonAsync("/api/v1/auth/sessions/refresh", new { refreshToken = Unprotect(rt.GetString()!) })
-        .GetAwaiter().GetResult();
-    if (!response.IsSuccessStatusCode)
-        throw new InvalidOperationException("会话已过期，请重新执行 login。");
-    var session = response.Content.ReadFromJsonAsync<JsonElement>().GetAwaiter().GetResult();
-    var accessToken = session.GetProperty("accessToken").GetString()!;
-    SaveTokens(accessToken, session.GetProperty("refreshToken").GetString()!, session.GetProperty("expiresAtUtc").GetDateTimeOffset());
-    return accessToken;
-}
-
-string Protect(string value) =>
-    Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(value), null, DataProtectionScope.CurrentUser));
-
-string Unprotect(string value) =>
-    Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(value), null, DataProtectionScope.CurrentUser));
-
-/// <summary>401 时用刷新令牌强制续期并重试一次（覆盖服务端重启使未到期访问令牌失效的场景）。</summary>
-sealed class SessionRefreshHandler : DelegatingHandler
-{
-    private readonly Func<string> _forceRefresh;
-
-    public SessionRefreshHandler(Func<string> forceRefresh) : base(new HttpClientHandler()) => _forceRefresh = forceRefresh;
-
-    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-    {
-        var response = await base.SendAsync(request, cancellationToken);
-        if (response.StatusCode != System.Net.HttpStatusCode.Unauthorized)
-            return response;
-
-        string newToken;
-        try { newToken = _forceRefresh(); }
-        catch { return response; }
-
-        response.Dispose();
-        var retry = new HttpRequestMessage(request.Method, request.RequestUri) { Content = request.Content };
-        retry.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", newToken);
-        return await base.SendAsync(retry, cancellationToken);
-    }
 }
