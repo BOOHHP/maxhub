@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="MaxHub Agent" Width="720" Height="480"
+        Icon="Assets/maxhub.ico"
         WindowStyle="None" ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Bg.Window}">
@@ -14,8 +15,21 @@
         <!-- 自绘标题栏 -->
         <Border Grid.Row="0" Background="{StaticResource Bg.Sidebar}" MouseLeftButtonDown="TitleBar_MouseDown">
             <DockPanel>
-                <TextBlock Text="⬤" Foreground="{StaticResource Accent.Primary}" FontSize="10"
-                           VerticalAlignment="Center" Margin="12,0,6,0"/>
+            <Border Width="18" Height="18" Background="{StaticResource Bg.Window}" CornerRadius="4"
+                VerticalAlignment="Center" Margin="10,0,8,0">
+                <Grid>
+                <Path Stroke="{StaticResource Accent.Primary}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Data="M9,9 L3,3 M9,9 L3,15 M9,9 L16,9"/>
+                <Border Width="4" Height="4" Background="{StaticResource Accent.Primary}" CornerRadius="1"
+                    HorizontalAlignment="Left" VerticalAlignment="Top" Margin="1,1,0,0"/>
+                <Border Width="4" Height="4" Background="{StaticResource Accent.Primary}" CornerRadius="1"
+                    HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="1,0,0,1"/>
+                <Border Width="4" Height="4" Background="{StaticResource Accent.Primary}" CornerRadius="1"
+                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,1,0"/>
+                <Border Width="7" Height="7" Background="{StaticResource Text.Primary}" CornerRadius="1"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
                 <TextBlock Text="MaxHub Agent" FontSize="12" VerticalAlignment="Center"/>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Style="{StaticResource CaptionButton}" Content="─" Click="Minimize_Click"/>

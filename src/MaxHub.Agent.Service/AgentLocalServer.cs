@@ -54,6 +54,43 @@ public static class AgentLocalServer
             return Results.Text(string.Join("\n", lines));
         });
 
+        // 已安装工具中，服务器存在更新版本的列表：toolId|installedVersion|latestVersion|name
+        app.MapGet("/max/updates", async (int maxYear) =>
+        {
+            try
+            {
+                var tools = await hub.GetToolsAsync(maxYear);
+                var latest = tools.ToDictionary(t => t.ToolId, t => t);
+                var lines = ledger.Load().Entries
+                    .Where(e => e.MaxVersion == maxYear && e.Active && e.ArtifactType == "tool")
+                    .Where(e => latest.TryGetValue(e.ArtifactId, out var t) && t.LatestVersion != e.Version)
+                    .Select(e => $"{e.ArtifactId}|{e.Version}|{latest[e.ArtifactId].LatestVersion}|{latest[e.ArtifactId].Name}");
+                return Results.Text(string.Join("\n", lines));
+            }
+            catch (Exception ex)
+            {
+                return Results.Text($"error {ex.Message}", statusCode: 502);
+            }
+        });
+
+        // 卸载：同步操作，返回 ok|{conflictCount} 或 error|{msg}
+        app.MapPost("/max/uninstall", (string artifactId, int maxYear) =>
+        {
+            var outcome = engine.Uninstall(artifactId, maxYear);
+            if (!outcome.Success)
+                return Results.Text($"error|{outcome.Error}", statusCode: 400);
+            return Results.Text($"ok|{outcome.Conflicts.Count}");
+        });
+
+        // 回滚：同步操作，返回 ok|{version} 或 error|{msg}
+        app.MapPost("/max/rollback", (string artifactId, int maxYear) =>
+        {
+            var outcome = engine.Rollback(artifactId, maxYear);
+            if (!outcome.Success)
+                return Results.Text($"error|{outcome.Error}", statusCode: 400);
+            return Results.Text($"ok|{outcome.Entry?.Version ?? ""}");
+        });
+
         // 安装改为异步任务：POST 返回 job|{id}，面板轮询 /max/install-status 获取进度
         var jobs = new System.Collections.Concurrent.ConcurrentDictionary<string, InstallJob>();
 

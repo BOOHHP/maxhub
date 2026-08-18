@@ -1,4 +1,6 @@
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using Hardcodet.Wpf.TaskbarNotification;
@@ -92,23 +94,66 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    /// <summary>运行时绘制托盘图标：未登录=灰，已登录=蓝，有可更新=右下角橙点。</summary>
+    /// <summary>运行时绘制 MaxHub 分发中枢图标：未登录=灰，已登录=蓝，有可更新=右下角橙点。</summary>
     private static Icon CreateTrayIcon(bool loggedIn, bool hasUpdate)
     {
-        using var bmp = new Bitmap(32, 32);
+        using var bmp = new Bitmap(64, 64);
         using (var g = Graphics.FromImage(bmp))
         {
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            using var brush = new SolidBrush(loggedIn ? Color.FromArgb(0x4C, 0x9F, 0xE0) : Color.FromArgb(0x5F, 0x63, 0x68));
-            g.FillEllipse(brush, 2, 2, 28, 28);
-            using var font = new Font("Segoe UI", 15, System.Drawing.FontStyle.Bold, GraphicsUnit.Pixel);
-            g.DrawString("M", font, Brushes.White, 7, 7);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.ScaleTransform(2, 2);
+
+            using var background = new SolidBrush(Color.FromArgb(0x1E, 0x20, 0x23));
+            using var link = new SolidBrush(loggedIn ? Color.FromArgb(0x4C, 0x9F, 0xE0) : Color.FromArgb(0x5F, 0x63, 0x68));
+            using var center = new SolidBrush(Color.FromArgb(0xE8, 0xEA, 0xED));
+            FillRoundedRectangle(g, background, new RectangleF(2, 2, 28, 28), 7);
+
+            using (var pathPen = new Pen(link, 2.5f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.DrawLine(pathPen, 16, 16, 8, 8);
+                g.DrawLine(pathPen, 16, 16, 8, 24);
+                g.DrawLine(pathPen, 16, 16, 24, 16);
+            }
+            FillRoundedRectangle(g, link, new RectangleF(5, 5, 6, 6), 1.5f);
+            FillRoundedRectangle(g, link, new RectangleF(5, 21, 6, 6), 1.5f);
+            FillRoundedRectangle(g, link, new RectangleF(21, 13, 6, 6), 1.5f);
+            FillRoundedRectangle(g, center, new RectangleF(12, 12, 8, 8), 1.5f);
             if (hasUpdate)
             {
                 using var dot = new SolidBrush(Color.FromArgb(0xF0, 0xB4, 0x29));
                 g.FillEllipse(dot, 20, 20, 11, 11);
             }
         }
-        return Icon.FromHandle(bmp.GetHicon());
+        var iconHandle = bmp.GetHicon();
+        try
+        {
+            using var nativeIcon = Icon.FromHandle(iconHandle);
+            return (Icon)nativeIcon.Clone();
+        }
+        finally
+        {
+            DestroyIcon(iconHandle);
+        }
     }
+
+    private static void FillRoundedRectangle(Graphics graphics, Brush brush, RectangleF bounds, float radius)
+    {
+        using var path = CreateRoundedRectanglePath(bounds, radius);
+        graphics.FillPath(brush, path);
+    }
+
+    private static GraphicsPath CreateRoundedRectanglePath(RectangleF bounds, float radius)
+    {
+        var diameter = radius * 2;
+        var path = new GraphicsPath();
+        path.AddArc(bounds.Left, bounds.Top, diameter, diameter, 180, 90);
+        path.AddArc(bounds.Right - diameter, bounds.Top, diameter, diameter, 270, 90);
+        path.AddArc(bounds.Right - diameter, bounds.Bottom - diameter, diameter, diameter, 0, 90);
+        path.AddArc(bounds.Left, bounds.Bottom - diameter, diameter, diameter, 90, 90);
+        path.CloseFigure();
+        return path;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 }

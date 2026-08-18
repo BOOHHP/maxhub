@@ -7,7 +7,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyTitle>MaxHub Agent</AssemblyTitle>
+    <ApplicationIcon>Assets\maxhub.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\maxhub.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\MaxHub.Agent.Core\MaxHub.Agent.Core.csproj" />
