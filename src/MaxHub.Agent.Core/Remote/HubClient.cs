@@ -71,6 +71,45 @@ public sealed class HubClient(HttpClient http)
         response.EnsureSuccessStatusCode();
     }
 
+    public sealed record PublishOutcome(bool Success, string? ReleaseId, string[] Errors);
+
+    public async Task<PublishOutcome> PublishAsync(string zipPath)
+    {
+        using var content = new MultipartFormDataContent
+        {
+            { new ByteArrayContent(await File.ReadAllBytesAsync(zipPath)), "package", Path.GetFileName(zipPath) },
+        };
+        var response = await http.PostAsync("/api/v1/publish/releases", content);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        if (!response.IsSuccessStatusCode)
+        {
+            var errors = json.TryGetProperty("errors", out var e)
+                ? e.EnumerateArray().Select(x => x.GetString() ?? "").ToArray()
+                : [response.StatusCode.ToString()];
+            return new PublishOutcome(false, null, errors);
+        }
+        return new PublishOutcome(true, json.GetProperty("releaseId").GetString(), []);
+    }
+
+    public async Task ReviewAsync(string releaseId, bool approve, string channel)
+    {
+        var response = await http.PostAsJsonAsync($"/api/v1/releases/{releaseId}/review", new { approve, channel });
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task RegisterConnectorAsync(string zipPath, string version, int minMaxYear, int maxMaxYear)
+    {
+        using var content = new MultipartFormDataContent
+        {
+            { new ByteArrayContent(await File.ReadAllBytesAsync(zipPath)), "package", Path.GetFileName(zipPath) },
+            { new StringContent(version), "version" },
+            { new StringContent(minMaxYear.ToString()), "minMaxYear" },
+            { new StringContent(maxMaxYear.ToString()), "maxMaxYear" },
+        };
+        var response = await http.PostAsync("/api/v1/admin/connectors", content);
+        response.EnsureSuccessStatusCode();
+    }
+
     private async Task DownloadAsync(string url, string targetPath)
     {
         using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);

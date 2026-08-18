@@ -15,6 +15,10 @@ return args switch
 {
     ["detect"] => Detect(),
     ["login", var server] => await Login(server),
+    ["pack", var sourceDir, var outputZip] => Pack(sourceDir, outputZip),
+    ["publish", var server, var zipPath] => await Publish(server, zipPath),
+    ["review", var server, var releaseId, var action, var channel] => await Review(server, releaseId, action, channel),
+    ["register-connector", var server, var zipPath, var version, var minYear, var maxYear] => await RegisterConnector(server, zipPath, version, int.Parse(minYear), int.Parse(maxYear)),
     ["tools", var server, var year] => await Tools(server, int.Parse(year)),
     ["sync-connectors", var server] => await SyncConnectors(server),
     ["install", var server, var toolId, var version, var year] => await Install(server, toolId, version, int.Parse(year)),
@@ -79,6 +83,45 @@ async Task<int> Login(string server)
     }
     Console.WriteLine("扫码超时。");
     return 1;
+}
+
+int Pack(string sourceDir, string outputZip)
+{
+    var result = MaxHub.Core.Packaging.ToolPackage.Pack(sourceDir, outputZip);
+    Console.WriteLine($"已打包: {result.ZipPath}");
+    Console.WriteLine($"SHA-256: {result.Sha256}");
+    return 0;
+}
+
+async Task<int> Publish(string server, string zipPath)
+{
+    var hub = new HubClient(CreateHttp(server, withToken: true));
+    var outcome = await hub.PublishAsync(zipPath);
+    if (!outcome.Success)
+    {
+        Console.WriteLine("发布被拒绝：");
+        foreach (var error in outcome.Errors)
+            Console.WriteLine($"  - {error}");
+        return 1;
+    }
+    Console.WriteLine($"已提交待审核，releaseId: {outcome.ReleaseId}");
+    return 0;
+}
+
+async Task<int> Review(string server, string releaseId, string action, string channel)
+{
+    var hub = new HubClient(CreateHttp(server, withToken: true));
+    await hub.ReviewAsync(releaseId, action == "approve", channel);
+    Console.WriteLine(action == "approve" ? $"已发布到 {channel}" : "已退回");
+    return 0;
+}
+
+async Task<int> RegisterConnector(string server, string zipPath, string version, int minYear, int maxYear)
+{
+    var hub = new HubClient(CreateHttp(server, withToken: true));
+    await hub.RegisterConnectorAsync(zipPath, version, minYear, maxYear);
+    Console.WriteLine($"Connector {version} 已注册（Max {minYear}-{maxYear}）");
+    return 0;
 }
 
 async Task<int> Tools(string server, int year)
@@ -155,6 +198,10 @@ int Usage()
         MaxHub Agent CLI
           detect                                     检测本机 3ds Max 安装
           login <server>                             飞书扫码登录
+          pack <sourceDir> <outputZip>               打包工具目录为 .dccc-tool.zip
+          publish <server> <zipPath>                 上传待审核发布（需 publisher 角色）
+          review <server> <releaseId> <approve|reject> <channel>  审核（需 reviewer 角色）
+          register-connector <server> <zip> <version> <minYear> <maxYear>  注册 Connector（需 admin）
           tools <server> <maxYear>                   列出兼容工具
           sync-connectors <server>                   为本机所有 Max 安装匹配的 Connector
           install <server> <toolId> <version> <maxYear>
