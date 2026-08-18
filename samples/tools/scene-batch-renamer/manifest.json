@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "com.company.scene-batch-renamer",
+  "name": "Scene Batch Renamer",
+  "version": "1.4.0",
+  "hostType": "3dsmax",
+  "description": "批量重命名场景对象，支持前缀、后缀和序号模板。",
+  "compatibility": {
+    "minVersion": 2019,
+    "maxVersion": 2026,
+    "platforms": ["win-x64"]
+  },
+  "install": {
+    "scope": "user",
+    "restartRequired": false,
+    "targets": [
+      { "source": "payload/3dsmax/scripts/SceneBatchRenamer.ms", "destination": "userScripts" },
+      { "source": "payload/3dsmax/macros/SceneBatchRenamer.mcr", "destination": "userMacros" }
+    ]
+  },
+  "entryPoints": [
+    { "kind": "macroScript", "script": "SceneBatchRenamer.mcr", "category": "Company Tools" }
+  ],
+  "permissions": ["file.read", "file.write"]
+}

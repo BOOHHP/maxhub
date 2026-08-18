@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "maxhub://protocol/manifest.schema.json",
+  "title": "MaxHub Tool Manifest",
+  "description": "Frozen v1 manifest for MaxHub 3ds Max tool packages. hostType is fixed to 3dsmax; this is not a multi-host schema.",
+  "type": "object",
+  "required": ["schemaVersion", "id", "name", "version", "hostType", "compatibility", "install"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$",
+      "maxLength": 128
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[0-9A-Za-z.-]+)?$"
+    },
+    "hostType": { "const": "3dsmax" },
+    "description": { "type": "string", "maxLength": 2000 },
+    "compatibility": {
+      "type": "object",
+      "required": ["minVersion", "maxVersion", "platforms"],
+      "additionalProperties": false,
+      "properties": {
+        "minVersion": { "type": "integer", "minimum": 2019, "maximum": 2026 },
+        "maxVersion": { "type": "integer", "minimum": 2019, "maximum": 2026 },
+        "platforms": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "const": "win-x64" }
+        }
+      }
+    },
+    "install": {
+      "type": "object",
+      "required": ["scope", "restartRequired", "targets"],
+      "additionalProperties": false,
+      "properties": {
+        "scope": { "const": "user" },
+        "restartRequired": { "type": "boolean" },
+        "targets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "required": ["source", "destination"],
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "type": "string",
+                "description": "Forward-slash relative path inside the package, must start with payload/3dsmax/.",
+                "pattern": "^payload/3dsmax/[^\\\\]+$"
+              },
+              "destination": {
+                "enum": ["userScripts", "userMacros", "userStartup", "userPlugins", "projectScripts", "sharedScripts"],
+                "description": "MVP installers only accept userScripts/userMacros/userStartup."
+              }
+            }
+          }
+        }
+      }
+    },
+    "entryPoints": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "required": ["kind", "script"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "enum": ["macroScript", "script"] },
+          "script": { "type": "string", "pattern": "^[^\\\\/][^\\\\]*$" },
+          "category": { "type": "string", "maxLength": 100 }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "required": ["id", "range"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$" },
+          "range": { "type": "string", "pattern": "^[\\^~]?\\d+\\.\\d+\\.\\d+$" }
+        }
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["file.read", "file.write"] }
+    },
+    "integrity": {
+      "type": "object",
+      "required": ["sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

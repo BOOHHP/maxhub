@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "maxhub://protocol/installed-ledger.schema.json",
+  "title": "MaxHub Local Install Ledger",
+  "description": "Frozen v1 format of %LOCALAPPDATA%/MaxHub/installed.json. The ledger is the only authority for uninstall, repair and rollback.",
+  "type": "object",
+  "required": ["schemaVersion", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["artifactId", "artifactType", "version", "maxVersion", "scope", "files", "installedAtUtc", "active"],
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": { "type": "string", "minLength": 1 },
+          "artifactType": { "enum": ["tool", "connector"] },
+          "version": { "type": "string", "minLength": 1 },
+          "maxVersion": { "type": "integer", "minimum": 2019, "maximum": 2026 },
+          "scope": { "const": "user" },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["destination", "relativePath", "sha256"],
+              "additionalProperties": false,
+              "properties": {
+                "destination": { "type": "string", "minLength": 1 },
+                "relativePath": { "type": "string", "minLength": 1 },
+                "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+              }
+            }
+          },
+          "installedAtUtc": { "type": "string", "format": "date-time" },
+          "backupId": { "type": ["string", "null"] },
+          "active": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

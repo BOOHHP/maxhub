@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "com.company.quick-exporter",
+  "name": "Quick Exporter",
+  "version": "0.9.1",
+  "hostType": "3dsmax",
+  "description": "一键将选中对象导出为 FBX 到项目导出目录。",
+  "compatibility": {
+    "minVersion": 2021,
+    "maxVersion": 2026,
+    "platforms": ["win-x64"]
+  },
+  "install": {
+    "scope": "user",
+    "restartRequired": false,
+    "targets": [
+      { "source": "payload/3dsmax/scripts/quick_exporter.py", "destination": "userScripts" }
+    ]
+  },
+  "entryPoints": [
+    { "kind": "script", "script": "quick_exporter.py" }
+  ],
+  "permissions": ["file.read", "file.write"]
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "com.company.startup-env-check",
+  "name": "Startup Env Check",
+  "version": "2.0.0",
+  "hostType": "3dsmax",
+  "description": "Max 启动时检查单位、Gamma 和插件目录配置是否符合团队规范。",
+  "compatibility": {
+    "minVersion": 2019,
+    "maxVersion": 2024,
+    "platforms": ["win-x64"]
+  },
+  "install": {
+    "scope": "user",
+    "restartRequired": true,
+    "targets": [
+      { "source": "payload/3dsmax/startup/env_check.ms", "destination": "userStartup" }
+    ]
+  },
+  "permissions": ["file.read"]
+}
