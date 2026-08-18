@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using MaxHub.Agent.Core.Detection;
@@ -78,7 +79,7 @@ async Task<int> Login(string server)
         await Task.Delay(TimeSpan.FromSeconds(2));
         if (await hub.PollQrAsync(qr.SessionId) is { } session)
         {
-            SaveToken(session.AccessToken);
+            SaveTokens(session.AccessToken, session.RefreshToken, session.ExpiresAtUtc);
             Console.WriteLine($"登录成功：{session.Username} ({session.EmployeeId})");
             return 0;
         }
@@ -237,22 +238,48 @@ HttpClient CreateHttp(string server, bool withToken)
 {
     var http = new HttpClient { BaseAddress = new Uri(server) };
     if (withToken)
-        http.DefaultRequestHeaders.Authorization = new("Bearer", LoadToken());
+        http.DefaultRequestHeaders.Authorization = new("Bearer", LoadToken(server));
     return http;
 }
 
-void SaveToken(string token)
+void SaveTokens(string accessToken, string refreshToken, DateTimeOffset expiresAtUtc)
 {
     Directory.CreateDirectory(agentRoot);
-    var protectedBytes = ProtectedData.Protect(Encoding.UTF8.GetBytes(token), null, DataProtectionScope.CurrentUser);
-    File.WriteAllText(settingsPath, JsonSerializer.Serialize(new { accessToken = Convert.ToBase64String(protectedBytes) }));
+    File.WriteAllText(settingsPath, JsonSerializer.Serialize(new
+    {
+        accessToken = Protect(accessToken),
+        refreshToken = Protect(refreshToken),
+        expiresAtUtc,
+    }));
 }
 
-string LoadToken()
+/// <remarks>访问令牌临近到期时用持久化刷新令牌自动续期，服务端重启后无需重新扫码。</remarks>
+string LoadToken(string server)
 {
     if (!File.Exists(settingsPath))
         throw new InvalidOperationException("尚未登录，请先执行 login。");
     var json = JsonDocument.Parse(File.ReadAllText(settingsPath));
-    var protectedBytes = Convert.FromBase64String(json.RootElement.GetProperty("accessToken").GetString()!);
-    return Encoding.UTF8.GetString(ProtectedData.Unprotect(protectedBytes, null, DataProtectionScope.CurrentUser));
+    var expiresAtUtc = json.RootElement.TryGetProperty("expiresAtUtc", out var exp)
+        ? exp.GetDateTimeOffset()
+        : DateTimeOffset.MinValue;
+    if (expiresAtUtc > DateTimeOffset.UtcNow.AddMinutes(1))
+        return Unprotect(json.RootElement.GetProperty("accessToken").GetString()!);
+
+    if (!json.RootElement.TryGetProperty("refreshToken", out var rt))
+        throw new InvalidOperationException("会话已过期，请重新执行 login。");
+    using var http = new HttpClient { BaseAddress = new Uri(server) };
+    var response = http.PostAsJsonAsync("/api/v1/auth/sessions/refresh", new { refreshToken = Unprotect(rt.GetString()!) })
+        .GetAwaiter().GetResult();
+    if (!response.IsSuccessStatusCode)
+        throw new InvalidOperationException("会话已过期，请重新执行 login。");
+    var session = response.Content.ReadFromJsonAsync<JsonElement>().GetAwaiter().GetResult();
+    var accessToken = session.GetProperty("accessToken").GetString()!;
+    SaveTokens(accessToken, session.GetProperty("refreshToken").GetString()!, session.GetProperty("expiresAtUtc").GetDateTimeOffset());
+    return accessToken;
 }
+
+string Protect(string value) =>
+    Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(value), null, DataProtectionScope.CurrentUser));
+
+string Unprotect(string value) =>
+    Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(value), null, DataProtectionScope.CurrentUser));

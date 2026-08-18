@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace MaxHub.Agent.Core.Remote;
 
 public sealed record QrSessionInfo(string SessionId, string AuthorizeUrl);
-public sealed record HubSession(string AccessToken, string RefreshToken, string EmployeeId, string Username);
+public sealed record HubSession(string AccessToken, string RefreshToken, string EmployeeId, string Username, DateTimeOffset ExpiresAtUtc);
 public sealed record ToolIndexItem(string ToolId, string Name, string? Description, string LatestVersion, string Channel);
 public sealed record RemoteInstallPlan(string ToolId, string Version, string Sha256, long SizeBytes, bool RestartRequired, string RiskLevel);
 public sealed record ConnectorInfo(string Version, int MinMaxYear, int MaxMaxYear, string Sha256, long SizeBytes);
@@ -31,7 +31,8 @@ public sealed class HubClient(HttpClient http)
             session.GetProperty("accessToken").GetString()!,
             session.GetProperty("refreshToken").GetString()!,
             session.GetProperty("user").GetProperty("employeeId").GetString()!,
-            session.GetProperty("user").GetProperty("username").GetString()!);
+            session.GetProperty("user").GetProperty("username").GetString()!,
+            session.GetProperty("expiresAtUtc").GetDateTimeOffset());
         UseToken(hubSession.AccessToken);
         return hubSession;
     }

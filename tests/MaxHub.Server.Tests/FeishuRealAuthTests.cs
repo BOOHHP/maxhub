@@ -42,6 +42,7 @@ public sealed class FeishuServerFixture : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); // 释放 maxhub.db 句柄，避免临时目录删除失败
         if (Directory.Exists(DataDir))
             Directory.Delete(DataDir, recursive: true);
     }

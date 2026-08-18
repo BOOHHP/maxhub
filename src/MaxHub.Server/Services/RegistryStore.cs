@@ -1,18 +1,17 @@
-using System.Collections.Concurrent;
+using System.Text.Json;
 using MaxHub.Core.Manifests;
 using MaxHub.Core.Packaging;
+using MaxHub.Server.Data;
 using MaxHub.Server.Domain;
+using Microsoft.EntityFrameworkCore;
 
 namespace MaxHub.Server.Services;
 
 public sealed record SubmitOutcome(bool Success, string? ReleaseId, IReadOnlyList<string> Errors);
 
-public sealed class RegistryStore(string dataDir)
+/// <summary>SQLite 持久化的注册表；制品文件在 dataDir，元数据在 maxhub.db。</summary>
+public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> dbFactory)
 {
-    private readonly ConcurrentDictionary<string, List<ToolRelease>> _releasesByTool = new();
-    private readonly List<ConnectorRelease> _connectors = [];
-    private readonly ConcurrentDictionary<string, ActivityEvent> _activityEvents = new();
-    private readonly List<ActivityEvent> _installEvents = [];
     private readonly object _writeLock = new();
 
     public SubmitOutcome SubmitRelease(EmployeeIdentity submitter, Stream packageStream)
@@ -47,22 +46,30 @@ public sealed class RegistryStore(string dataDir)
 
             lock (_writeLock)
             {
-                var releases = _releasesByTool.GetOrAdd(manifest.Id, _ => []);
-                if (releases.Any(r => r.Manifest.Version == manifest.Version && r.Status != ReleaseStatus.Rejected))
+                using var db = dbFactory.CreateDbContext();
+                var duplicate = db.Releases.Any(r =>
+                    r.ToolId == manifest.Id && r.Version == manifest.Version && r.Status != ReleaseStatus.Rejected);
+                if (duplicate)
                     return new SubmitOutcome(false, null, [$"版本 {manifest.Version} 已存在。"]);
 
                 File.Copy(tempPath, artifactPath, overwrite: true);
-                var release = new ToolRelease
+                var row = new ReleaseRow
                 {
                     ReleaseId = Guid.NewGuid().ToString("N"),
-                    Manifest = manifest,
+                    ToolId = manifest.Id,
+                    Version = manifest.Version,
+                    ManifestJson = JsonSerializer.Serialize(manifest, ManifestJson.Options),
                     ArtifactPath = artifactPath,
                     Sha256 = ToolPackage.ComputeSha256(artifactPath),
                     SizeBytes = new FileInfo(artifactPath).Length,
                     SubmittedBy = submitter.EmployeeId,
+                    Status = ReleaseStatus.PendingReview,
+                    Channel = "internal",
+                    SubmittedAtUtc = DateTimeOffset.UtcNow,
                 };
-                releases.Add(release);
-                return new SubmitOutcome(true, release.ReleaseId, []);
+                db.Releases.Add(row);
+                db.SaveChanges();
+                return new SubmitOutcome(true, row.ReleaseId, []);
             }
         }
         finally
@@ -75,62 +82,138 @@ public sealed class RegistryStore(string dataDir)
     {
         lock (_writeLock)
         {
-            var release = AllReleases().FirstOrDefault(r => r.ReleaseId == releaseId);
-            if (release is null || release.Status != ReleaseStatus.PendingReview)
+            using var db = dbFactory.CreateDbContext();
+            var row = db.Releases.Find(releaseId);
+            if (row is null || row.Status != ReleaseStatus.PendingReview)
                 return false;
-            release.Status = approve ? ReleaseStatus.Published : ReleaseStatus.Rejected;
-            release.Channel = approve ? channel : release.Channel;
-            release.ReviewedBy = reviewer.EmployeeId;
+            row.Status = approve ? ReleaseStatus.Published : ReleaseStatus.Rejected;
+            if (approve)
+                row.Channel = channel;
+            row.ReviewedBy = reviewer.EmployeeId;
+            db.SaveChanges();
             return true;
         }
     }
 
     /// <summary>返回对指定 Max 年份可见的已发布工具索引（每工具取最高已发布版本）。</summary>
-    public IReadOnlyList<ToolRelease> QueryIndex(int maxYear) =>
-        _releasesByTool.Values
-            .Select(releases => releases
-                .Where(r => r.Status == ReleaseStatus.Published && Covers(r.Manifest, maxYear))
-                .OrderByDescending(r => Version.Parse(TrimPreRelease(r.Manifest.Version)))
-                .FirstOrDefault())
-            .Where(r => r is not null)
-            .Select(r => r!)
+    public IReadOnlyList<ToolRelease> QueryIndex(int maxYear)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var published = db.Releases.Where(r => r.Status == ReleaseStatus.Published).AsNoTracking().ToList();
+        return published
+            .Select(ToDomain)
+            .Where(r => Covers(r.Manifest, maxYear))
+            .GroupBy(r => r.Manifest.Id)
+            .Select(g => g.OrderByDescending(r => Version.Parse(TrimPreRelease(r.Manifest.Version))).First())
             .OrderBy(r => r.Manifest.Id, StringComparer.Ordinal)
             .ToList();
+    }
 
-    public IReadOnlyList<ToolRelease> GetToolReleases(string toolId) =>
-        _releasesByTool.TryGetValue(toolId, out var releases)
-            ? releases.Where(r => r.Status == ReleaseStatus.Published).ToList()
-            : [];
+    public IReadOnlyList<ToolRelease> GetToolReleases(string toolId)
+    {
+        using var db = dbFactory.CreateDbContext();
+        return db.Releases
+            .Where(r => r.ToolId == toolId && r.Status == ReleaseStatus.Published)
+            .AsNoTracking().ToList()
+            .Select(ToDomain)
+            .ToList();
+    }
 
     public ToolRelease? GetPublished(string toolId, string version) =>
         GetToolReleases(toolId).FirstOrDefault(r => r.Manifest.Version == version);
 
     public void RegisterConnector(ConnectorRelease release)
     {
-        lock (_writeLock)
-            _connectors.Add(release);
+        using var db = dbFactory.CreateDbContext();
+        db.Connectors.Add(new ConnectorRow
+        {
+            Version = release.Version,
+            MinMaxYear = release.MinMaxYear,
+            MaxMaxYear = release.MaxMaxYear,
+            ArtifactPath = release.ArtifactPath,
+            Sha256 = release.Sha256,
+            SizeBytes = release.SizeBytes,
+        });
+        db.SaveChanges();
     }
 
-    public IReadOnlyList<ConnectorRelease> QueryConnectors(int maxYear) =>
-        _connectors.Where(c => maxYear >= c.MinMaxYear && maxYear <= c.MaxMaxYear).ToList();
+    public IReadOnlyList<ConnectorRelease> QueryConnectors(int maxYear)
+    {
+        using var db = dbFactory.CreateDbContext();
+        return db.Connectors
+            .Where(c => maxYear >= c.MinMaxYear && maxYear <= c.MaxMaxYear)
+            .AsNoTracking().ToList()
+            .Select(c => new ConnectorRelease
+            {
+                Version = c.Version,
+                MinMaxYear = c.MinMaxYear,
+                MaxMaxYear = c.MaxMaxYear,
+                ArtifactPath = c.ArtifactPath,
+                Sha256 = c.Sha256,
+                SizeBytes = c.SizeBytes,
+            })
+            .ToList();
+    }
 
     public ConnectorRelease? GetConnector(int maxYear, string version) =>
         QueryConnectors(maxYear).FirstOrDefault(c => c.Version == version);
 
     /// <summary>幂等：重复 eventId 返回 false，不重复计数。</summary>
-    public bool AddActivityEvent(ActivityEvent activityEvent) =>
-        _activityEvents.TryAdd(activityEvent.EventId, activityEvent);
+    public bool AddActivityEvent(ActivityEvent activityEvent)
+    {
+        lock (_writeLock)
+        {
+            using var db = dbFactory.CreateDbContext();
+            if (db.ActivityEvents.Find(activityEvent.EventId) is not null)
+                return false;
+            db.ActivityEvents.Add(new ActivityEventRow
+            {
+                EventId = activityEvent.EventId,
+                EmployeeId = activityEvent.EmployeeId,
+                Type = activityEvent.Type,
+                Subject = activityEvent.Subject,
+                ClientVersion = activityEvent.ClientVersion,
+                AtUtc = activityEvent.AtUtc,
+            });
+            db.SaveChanges();
+            return true;
+        }
+    }
 
     public void AddInstallEvent(ActivityEvent installEvent)
     {
-        lock (_writeLock)
-            _installEvents.Add(installEvent);
+        using var db = dbFactory.CreateDbContext();
+        db.InstallEvents.Add(new InstallEventRow
+        {
+            EventId = installEvent.EventId,
+            EmployeeId = installEvent.EmployeeId,
+            Type = installEvent.Type,
+            Subject = installEvent.Subject,
+            ClientVersion = installEvent.ClientVersion,
+            AtUtc = installEvent.AtUtc,
+        });
+        db.SaveChanges();
     }
 
-    public int CountActivity(string employeeId, string type) =>
-        _activityEvents.Values.Count(e => e.EmployeeId == employeeId && e.Type == type);
+    public int CountActivity(string employeeId, string type)
+    {
+        using var db = dbFactory.CreateDbContext();
+        return db.ActivityEvents.Count(e => e.EmployeeId == employeeId && e.Type == type);
+    }
 
-    private IEnumerable<ToolRelease> AllReleases() => _releasesByTool.Values.SelectMany(r => r);
+    private static ToolRelease ToDomain(ReleaseRow row) => new()
+    {
+        ReleaseId = row.ReleaseId,
+        Manifest = JsonSerializer.Deserialize<ToolManifest>(row.ManifestJson, ManifestJson.Options)!,
+        ArtifactPath = row.ArtifactPath,
+        Sha256 = row.Sha256,
+        SizeBytes = row.SizeBytes,
+        SubmittedBy = row.SubmittedBy,
+        Status = row.Status,
+        Channel = row.Channel,
+        ReviewedBy = row.ReviewedBy,
+        SubmittedAtUtc = row.SubmittedAtUtc,
+    };
 
     private static bool Covers(ToolManifest manifest, int maxYear) =>
         maxYear >= manifest.Compatibility.MinVersion && maxYear <= manifest.Compatibility.MaxVersion;

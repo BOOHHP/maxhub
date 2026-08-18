@@ -1,5 +1,7 @@
+using MaxHub.Server.Data;
 using MaxHub.Server.Domain;
 using MaxHub.Server.Services;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,9 +27,16 @@ else
     builder.Services.AddSingleton<IFeishuAuthProvider, MockFeishuAuthProvider>();
 }
 builder.Services.AddSingleton<AuthService>();
-builder.Services.AddSingleton(new RegistryStore(dataDir));
+Directory.CreateDirectory(dataDir);
+var dbPath = Path.Combine(dataDir, "maxhub.db");
+builder.Services.AddDbContextFactory<MaxHubDb>(o => o.UseSqlite($"Data Source={dbPath}"));
+builder.Services.AddSingleton<IRefreshTokenStore, SqliteRefreshTokenStore>();
+builder.Services.AddSingleton(sp => new RegistryStore(dataDir, sp.GetRequiredService<IDbContextFactory<MaxHubDb>>()));
 
 var app = builder.Build();
+
+using (var db = app.Services.GetRequiredService<IDbContextFactory<MaxHubDb>>().CreateDbContext())
+    db.Database.EnsureCreated();
 
 var auth = app.Services.GetRequiredService<AuthService>();
 var registry = app.Services.GetRequiredService<RegistryStore>();

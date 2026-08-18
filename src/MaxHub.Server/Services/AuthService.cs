@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using MaxHub.Server.Data;
 using MaxHub.Server.Domain;
 
 namespace MaxHub.Server.Services;
@@ -22,10 +23,11 @@ public sealed class MockFeishuAuthProvider : IFeishuAuthProvider
     public string BuildAuthorizeUrl(string sessionId) => $"maxhub-mock://qr/{sessionId}";
 }
 
-public sealed class AuthService(IFeishuAuthProvider provider)
+public sealed class AuthService(IFeishuAuthProvider provider, IRefreshTokenStore refreshTokens)
 {
     private static readonly TimeSpan QrTtl = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan AccessTtl = TimeSpan.FromMinutes(30);
+    private static readonly TimeSpan RefreshTtl = TimeSpan.FromDays(30);
 
     private sealed class QrSession
     {
@@ -39,7 +41,6 @@ public sealed class AuthService(IFeishuAuthProvider provider)
 
     private readonly ConcurrentDictionary<string, QrSession> _qrSessions = new();
     private readonly ConcurrentDictionary<string, TokenState> _accessTokens = new();
-    private readonly ConcurrentDictionary<string, EmployeeIdentity> _refreshTokens = new();
 
     public QrSessionView CreateQrSession()
     {
@@ -72,9 +73,8 @@ public sealed class AuthService(IFeishuAuthProvider provider)
 
     public IssuedSession? Refresh(string refreshToken)
     {
-        if (!_refreshTokens.TryRemove(refreshToken, out var user))
-            return null;
-        return Issue(user);
+        var user = refreshTokens.Consume(refreshToken);
+        return user is null ? null : Issue(user);
     }
 
     public bool Revoke(string accessToken) => _accessTokens.TryRemove(accessToken, out _);
@@ -94,7 +94,7 @@ public sealed class AuthService(IFeishuAuthProvider provider)
     {
         var session = new IssuedSession(NewToken(), NewToken(), user, DateTimeOffset.UtcNow + AccessTtl);
         _accessTokens[session.AccessToken] = new TokenState(user, session.ExpiresAtUtc);
-        _refreshTokens[session.RefreshToken] = user;
+        refreshTokens.Save(session.RefreshToken, user, DateTimeOffset.UtcNow + RefreshTtl);
         return session;
     }
 
