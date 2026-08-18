@@ -5,3 +5,4 @@ obj/
 artifacts/
 appsettings.Local.json
 test-out.txt
+out/
