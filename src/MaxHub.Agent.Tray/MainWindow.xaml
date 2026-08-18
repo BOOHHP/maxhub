@@ -131,7 +131,12 @@
                             <DataTemplate>
                                 <StackPanel Margin="0,0,0,4">
                                     <Border Background="{StaticResource Bg.Card}" CornerRadius="4" Height="44" Padding="12,0">
-                                        <Grid VerticalAlignment="Center">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                        <Grid Grid.Row="0" VerticalAlignment="Center">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="110"/>
                                                 <ColumnDefinition Width="*"/>
@@ -203,6 +208,23 @@
                                                     </Style>
                                                 </Button.Style>
                                             </Button>
+                                        </Grid>
+                                        <!-- 安装进度：模拟递增，完成后冲刺到 100% -->
+                                        <ProgressBar Grid.Row="1" Height="3" Minimum="0" Maximum="100" Margin="0,0,0,4"
+                                                     Value="{Binding Progress, Mode=OneWay}"
+                                                     Background="Transparent" BorderThickness="0"
+                                                     Foreground="{StaticResource Accent.Primary}">
+                                            <ProgressBar.Style>
+                                                <Style TargetType="ProgressBar">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding StatusName}" Value="Installing">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ProgressBar.Style>
+                                        </ProgressBar>
                                         </Grid>
                                     </Border>
                                     <!-- 行内错误条 -->

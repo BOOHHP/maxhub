@@ -193,6 +193,7 @@ public sealed class ConnectorRowViewModel : ViewModelBase
     private ConnectorStatus _status;
     private string _statusText = "";
     private string _errorMessage = "";
+    private double _progress;
 
     public ConnectorRowViewModel(ConnectorsViewModel owner, MaxInstallation installation)
     {
@@ -215,6 +216,7 @@ public sealed class ConnectorRowViewModel : ViewModelBase
     public string StatusText { get => _statusText; set => Set(ref _statusText, value); }
     public string ErrorMessage { get => _errorMessage; set { Set(ref _errorMessage, value); Raise(nameof(HasError)); } }
     public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
+    public double Progress { get => _progress; set => Set(ref _progress, value); }
 
     public string ActionText => Status switch
     {
@@ -322,13 +324,19 @@ public sealed class ConnectorsViewModel : ViewModelBase
         }
         row.ErrorMessage = "";
         row.Status = ConnectorStatus.Installing;
-        row.StatusText = "安装中…";
+        row.Progress = 0;
+        row.StatusText = "◌ 安装中 0%";
+        using var animCts = new CancellationTokenSource();
+        var animation = AnimateProgressAsync(row, animCts.Token);
         try
         {
             var installer = new ConnectorInstaller(_services.AgentRoot, _services.Resolver, _services.Ledger, _services.Hub);
             var result = (await Task.Run(() => installer.SyncAsync([row.Installation]))).Single();
+            animCts.Cancel();
+            await animation;
             if (result.Success)
             {
+                await CompleteProgressAsync(row);
                 await RefreshRowStatusAsync(row);
                 UpdateCountChanged?.Invoke(Rows.Count(r => r.Status == ConnectorStatus.UpdateAvailable));
             }
@@ -350,6 +358,35 @@ public sealed class ConnectorsViewModel : ViewModelBase
             row.Status = ConnectorStatus.Failed;
             row.StatusText = "安装失败";
             row.ErrorMessage = $"⚠ 安装失败（{AccountViewModel.Brief(ex)}），可点击重试或联系 TA 组";
+        }
+        finally
+        {
+            animCts.Cancel();
+        }
+    }
+
+    /// <summary>模拟进度：每 50ms 随机 +0.5～1.5%，封顶 95%，真实完成后由 CompleteProgress 冲刺到 100%。</summary>
+    private static async Task AnimateProgressAsync(ConnectorRowViewModel row, CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested && row.Progress < 95)
+            {
+                await Task.Delay(50, ct);
+                row.Progress = Math.Min(95, row.Progress + 0.5 + Random.Shared.NextDouble());
+                row.StatusText = $"◌ 安装中 {(int)row.Progress}%";
+            }
+        }
+        catch (TaskCanceledException) { }
+    }
+
+    private static async Task CompleteProgressAsync(ConnectorRowViewModel row)
+    {
+        while (row.Progress < 100)
+        {
+            row.Progress = Math.Min(100, row.Progress + 6);
+            row.StatusText = $"◌ 安装中 {(int)row.Progress}%";
+            await Task.Delay(25);
         }
     }
 
