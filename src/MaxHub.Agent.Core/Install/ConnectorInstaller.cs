@@ -18,7 +18,8 @@ public sealed class ConnectorInstaller(string agentRoot, IMaxPathResolver pathRe
 {
     public const string ArtifactId = "com.maxhub.connector";
     public const string EntryScriptName = "maxhub_connector.ms";
-    private const string LoaderFileName = "maxhub_connector_loader.ms";
+    // 0_ 前缀使 loader 在启动队列中靠前执行：第三方启动脚本抛异常会中断后续队列（真机回归实测）
+    private const string LoaderFileName = "0_maxhub_connector_loader.ms";
 
     /// <summary>为每个检测到的 Max 实例安装或更新匹配的 Connector。</summary>
     public async Task<IReadOnlyList<ConnectorSyncResult>> SyncAsync(IReadOnlyList<MaxInstallation> installations)

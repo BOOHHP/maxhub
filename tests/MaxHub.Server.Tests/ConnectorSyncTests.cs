@@ -81,8 +81,8 @@ public class ConnectorSyncTests(ServerFixture fixture) : IClassFixture<ServerFix
             Assert.Equal("2.0.0", results.Single(r => r.MaxYear == 2024).Version);
 
             // 每个 Max 实例有独立加载脚本与脚本目录
-            var loader2019 = Path.Combine(resolver.Resolve(2019, "userStartup"), "maxhub_connector_loader.ms");
-            var loader2024 = Path.Combine(resolver.Resolve(2024, "userStartup"), "maxhub_connector_loader.ms");
+            var loader2019 = Path.Combine(resolver.Resolve(2019, "userStartup"), "0_maxhub_connector_loader.ms");
+            var loader2024 = Path.Combine(resolver.Resolve(2024, "userStartup"), "0_maxhub_connector_loader.ms");
             Assert.True(File.Exists(loader2019));
             Assert.True(File.Exists(loader2024));
             Assert.Contains(@"max2019\1.0.0", File.ReadAllText(loader2019));
