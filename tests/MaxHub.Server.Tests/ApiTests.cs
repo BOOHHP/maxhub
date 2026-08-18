@@ -15,6 +15,7 @@ public sealed class ServerFixture : WebApplicationFactory<Program>
 
     protected override IHost CreateHost(IHostBuilder builder)
     {
+        builder.UseEnvironment("Testing"); // 阻止加载含真实飞书凭据的 appsettings.Local.json
         builder.ConfigureHostConfiguration(config => config.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Storage:DataDir"] = DataDir,

@@ -41,7 +41,32 @@ async Task<int> Login(string server)
 {
     var hub = new HubClient(CreateHttp(server, withToken: false));
     var qr = await hub.CreateQrSessionAsync();
-    Console.WriteLine($"请用飞书扫码授权: {qr.AuthorizeUrl}");
+
+    if (qr.AuthorizeUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+    {
+        // 真实飞书：打开浏览器扫码，本机监听重定向回调，把 code 回传服务端换码
+        using var listener = LocalCallbackListener.Start();
+        Console.WriteLine("正在打开浏览器，请用飞书扫码授权…");
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(qr.AuthorizeUrl) { UseShellExecute = true });
+
+        var callback = await listener.WaitForCallbackAsync(TimeSpan.FromMinutes(3));
+        if (callback is null)
+        {
+            Console.WriteLine("授权超时或回调参数缺失。");
+            return 1;
+        }
+        if (callback.State != qr.SessionId)
+        {
+            Console.WriteLine("state 校验失败，已终止登录。");
+            return 1;
+        }
+        await hub.CompleteQrAsync(qr.SessionId, callback.Code, callback.State);
+    }
+    else
+    {
+        Console.WriteLine($"请用飞书扫码授权: {qr.AuthorizeUrl}");
+    }
+
     for (var i = 0; i < 60; i++)
     {
         await Task.Delay(TimeSpan.FromSeconds(2));

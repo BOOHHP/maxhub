@@ -39,6 +39,13 @@ public sealed class HubClient(HttpClient http)
     public void UseToken(string accessToken) =>
         http.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
 
+    /// <summary>本机回调模式：把飞书重定向拿到的授权码交给服务端换身份。</summary>
+    public async Task CompleteQrAsync(string sessionId, string code, string state)
+    {
+        var response = await http.PostAsJsonAsync($"/api/v1/auth/feishu/qr-sessions/{sessionId}/complete", new { code, state });
+        response.EnsureSuccessStatusCode();
+    }
+
     public Task<ToolIndexItem[]> GetToolsAsync(int maxYear) =>
         http.GetFromJsonAsync<ToolIndexItem[]>($"/api/v1/tools?maxVersion={maxYear}")!;
 

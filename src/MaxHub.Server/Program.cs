@@ -3,13 +3,27 @@ using MaxHub.Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// 真实飞书凭据放在 git 忽略的本地文件；测试环境不加载，保证用例确定性
+if (!builder.Environment.IsEnvironment("Testing"))
+    builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true);
+
 var dataDir = builder.Configuration["Storage:DataDir"] ?? Path.Combine(builder.Environment.ContentRootPath, "data");
 var enableMockAuth = builder.Configuration.GetValue("Auth:EnableMockProvider", builder.Environment.IsDevelopment());
 var publishers = builder.Configuration.GetSection("Roles:Publishers").Get<string[]>() ?? [];
 var reviewers = builder.Configuration.GetSection("Roles:Reviewers").Get<string[]>() ?? [];
 var admins = builder.Configuration.GetSection("Roles:Admins").Get<string[]>() ?? [];
 
-builder.Services.AddSingleton<IFeishuAuthProvider, MockFeishuAuthProvider>();
+var feishuOptions = builder.Configuration.GetSection("Feishu").Get<FeishuAuthOptions>() ?? new FeishuAuthOptions();
+builder.Services.AddSingleton(feishuOptions);
+if (feishuOptions.IsConfigured)
+{
+    builder.Services.AddSingleton<IFeishuAuthProvider>(new RealFeishuAuthProvider(feishuOptions));
+    builder.Services.AddSingleton<IFeishuCodeExchanger>(new FeishuPassportClient(new HttpClient(), feishuOptions));
+}
+else
+{
+    builder.Services.AddSingleton<IFeishuAuthProvider, MockFeishuAuthProvider>();
+}
 builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton(new RegistryStore(dataDir));
 
@@ -49,6 +63,26 @@ app.MapGet("/api/v1/auth/feishu/qr-sessions/{sessionId}", (string sessionId) =>
             user = new { employeeId = session.User.EmployeeId, username = session.User.Username },
         },
     });
+});
+
+// 本机回调模式：Agent 收到飞书重定向的 code 后回传，由服务端完成换码与身份映射
+app.MapPost("/api/v1/auth/feishu/qr-sessions/{sessionId}/complete", async (HttpContext ctx, string sessionId, CompleteQrRequest request) =>
+{
+    if (ctx.RequestServices.GetService<IFeishuCodeExchanger>() is not { } exchanger)
+        return Results.NotFound();
+    if (!string.Equals(request.State, sessionId, StringComparison.Ordinal))
+        return Results.BadRequest(new { errors = new[] { "state 与登录会话不匹配，已终止流程。" } });
+
+    EmployeeIdentity identity;
+    try
+    {
+        identity = await exchanger.ExchangeAsync(request.Code, ctx.RequestAborted);
+    }
+    catch (FeishuAuthException ex)
+    {
+        return Results.Problem(statusCode: StatusCodes.Status502BadGateway, title: "飞书授权码交换失败", detail: ex.Message);
+    }
+    return auth.AuthorizeQr(sessionId, identity) ? Results.Ok() : Results.NotFound();
 });
 
 app.MapPost("/api/v1/auth/sessions/refresh", (RefreshRequest request) =>
@@ -226,6 +260,7 @@ app.Run();
 
 internal sealed record RefreshRequest(string RefreshToken);
 internal sealed record ReviewRequest(bool Approve, string? Channel);
+internal sealed record CompleteQrRequest(string Code, string State);
 internal sealed record ClientEvent(string EventId, string Type, string Subject, string? ClientVersion);
 
 public partial class Program;
