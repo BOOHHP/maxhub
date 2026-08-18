@@ -19,12 +19,43 @@ public class AdminApiTests(ServerFixture fixture) : IClassFixture<ServerFixture>
 
         await api.PublishAndApprovePublicAsync("scene-batch-renamer");
 
-        var reviewer = await api.LoginPublicAsync("emp-rev", "审核者");
+        var reviewer = await api.LoginPublicAsync("emp-rev", "李四");
         var releases = await reviewer.GetFromJsonAsync<JsonElement[]>("/api/v1/admin/releases");
         var release = Assert.Single(releases!, r => r.GetProperty("toolId").GetString() == "com.company.scene-batch-renamer");
         Assert.Equal("Published", release.GetProperty("status").GetString());
         Assert.True(release.GetProperty("signed").GetBoolean());
-        Assert.Equal("emp-rev", release.GetProperty("reviewedBy").GetString());
+        // 提交人/审核人显示姓名（登录时写入员工目录）
+        Assert.Equal("张三", release.GetProperty("submittedBy").GetString());
+        Assert.Equal("李四", release.GetProperty("reviewedBy").GetString());
+    }
+
+    [Fact]
+    public async Task Withdraw_hides_release_from_index_and_stats_report_activity()
+    {
+        var api = new ApiTests(fixture);
+        var releaseId = await api.PublishAndApprovePublicAsync("quick-exporter");
+
+        var viewer = await api.LoginPublicAsync("emp-withdraw-viewer", "观察员");
+        // 制造一次下载供统计验证
+        var index = await viewer.GetFromJsonAsync<JsonElement[]>("/api/v1/tools?maxVersion=2026");
+        var tool = Assert.Single(index!, t => t.GetProperty("toolId").GetString()!.Contains("quick-exporter"));
+        var toolId = tool.GetProperty("toolId").GetString()!;
+        var version = tool.GetProperty("latestVersion").GetString()!;
+        Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync($"/downloads/{toolId}/{version}/package.zip")).StatusCode);
+
+        var reviewer = await api.LoginPublicAsync("emp-rev", "李四");
+        Assert.Equal(HttpStatusCode.OK, (await reviewer.PostAsync($"/api/v1/releases/{releaseId}/withdraw", null)).StatusCode);
+
+        // 撤回后索引不可见、下载 404
+        var indexAfter = await viewer.GetFromJsonAsync<JsonElement[]>("/api/v1/tools?maxVersion=2026");
+        Assert.DoesNotContain(indexAfter!, t => t.GetProperty("toolId").GetString() == toolId);
+        Assert.Equal(HttpStatusCode.NotFound, (await viewer.GetAsync($"/downloads/{toolId}/{version}/package.zip")).StatusCode);
+
+        // 统计保留下载记录
+        var stats = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/admin/stats");
+        Assert.True(stats.GetProperty("activeUsers").GetInt32() >= 1);
+        Assert.Contains(stats.GetProperty("subjects").EnumerateArray(),
+            s => s.GetProperty("subject").GetString() == $"{toolId}@{version}" && s.GetProperty("downloads").GetInt32() >= 1);
     }
 
     [Fact]

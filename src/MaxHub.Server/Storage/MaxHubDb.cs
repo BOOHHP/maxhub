@@ -12,6 +12,7 @@ public sealed class MaxHubDb(DbContextOptions<MaxHubDb> options) : DbContext(opt
     public DbSet<ActivityEventRow> ActivityEvents => Set<ActivityEventRow>();
     public DbSet<InstallEventRow> InstallEvents => Set<InstallEventRow>();
     public DbSet<RefreshTokenRow> RefreshTokens => Set<RefreshTokenRow>();
+    public DbSet<UserRow> Users => Set<UserRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -19,6 +20,7 @@ public sealed class MaxHubDb(DbContextOptions<MaxHubDb> options) : DbContext(opt
         modelBuilder.Entity<ReleaseRow>().HasIndex(r => new { r.ToolId, r.Version });
         modelBuilder.Entity<ActivityEventRow>().HasKey(e => e.EventId);
         modelBuilder.Entity<RefreshTokenRow>().HasKey(t => t.TokenHash);
+        modelBuilder.Entity<UserRow>().HasKey(u => u.EmployeeId);
     }
 }
 
@@ -78,6 +80,41 @@ public sealed class RefreshTokenRow
     public required string EmployeeId { get; set; }
     public required string Username { get; set; }
     public DateTimeOffset ExpiresAtUtc { get; set; }
+}
+
+public sealed class UserRow
+{
+    public required string EmployeeId { get; set; }
+    public required string Username { get; set; }
+}
+
+/// <summary>员工目录：登录时记录 employeeId→姓名，供后台展示用。</summary>
+public interface IUserDirectory
+{
+    void Upsert(EmployeeIdentity user);
+    IReadOnlyDictionary<string, string> GetNames(IEnumerable<string> employeeIds);
+}
+
+public sealed class SqliteUserDirectory(IDbContextFactory<MaxHubDb> dbFactory) : IUserDirectory
+{
+    public void Upsert(EmployeeIdentity user)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var row = db.Users.Find(user.EmployeeId);
+        if (row is null)
+            db.Users.Add(new UserRow { EmployeeId = user.EmployeeId, Username = user.Username });
+        else
+            row.Username = user.Username;
+        db.SaveChanges();
+    }
+
+    public IReadOnlyDictionary<string, string> GetNames(IEnumerable<string> employeeIds)
+    {
+        var ids = employeeIds.Where(id => !string.IsNullOrEmpty(id)).Distinct().ToList();
+        using var db = dbFactory.CreateDbContext();
+        return db.Users.Where(u => ids.Contains(u.EmployeeId))
+            .ToDictionary(u => u.EmployeeId, u => u.Username);
+    }
 }
 
 /// <summary>刷新令牌落库（哈希存储），使 MaxHub 会话跨服务端重启存活。</summary>

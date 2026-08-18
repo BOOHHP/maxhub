@@ -32,6 +32,7 @@ Directory.CreateDirectory(dataDir);
 var dbPath = Path.Combine(dataDir, "maxhub.db");
 builder.Services.AddDbContextFactory<MaxHubDb>(o => o.UseSqlite($"Data Source={dbPath}"));
 builder.Services.AddSingleton<IRefreshTokenStore, SqliteRefreshTokenStore>();
+builder.Services.AddSingleton<IUserDirectory, SqliteUserDirectory>();
 builder.Services.AddSingleton(new SigningKeyStore(dataDir));
 builder.Services.AddSingleton(sp => new RegistryStore(dataDir, sp.GetRequiredService<IDbContextFactory<MaxHubDb>>(), sp.GetRequiredService<SigningKeyStore>()));
 
@@ -45,6 +46,7 @@ using (var db = app.Services.GetRequiredService<IDbContextFactory<MaxHubDb>>().C
     {
         "ALTER TABLE Releases ADD COLUMN SignatureBase64 TEXT",
         "ALTER TABLE Connectors ADD COLUMN SignatureBase64 TEXT",
+        """CREATE TABLE IF NOT EXISTS "Users" ("EmployeeId" TEXT NOT NULL CONSTRAINT "PK_Users" PRIMARY KEY, "Username" TEXT NOT NULL)""",
     })
     {
         try { db.Database.ExecuteSqlRaw(sql); }
@@ -266,7 +268,10 @@ app.MapGet("/api/v1/admin/releases", (HttpContext ctx) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
     if (!IsIn(reviewers, user) && !IsIn(admins, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
-    return Results.Ok(registry.GetAllReleases().Select(r => new
+    var releases = registry.GetAllReleases();
+    var users = app.Services.GetRequiredService<IUserDirectory>();
+    var names = users.GetNames(releases.SelectMany(r => new[] { r.SubmittedBy, r.ReviewedBy ?? "" }));
+    return Results.Ok(releases.Select(r => new
     {
         releaseId = r.ReleaseId,
         toolId = r.Manifest.Id,
@@ -274,11 +279,45 @@ app.MapGet("/api/v1/admin/releases", (HttpContext ctx) =>
         version = r.Manifest.Version,
         status = r.Status.ToString(),
         channel = r.Channel,
-        submittedBy = r.SubmittedBy,
-        reviewedBy = r.ReviewedBy,
+        submittedBy = names.GetValueOrDefault(r.SubmittedBy, r.SubmittedBy),
+        reviewedBy = r.ReviewedBy is null ? null : names.GetValueOrDefault(r.ReviewedBy, r.ReviewedBy),
         submittedAtUtc = r.SubmittedAtUtc,
         signed = r.SignatureBase64 != null,
     }));
+});
+
+// 紧急撤回：下架已发布版本
+app.MapPost("/api/v1/releases/{releaseId}/withdraw", (HttpContext ctx, string releaseId) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    if (!IsIn(reviewers, user) && !IsIn(admins, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    return registry.Withdraw(releaseId, user) ? Results.Ok() : Results.NotFound();
+});
+
+app.MapGet("/api/v1/admin/connectors", (HttpContext ctx) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    if (!IsIn(admins, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    return Results.Ok(registry.GetAllConnectors().Select(c => new
+    {
+        version = c.Version,
+        minMaxYear = c.MinMaxYear,
+        maxMaxYear = c.MaxMaxYear,
+        sizeBytes = c.SizeBytes,
+        signed = c.SignatureBase64 != null,
+    }));
+});
+
+app.MapGet("/api/v1/admin/stats", (HttpContext ctx) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    if (!IsIn(reviewers, user) && !IsIn(admins, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    var (subjects, activeUsers) = registry.GetStats();
+    return Results.Ok(new
+    {
+        activeUsers,
+        subjects = subjects.Select(s => new { subject = s.Subject, downloads = s.Downloads, installs = s.Installs }),
+    });
 });
 
 // ---- 下载（服务端按认证主体记账） ----

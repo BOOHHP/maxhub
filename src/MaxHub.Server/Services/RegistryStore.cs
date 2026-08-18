@@ -218,6 +218,59 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
         return db.ActivityEvents.Count(e => e.EmployeeId == employeeId && e.Type == type);
     }
 
+    /// <summary>紧急撤回：已发布→已撤回，索引与下载立即不可见。</summary>
+    public bool Withdraw(string releaseId, EmployeeIdentity @operator)
+    {
+        lock (_writeLock)
+        {
+            using var db = dbFactory.CreateDbContext();
+            var row = db.Releases.Find(releaseId);
+            if (row is null || row.Status != ReleaseStatus.Published)
+                return false;
+            row.Status = ReleaseStatus.Withdrawn;
+            row.ReviewedBy = @operator.EmployeeId;
+            db.SaveChanges();
+            return true;
+        }
+    }
+
+    public IReadOnlyList<ConnectorRelease> GetAllConnectors()
+    {
+        using var db = dbFactory.CreateDbContext();
+        return db.Connectors.AsNoTracking().ToList()
+            .OrderByDescending(c => Version.Parse(c.Version))
+            .Select(c => new ConnectorRelease
+            {
+                Version = c.Version,
+                MinMaxYear = c.MinMaxYear,
+                MaxMaxYear = c.MaxMaxYear,
+                ArtifactPath = c.ArtifactPath,
+                Sha256 = c.Sha256,
+                SizeBytes = c.SizeBytes,
+                SignatureBase64 = c.SignatureBase64,
+            })
+            .ToList();
+    }
+
+    public sealed record SubjectStats(string Subject, int Downloads, int Installs);
+
+    /// <summary>使用统计：按主题（toolId@version）聚合下载/安装次数，及活跃用户数。</summary>
+    public (IReadOnlyList<SubjectStats> Subjects, int ActiveUsers) GetStats()
+    {
+        using var db = dbFactory.CreateDbContext();
+        var downloads = db.ActivityEvents.Where(e => e.Type == "download")
+            .GroupBy(e => e.Subject).Select(g => new { g.Key, Count = g.Count() }).ToDictionary(x => x.Key, x => x.Count);
+        var installs = db.InstallEvents.Where(e => e.Type == "install")
+            .GroupBy(e => e.Subject).Select(g => new { g.Key, Count = g.Count() }).ToDictionary(x => x.Key, x => x.Count);
+        var subjects = downloads.Keys.Union(installs.Keys)
+            .Select(s => new SubjectStats(s, downloads.GetValueOrDefault(s), installs.GetValueOrDefault(s)))
+            .OrderByDescending(s => s.Downloads + s.Installs)
+            .ToList();
+        var activeUsers = db.ActivityEvents.Select(e => e.EmployeeId)
+            .Union(db.InstallEvents.Select(e => e.EmployeeId)).Distinct().Count();
+        return (subjects, activeUsers);
+    }
+
     /// <summary>启动时对存量无签名的已发布制品补签（签名功能上线前的历史数据）。</summary>
     public void SignMissingSignatures()
     {

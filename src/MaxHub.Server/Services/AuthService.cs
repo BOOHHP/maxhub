@@ -23,7 +23,7 @@ public sealed class MockFeishuAuthProvider : IFeishuAuthProvider
     public string BuildAuthorizeUrl(string sessionId, string? redirectUri = null) => $"maxhub-mock://qr/{sessionId}";
 }
 
-public sealed class AuthService(IFeishuAuthProvider provider, IRefreshTokenStore refreshTokens)
+public sealed class AuthService(IFeishuAuthProvider provider, IRefreshTokenStore refreshTokens, IUserDirectory users)
 {
     private static readonly TimeSpan QrTtl = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan AccessTtl = TimeSpan.FromMinutes(30);
@@ -92,6 +92,7 @@ public sealed class AuthService(IFeishuAuthProvider provider, IRefreshTokenStore
 
     private IssuedSession Issue(EmployeeIdentity user)
     {
+        users.Upsert(user); // 登录/续期时刷新员工目录，供后台姓名展示
         var session = new IssuedSession(NewToken(), NewToken(), user, DateTimeOffset.UtcNow + AccessTtl);
         _accessTokens[session.AccessToken] = new TokenState(user, session.ExpiresAtUtc);
         refreshTokens.Save(session.RefreshToken, user, DateTimeOffset.UtcNow + RefreshTtl);

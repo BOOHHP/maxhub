@@ -25,6 +25,7 @@
   .badge.PendingReview { background: #3D3320; color: var(--warn); }
   .badge.Published { background: #1B3B2A; color: var(--ok); }
   .badge.Rejected { background: #42272A; color: var(--danger); }
+  .badge.Withdrawn { background: #3A3D42; color: var(--text-2); }
   button { font: inherit; border: 0; border-radius: 4px; padding: 5px 14px; cursor: pointer; }
   .primary { background: var(--accent); color: #fff; }
   .primary:hover { background: var(--accent-hover); }
@@ -61,7 +62,27 @@
 
   <h2>全部版本</h2>
   <table id="all-table">
-    <thead><tr><th>工具</th><th>版本</th><th>状态</th><th>频道</th><th>签名</th><th>审核人</th><th>提交时间</th></tr></thead>
+    <thead><tr><th>工具</th><th>版本</th><th>状态</th><th>频道</th><th>签名</th><th>提交人</th><th>审核人</th><th>提交时间</th><th></th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Connector 制品</h2>
+  <table id="connector-table">
+    <thead><tr><th>版本</th><th>支持 Max</th><th>大小</th><th>签名</th></tr></thead>
+    <tbody></tbody>
+  </table>
+  <div style="margin-top:10px;display:flex;gap:8px;align-items:center" id="connector-upload">
+    <input type="file" id="conn-file" accept=".zip" style="font-size:12px">
+    <input id="conn-version" placeholder="版本号 1.4.0" style="width:110px">
+    <input id="conn-min" placeholder="最低 2019" style="width:90px">
+    <input id="conn-max" placeholder="最高 2026" style="width:90px">
+    <button class="primary" id="conn-submit">上传并注册</button>
+  </div>
+  <div class="hint">上传后立即签名并对 Agent 可见；需要管理员角色</div>
+
+  <h2>使用统计 <span style="font-size:12px;color:var(--text-2)" id="active-users"></span></h2>
+  <table id="stats-table">
+    <thead><tr><th>工具@版本</th><th>下载</th><th>安装</th></tr></thead>
     <tbody></tbody>
   </table>
 </main>
@@ -139,6 +160,33 @@ async function review(releaseId, approve, channel) {
   if (res.ok) refresh();
 }
 
+async function withdraw(releaseId) {
+  if (!confirm('确认撤回该版本？撤回后索引与下载立即不可见。')) return;
+  const res = await api(`/api/v1/releases/${releaseId}/withdraw`, { method: 'POST' });
+  toast(res.ok ? '已撤回' : '撤回失败', res.ok);
+  if (res.ok) refresh();
+}
+
+async function uploadConnector() {
+  const file = document.getElementById('conn-file').files[0];
+  const version = document.getElementById('conn-version').value.trim();
+  const min = document.getElementById('conn-min').value.trim();
+  const max = document.getElementById('conn-max').value.trim();
+  if (!file || !version || !min || !max) { toast('请填写制品文件、版本与 Max 范围', false); return; }
+  const form = new FormData();
+  form.append('package', file);
+  form.append('version', version);
+  form.append('minMaxYear', min);
+  form.append('maxMaxYear', max);
+  const res = await fetch('/api/v1/admin/connectors', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + localStorage.maxhubToken }, // multipart 不能手动设 Content-Type
+    body: form,
+  });
+  toast(res.ok ? `Connector ${version} 已注册` : (res.status === 403 ? '需要管理员角色' : '上传失败'), res.ok);
+  if (res.ok) refresh();
+}
+
 const fmt = (t) => new Date(t).toLocaleString('zh-CN', { hour12: false });
 
 async function refresh() {
@@ -167,9 +215,31 @@ async function refresh() {
       <td><span class="badge ${r.status}">${{ PendingReview: '待审核', Published: '已发布', Rejected: '已退回', Withdrawn: '已撤回' }[r.status] ?? r.status}</span></td>
       <td>${r.channel}</td>
       <td>${r.signed ? '✓ 已签名' : '—'}</td>
+      <td>${r.submittedBy}</td>
       <td>${r.reviewedBy ?? '—'}</td>
       <td>${fmt(r.submittedAtUtc)}</td>
+      <td>${r.status === 'Published' ? `<button class="danger-outline" onclick="withdraw('${r.releaseId}')">撤回</button>` : ''}</td>
     </tr>`).join('');
+
+  const connRes = await api('/api/v1/admin/connectors');
+  const canAdmin = connRes.status !== 403;
+  document.getElementById('connector-upload').style.display = canAdmin ? 'flex' : 'none';
+  if (connRes.ok) {
+    const connectors = await connRes.json();
+    document.querySelector('#connector-table tbody').innerHTML = connectors.map(c => `
+      <tr><td>v${c.version}</td><td>${c.minMaxYear} - ${c.maxMaxYear}</td>
+      <td>${(c.sizeBytes / 1024).toFixed(1)} KB</td><td>${c.signed ? '✓ 已签名' : '—'}</td></tr>`).join('')
+      || '<tr><td colspan="4" style="color:var(--text-3)">暂无制品</td></tr>';
+  }
+
+  const statsRes = await api('/api/v1/admin/stats');
+  if (statsRes.ok) {
+    const stats = await statsRes.json();
+    document.getElementById('active-users').textContent = `活跃用户 ${stats.activeUsers}`;
+    document.querySelector('#stats-table tbody').innerHTML = stats.subjects.map(s => `
+      <tr><td>${s.subject}</td><td>${s.downloads}</td><td>${s.installs}</td></tr>`).join('')
+      || '<tr><td colspan="3" style="color:var(--text-3)">暂无数据</td></tr>';
+  }
 }
 
 function render() {
@@ -183,6 +253,7 @@ function render() {
 
 document.getElementById('feishu-login').addEventListener('click', startLogin);
 document.getElementById('logout').addEventListener('click', logout);
+document.getElementById('conn-submit').addEventListener('click', uploadConnector);
 
 const params = new URLSearchParams(location.search);
 if (params.has('code') && params.has('state')) {
