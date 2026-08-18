@@ -13,10 +13,13 @@
 
 | 逻辑目标 | 解析位置（相对 Max 用户目录） | MVP |
 | --- | --- | --- |
-| `userScripts` | `%LOCALAPPDATA%\Autodesk\3dsMax\<year> - 64bit\ENU\scripts` | 支持 |
-| `userMacros` | `...\ENU\usermacros` | 支持 |
-| `userStartup` | `...\ENU\scripts\startup` | 支持，安装计划必须标注风险 |
+| `userScripts` | `%LOCALAPPDATA%\Autodesk\3dsMax\<year> - 64bit\<locale>\scripts` | 支持 |
+| `userMacros` | `...\<locale>\usermacros` | 支持 |
+| `userStartup` | `...\<locale>\scripts\startup` | 支持，安装计划必须标注风险 |
 | `userPlugins` / `projectScripts` / `sharedScripts` | — | 第二阶段，MVP 校验器拒绝 |
+
+`<locale>` 不能假设为 ENU：本地化 Max（CHS/FRA/…）使用各自语言目录。
+Agent 以“最近被 Max 写过 `3dsMax.ini` 的语言文件夹”判定活动目录，探测不到时回退 ENU。
 
 ## 路径安全规则
 

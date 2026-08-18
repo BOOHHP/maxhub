@@ -53,6 +53,29 @@ public class PathResolverTests
         Assert.Equal(@"C:\Users\u\AppData\Local\Autodesk\3dsMax\2019 - 64bit\ENU\scripts\startup", resolver.Resolve(2019, "userStartup"));
     }
 
+    [Fact]
+    public void Picks_most_recently_used_locale_dir_for_localized_max()
+    {
+        var root = Directory.CreateTempSubdirectory("maxhub-locale").FullName;
+        try
+        {
+            var chsIni = Path.Combine(root, "2025 - 64bit", "CHS", "3dsMax.ini");
+            var fraIni = Path.Combine(root, "2025 - 64bit", "FRA", "3dsMax.ini");
+            Directory.CreateDirectory(Path.GetDirectoryName(chsIni)!);
+            Directory.CreateDirectory(Path.GetDirectoryName(fraIni)!);
+            File.WriteAllText(chsIni, "");
+            File.WriteAllText(fraIni, "");
+            File.SetLastWriteTimeUtc(fraIni, DateTime.UtcNow.AddDays(-30)); // FRA 是旧的历史使用
+
+            var resolver = new DefaultMaxPathResolver(root);
+            Assert.Equal(Path.Combine(root, "2025 - 64bit", "CHS", "scripts", "startup"), resolver.Resolve(2025, "userStartup"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Theory]
     [InlineData("userPlugins")]
     [InlineData("sharedScripts")]

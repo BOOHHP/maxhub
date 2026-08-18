@@ -21,6 +21,7 @@ return args switch
     ["register-connector", var server, var zipPath, var version, var minYear, var maxYear] => await RegisterConnector(server, zipPath, version, int.Parse(minYear), int.Parse(maxYear)),
     ["tools", var server, var year] => await Tools(server, int.Parse(year)),
     ["sync-connectors", var server] => await SyncConnectors(server),
+    ["uninstall-connector", var year] => UninstallConnector(int.Parse(year)),
     ["install", var server, var toolId, var version, var year] => await Install(server, toolId, version, int.Parse(year)),
     ["uninstall", var toolId, var year] => Uninstall(toolId, int.Parse(year)),
     ["rollback", var toolId, var year] => Rollback(toolId, int.Parse(year)),
@@ -148,6 +149,14 @@ async Task<int> SyncConnectors(string server)
     return results.All(r => r.Success) ? 0 : 1;
 }
 
+int UninstallConnector(int year)
+{
+    var installer = new ConnectorInstaller(agentRoot, resolver, new LedgerStore(Path.Combine(agentRoot, "installed.json")), null!);
+    var removed = installer.Uninstall(year);
+    Console.WriteLine(removed ? $"已卸载 Max {year} 的 Connector" : "账本中无该年份的 Connector 记录");
+    return removed ? 0 : 1;
+}
+
 async Task<int> Install(string server, string toolId, string version, int year)
 {
     var hub = new HubClient(CreateHttp(server, withToken: true));
@@ -204,6 +213,7 @@ int Usage()
           register-connector <server> <zip> <version> <minYear> <maxYear>  注册 Connector（需 admin）
           tools <server> <maxYear>                   列出兼容工具
           sync-connectors <server>                   为本机所有 Max 安装匹配的 Connector
+          uninstall-connector <maxYear>              卸载指定 Max 年份的 Connector
           install <server> <toolId> <version> <maxYear>
           uninstall <toolId> <maxYear>
           rollback <toolId> <maxYear>

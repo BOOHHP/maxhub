@@ -14,13 +14,32 @@ public sealed class DefaultMaxPathResolver(string? userRoot = null) : IMaxPathRe
 
     public string Resolve(int maxYear, string destination)
     {
-        var enuDir = Path.Combine(_userRoot, $"{maxYear} - 64bit", "ENU");
+        var localeDir = ResolveActiveLocaleDir(maxYear);
         return destination switch
         {
-            "userScripts" => Path.Combine(enuDir, "scripts"),
-            "userMacros" => Path.Combine(enuDir, "usermacros"),
-            "userStartup" => Path.Combine(enuDir, "scripts", "startup"),
+            "userScripts" => Path.Combine(localeDir, "scripts"),
+            "userMacros" => Path.Combine(localeDir, "usermacros"),
+            "userStartup" => Path.Combine(localeDir, "scripts", "startup"),
             _ => throw new ArgumentException($"MVP 不支持的安装目标 \"{destination}\"。"),
         };
+    }
+
+    /// <summary>
+    /// 本地化 Max（CHS/FRA/…）的用户目录不是 ENU。
+    /// 活动语言目录 = 最近被 Max 写过 3dsMax.ini 的语言文件夹；探测不到时回退 ENU。
+    /// </summary>
+    private string ResolveActiveLocaleDir(int maxYear)
+    {
+        var yearDir = Path.Combine(_userRoot, $"{maxYear} - 64bit");
+        if (Directory.Exists(yearDir))
+        {
+            var active = Directory.EnumerateDirectories(yearDir)
+                .Where(dir => File.Exists(Path.Combine(dir, "3dsMax.ini")))
+                .OrderByDescending(dir => File.GetLastWriteTimeUtc(Path.Combine(dir, "3dsMax.ini")))
+                .FirstOrDefault();
+            if (active is not null)
+                return active;
+        }
+        return Path.Combine(yearDir, "ENU");
     }
 }
