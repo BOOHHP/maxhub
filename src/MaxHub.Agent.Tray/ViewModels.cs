@@ -80,6 +80,7 @@ public sealed class AccountViewModel : ViewModelBase
     private string _username = "";
     private string _employeeId = "";
     private string _notice = "";
+    private bool _confirmingLogout;
     private CancellationTokenSource? _loginCts;
 
     public event Action? LoggedInChanged;
@@ -89,7 +90,9 @@ public sealed class AccountViewModel : ViewModelBase
         _services = services;
         LoginCommand = new RelayCommand(LoginAsync);
         CancelLoginCommand = new RelayCommand(() => _loginCts?.Cancel());
-        LogoutCommand = new RelayCommand(Logout);
+        LogoutCommand = new RelayCommand(() => ConfirmingLogout = true);
+        ConfirmLogoutCommand = new RelayCommand(Logout);
+        CancelLogoutCommand = new RelayCommand(() => ConfirmingLogout = false);
         if (services.TryRestoreSession())
         {
             var user = services.SessionStore.ReadUser();
@@ -106,10 +109,13 @@ public sealed class AccountViewModel : ViewModelBase
     public string Notice { get => _notice; private set => Set(ref _notice, value); }
     public string ServerUrl => _services.ServerUrl;
     public bool IsLoggedIn => State == LoginState.LoggedIn;
+    public bool ConfirmingLogout { get => _confirmingLogout; private set => Set(ref _confirmingLogout, value); }
 
     public RelayCommand LoginCommand { get; }
     public RelayCommand CancelLoginCommand { get; }
     public RelayCommand LogoutCommand { get; }
+    public RelayCommand ConfirmLogoutCommand { get; }
+    public RelayCommand CancelLogoutCommand { get; }
 
     private async Task LoginAsync()
     {
@@ -167,6 +173,7 @@ public sealed class AccountViewModel : ViewModelBase
 
     private void Logout()
     {
+        ConfirmingLogout = false;
         _services.SessionStore.Clear();
         State = LoginState.LoggedOut;
         Username = "";
@@ -233,6 +240,9 @@ public sealed class ConnectorsViewModel : ViewModelBase
     private string _installAllText = "全部安装";
     private bool _busy;
 
+    /// <summary>可更新数量变化，供托盘图标叠加提醒点。</summary>
+    public event Action<int>? UpdateCountChanged;
+
     public ConnectorsViewModel(AppServices services, AccountViewModel account)
     {
         _services = services;
@@ -268,6 +278,7 @@ public sealed class ConnectorsViewModel : ViewModelBase
 
         foreach (var row in Rows.ToList())
             await RefreshRowStatusAsync(row);
+        UpdateCountChanged?.Invoke(Rows.Count(r => r.Status == ConnectorStatus.UpdateAvailable));
     }
 
     private async Task RefreshRowStatusAsync(ConnectorRowViewModel row)
@@ -319,6 +330,7 @@ public sealed class ConnectorsViewModel : ViewModelBase
             if (result.Success)
             {
                 await RefreshRowStatusAsync(row);
+                UpdateCountChanged?.Invoke(Rows.Count(r => r.Status == ConnectorStatus.UpdateAvailable));
             }
             else
             {

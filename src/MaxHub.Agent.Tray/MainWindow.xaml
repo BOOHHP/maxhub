@@ -82,7 +82,18 @@
                         <TextBlock FontSize="12" Foreground="{StaticResource Text.Secondary}" HorizontalAlignment="Center" Margin="0,14,0,20"
                                    Text="{Binding ServerUrl, StringFormat=服务器：{0}}"/>
                         <Button Content="退出登录" Style="{StaticResource DangerOutlineButton}" Width="120" Height="32"
-                                HorizontalAlignment="Center" Command="{Binding LogoutCommand}"/>
+                                HorizontalAlignment="Center" Command="{Binding LogoutCommand}"
+                                Visibility="{Binding ConfirmingLogout, Converter={StaticResource InverseBoolToVis}}"/>
+                        <!-- 内联二次确认：退出后 Connector 面板也会失效，误触成本高 -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                    Visibility="{Binding ConfirmingLogout, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="确认退出？退出后 Max 内面板将不可用" FontSize="12"
+                                       Foreground="{StaticResource Status.Warning}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <Button Content="确认" Style="{StaticResource DangerOutlineButton}" Width="56"
+                                    Command="{Binding ConfirmLogoutCommand}" Margin="0,0,6,0"/>
+                            <Button Content="取消" Style="{StaticResource OutlineButton}" Width="56"
+                                    Command="{Binding CancelLogoutCommand}"/>
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
             </Grid>

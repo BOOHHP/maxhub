@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -11,6 +12,7 @@ public sealed record AgentUser(string EmployeeId, string Username);
 /// Agent 本地会话存储：访问/刷新令牌 DPAPI 加密落盘，用户信息明文。
 /// 访问令牌临近到期时用刷新令牌自动续期，服务端重启后无需重新扫码。
 /// </summary>
+[SupportedOSPlatform("windows")]
 public sealed class AgentSessionStore(string settingsPath)
 {
     public bool HasSession => File.Exists(settingsPath);

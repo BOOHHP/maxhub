@@ -119,5 +119,10 @@ global MaxHubConnector
         MaxHubConnector.show()
     )
 
+    -- 随 Max 启动自动打开面板（启动队列中 fileIn 时 UI 已可用；失败不阻断后续启动脚本）
+    try ( MaxHubConnector.show() ) catch (
+        format "MaxHub Connector auto-open failed: %\n" (getCurrentException())
+    )
+
     format "MaxHub Connector loaded (Max %)\n" (currentMaxYear() as string)
 )

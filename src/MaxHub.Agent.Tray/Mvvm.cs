@@ -1,7 +1,17 @@
 using System.Windows;
+using System.Windows.Data;
 using System.Windows.Input;
 
 namespace MaxHub.Agent.Tray;
+
+public sealed class InverseBoolToVisConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+        value is true ? Visibility.Collapsed : Visibility.Visible;
+
+    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+        throw new NotSupportedException();
+}
 
 public abstract class ViewModelBase : System.ComponentModel.INotifyPropertyChanged
 {
