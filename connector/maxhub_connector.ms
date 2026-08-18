@@ -20,6 +20,21 @@ global MaxHubConnector
         ) catch ( undefined )
     )
 
+    fn httpPost url timeoutMs:60000 =
+    (
+        try (
+            local request = (dotNetClass "System.Net.WebRequest").Create url
+            request.Method = "POST"
+            request.ContentLength = 0
+            request.Timeout = timeoutMs
+            local response = request.GetResponse()
+            local reader = dotNetObject "System.IO.StreamReader" (response.GetResponseStream())
+            local body = reader.ReadToEnd()
+            reader.Close(); response.Close()
+            body
+        ) catch ( undefined )
+    )
+
     fn isAgentOnline =
     (
         (httpGet (agentBaseUrl + "/health")) != undefined
