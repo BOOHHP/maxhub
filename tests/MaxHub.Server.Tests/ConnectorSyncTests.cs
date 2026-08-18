@@ -13,13 +13,13 @@ namespace MaxHub.Server.Tests;
 /// </summary>
 public class ConnectorSyncTests(ServerFixture fixture) : IClassFixture<ServerFixture>
 {
-    private static byte[] FakeConnectorZip(string dllContent)
+    private static byte[] FakeConnectorZip(string scriptContent)
     {
         using var memory = new MemoryStream();
         using (var zip = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
         {
-            using var writer = new StreamWriter(zip.CreateEntry("MaxHubConnector.dll").Open());
-            writer.Write(dllContent);
+            using var writer = new StreamWriter(zip.CreateEntry(ConnectorInstaller.EntryScriptName).Open());
+            writer.Write(scriptContent);
         }
         return memory.ToArray();
     }
@@ -80,15 +80,15 @@ public class ConnectorSyncTests(ServerFixture fixture) : IClassFixture<ServerFix
             Assert.Equal("1.0.0", results.Single(r => r.MaxYear == 2019).Version);
             Assert.Equal("2.0.0", results.Single(r => r.MaxYear == 2024).Version);
 
-            // 每个 Max 实例有独立加载脚本与 DLL 目录
+            // 每个 Max 实例有独立加载脚本与脚本目录
             var loader2019 = Path.Combine(resolver.Resolve(2019, "userStartup"), "maxhub_connector_loader.ms");
             var loader2024 = Path.Combine(resolver.Resolve(2024, "userStartup"), "maxhub_connector_loader.ms");
             Assert.True(File.Exists(loader2019));
             Assert.True(File.Exists(loader2024));
             Assert.Contains(@"max2019\1.0.0", File.ReadAllText(loader2019));
             Assert.Contains(@"max2024\2.0.0", File.ReadAllText(loader2024));
-            Assert.True(File.Exists(Path.Combine(agentRoot, "connectors", "max2019", "1.0.0", "MaxHubConnector.dll")));
-            Assert.True(File.Exists(Path.Combine(agentRoot, "connectors", "max2024", "2.0.0", "MaxHubConnector.dll")));
+            Assert.True(File.Exists(Path.Combine(agentRoot, "connectors", "max2019", "1.0.0", ConnectorInstaller.EntryScriptName)));
+            Assert.True(File.Exists(Path.Combine(agentRoot, "connectors", "max2024", "2.0.0", ConnectorInstaller.EntryScriptName)));
 
             // 重复同步幂等
             var again = await installer.SyncAsync(machine);

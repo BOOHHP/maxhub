@@ -10,13 +10,14 @@ namespace MaxHub.Agent.Core.Install;
 public sealed record ConnectorSyncResult(int MaxYear, bool Success, string? Version, string Message);
 
 /// <summary>
-/// Connector 是 MaxHub 平台组件，使用专用安装布局，不走工具包 manifest：
-/// DLL 落在 Agent 管理的 connectors/max{year}/{version}/，
+/// Connector 是 MaxHub 平台组件（MaxScript 脚本制品，无 SDK 依赖），使用专用安装布局：
+/// 脚本落在 Agent 管理的 connectors/max{year}/{version}/，
 /// userStartup 写入自动生成的加载脚本。多 Max 版本各自记账互不覆盖。
 /// </summary>
 public sealed class ConnectorInstaller(string agentRoot, IMaxPathResolver pathResolver, LedgerStore ledgerStore, HubClient hub)
 {
     public const string ArtifactId = "com.maxhub.connector";
+    public const string EntryScriptName = "maxhub_connector.ms";
     private const string LoaderFileName = "maxhub_connector_loader.ms";
 
     /// <summary>为每个检测到的 Max 实例安装或更新匹配的 Connector。</summary>
@@ -88,7 +89,7 @@ public sealed class ConnectorInstaller(string agentRoot, IMaxPathResolver pathRe
             existing is null ? "安装完成。" : $"已从 {existing.Version} 更新，Max 重启后生效。");
     }
 
-    /// <summary>卸载指定 Max 年份的 Connector：删除加载脚本与受管 DLL 目录。</summary>
+    /// <summary>卸载指定 Max 年份的 Connector：删除加载脚本与受管脚本目录。</summary>
     public bool Uninstall(int maxYear)
     {
         var entry = ledgerStore.Find(ArtifactId, maxYear);
@@ -111,12 +112,13 @@ public sealed class ConnectorInstaller(string agentRoot, IMaxPathResolver pathRe
     private static string BuildLoaderScript(string versionDir) => $$"""
         -- MaxHub Connector loader (auto-generated; managed by MaxHub Agent, do not edit)
         (
-            local connectorDir = @"{{versionDir}}"
-            local dlls = getFiles (connectorDir + @"\*.dll")
-            for dll in dlls do (
-                try ( dotNet.loadAssembly dll ) catch (
+            local entryScript = @"{{Path.Combine(versionDir, EntryScriptName)}}"
+            if doesFileExist entryScript then (
+                try ( fileIn entryScript ) catch (
                     format "MaxHub Connector load failed: %\n" (getCurrentException())
                 )
+            ) else (
+                format "MaxHub Connector entry script missing: %\n" entryScript
             )
         )
         """;

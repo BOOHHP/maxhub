@@ -1,37 +1,36 @@
-# MaxHub Connector 构建矩阵（阶段 3）
+# MaxHub Connector（MaxScript 实现，阶段 3）
 
 Connector 是 Max 内的薄客户端，由 Agent 统一分发安装（见 `ConnectorInstaller`）。
-本目录是构建骨架；**编译与真机回归需要各年份 3ds Max SDK 与真实 Max 环境，当前开发机不具备，属于待办**。
+采用 **MaxScript 脚本实现，不依赖 3ds Max SDK，无需编译**：停靠面板用 rollout，
+网络/JSON 通过 dotNet 桥使用随 Max 自带的 .NET Framework 类。
 
-## 构建矩阵
+## 为什么不用 .NET SDK 插件
 
-| Max 年份 | 内部版本 | .NET 目标 | SDK ABI 分组 | 状态 |
-| --- | --- | --- | --- | --- |
-| 2019 | 21.0 | net47 | A (2019-2021) | 骨架 |
-| 2020 | 22.0 | net47 | A | 骨架 |
-| 2021 | 23.0 | net47 | A | 骨架 |
-| 2022 | 24.0 | net48 | B (2022-2024) | 骨架 |
-| 2023 | 25.0 | net48 | B | 骨架 |
-| 2024 | 26.0 | net48 | B | 骨架 |
-| 2025 | 27.0 | net48 | C (2025-2026，需验证) | 骨架 |
-| 2026 | 28.0 | net48 | C | 骨架 |
+Connector 的全部职责（与 Agent 通信、读取 Max 年份与目录、注册 MacroScript、展示面板）
+均可由 MaxScript + dotNet 桥完成。放弃 SDK 路线后：
 
-ABI 分组为假设值：制品是否可跨年份复用必须在真机验证后，才能在服务端以
-`minMaxYear`/`maxMaxYear` 声明分组范围；验证前一律按单年份发布。
+- 不需要获取/安装任何年份的 Max SDK；
+- 不需要按年份编译，一套脚本覆盖 2019-2026，无 ABI 构建矩阵；
+- 回归成本 = 在目标 Max 中加载脚本并验证行为。
 
-## 构建方式
+## 制品打包与发布
 
 ```powershell
-dotnet build connector/MaxHub.Connector -p:MaxYear=2024 -p:MaxSdkDir="C:\Program Files\Autodesk\3ds Max 2024"
+# 打包（zip 根目录必须含 maxhub_connector.ms 入口）
+Compress-Archive -Path connector\maxhub_connector.ms -DestinationPath connector-1.0.0.zip
+
+# 由管理员注册到服务端（脚本跨版本，可声明全范围；真机回归后再收窄）
+# POST /api/v1/admin/connectors  package=zip, version=1.0.0, minMaxYear=2019, maxMaxYear=2026
 ```
 
-产物打为 zip 后通过 `POST /api/v1/admin/connectors` 注册，由 Agent 的
-`sync-connectors` 命令按本机检测结果自动安装。
+用户侧由 Agent `sync-connectors` 自动检测本机 Max 并安装：脚本解压到
+`%LOCALAPPDATA%\MaxHub\connectors\max{year}\{version}\`，并在各 Max 的
+userStartup 写入加载脚本（`fileIn` 入口）。
 
-## 真机回归清单（每个支持年份）
+## 真机回归清单（每个支持年份，重点 2019 与 2026）
 
-1. Agent `sync-connectors` 后启动 Max，Connector 通过 startup 脚本加载成功。
-2. 停靠面板打开，能列出当前年份兼容的工具。
-3. Agent 停止时面板显示离线，安装按钮禁用。
-4. 安装/更新/卸载/回滚在面板内闭环，重启要求正确提示。
-5. Max 运行中执行 Connector 更新被拒绝，关闭 Max 后更新成功。
+1. Agent `sync-connectors` 后启动 Max，输出 `MaxHub Connector loaded (Max NNNN)`。
+2. `MaxHub` 宏可打开面板；Agent 在线时显示已连接与正确年份。
+3. Agent 停止时面板显示离线，安装入口不可用，不假报成功。
+4. dotNet 桥 `System.Net.WebRequest` 在 2019 与 2026 行为一致（超时、异常路径）。
+5. Max 运行中执行 Connector 更新被拒绝，关闭 Max 后更新成功且旧版本可回滚。
