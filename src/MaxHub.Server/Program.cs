@@ -49,7 +49,7 @@ using (var db = app.Services.GetRequiredService<IDbContextFactory<MaxHubDb>>().C
     {
         "ALTER TABLE Releases ADD COLUMN SignatureBase64 TEXT",
         "ALTER TABLE Connectors ADD COLUMN SignatureBase64 TEXT",
-        "ALTER TABLE Users ADD COLUMN Roles TEXT",
+        "ALTER TABLE Users ADD COLUMN Roles TEXT DEFAULT ''",
         """CREATE TABLE IF NOT EXISTS "Users" ("EmployeeId" TEXT NOT NULL CONSTRAINT "PK_Users" PRIMARY KEY, "Username" TEXT NOT NULL)""",
     })
     {

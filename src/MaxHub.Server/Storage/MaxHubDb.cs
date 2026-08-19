@@ -86,8 +86,8 @@ public sealed class UserRow
 {
     public required string EmployeeId { get; set; }
     public required string Username { get; set; }
-    /// <summary>逗号分隔的角色（admin/reviewer/publisher），空串视为默认 publisher。</summary>
-    public string Roles { get; set; } = "";
+    /// <summary>逗号分隔的角色（admin/reviewer/publisher）。旧库加列后存量行为 NULL，读取时按空串处理。</summary>
+    public string? Roles { get; set; }
 }
 
 /// <summary>员工目录：登录时记录 employeeId→姓名，供后台展示用；并承载角色读写。</summary>
@@ -127,7 +127,6 @@ public sealed class SqliteUserDirectory(IDbContextFactory<MaxHubDb> dbFactory) :
         var row = db.Users.Find(employeeId);
         return row is null || string.IsNullOrWhiteSpace(row.Roles) ? [] : SplitRoles(row.Roles);
     }
-
     public void SetRoles(string employeeId, string[] roles)
     {
         using var db = dbFactory.CreateDbContext();

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工具市场 · MaxHub</title>
+<link rel="stylesheet" href="css/site.css">
+<style>
+  .market-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+  .market-toolbar input[type=search] { flex: 1; min-width: 200px; }
+  .download-banner { background: linear-gradient(135deg, #1E2A38, #26323F); border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; display: flex; align-items: center; gap: 18px; margin-bottom: 26px; flex-wrap: wrap; }
+  .download-banner .icon { font-size: 30px; }
+  .download-banner .info { flex: 1; min-width: 220px; }
+  .download-banner .info h2 { font-size: 16px; margin: 0 0 3px; }
+  .download-banner .info p { color: var(--text-2); font-size: 12.5px; margin: 0; }
+  .tool-card .channels { display: flex; gap: 4px; }
+  .compat-chip { color: var(--text-3); font-size: 11.5px; border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px; }
+</style>
+</head>
+<body>
+<nav class="nav" id="topnav"></nav>
+
+<main>
+  <h1 class="title">工具市场</h1>
+  <p class="subtitle">公司内部 3ds Max 脚本与插件分发平台 · 安装与管理请使用 MaxHub Agent</p>
+
+  <div class="download-banner">
+    <div class="icon">⬇️</div>
+    <div class="info">
+      <h2>MaxHub Agent</h2>
+      <p>桌面客户端：自动识别本机 Max 版本，一键安装/卸载/更新脚本</p>
+    </div>
+    <div style="text-align:right">
+      <button class="btn-primary" id="agent-download" style="padding:9px 20px">下载最新版</button>
+      <div class="hint" id="agent-version" style="margin-top:6px">正在检查版本…</div>
+    </div>
+  </div>
+
+  <div class="market-toolbar">
+    <input type="search" id="search" placeholder="搜索工具名称或描述…">
+    <select id="max-filter">
+      <option value="">全部 Max 版本</option>
+    </select>
+  </div>
+
+  <div id="tools" class="tools-grid"></div>
+  <div id="empty" class="empty" hidden>没有匹配的工具</div>
+</main>
+
+<div id="msg"></div>
+
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+const api = window.Api.api;
+
+// ---- Agent 版本横幅 ----
+async function loadAgentInfo() {
+  try {
+    const res = await fetch('/api/v1/agent/latest');
+    if (!res.ok) throw new Error('no endpoint');
+    const info = await res.json();
+    document.getElementById('agent-version').textContent = `v${info.version}`;
+    document.getElementById('agent-download').onclick = () => { location.href = info.downloadUrl; };
+  } catch {
+    document.getElementById('agent-version').textContent = '版本信息暂不可用';
+  }
+}
+
+// ---- 工具市场 ----
+let allTools = [];
+const MAX_YEARS = Array.from({ length: 2026 - 2019 + 1 }, (_, i) => 2019 + i);
+
+async function loadTools() {
+  const res = await api('/api/v1/tools?maxVersion=2026', { retry: false });
+  if (!res.ok) { document.getElementById('tools').innerHTML = '<div class="empty">加载失败</div>'; return; }
+  allTools = await res.json();
+  render();
+}
+
+function matchesFilter(t) {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const maxY = document.getElementById('max-filter').value;
+  if (q && !(t.name.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q) || t.toolId.toLowerCase().includes(q))) return false;
+  if (maxY && !(t.compatibility.minVersion <= +maxY && t.compatibility.maxVersion >= +maxY)) return false;
+  return true;
+}
+
+function render() {
+  const list = allTools.filter(matchesFilter);
+  document.getElementById('empty').hidden = list.length > 0;
+  document.getElementById('tools').innerHTML = list.map(t => `
+    <div class="card tool-card">
+      <div class="name">${esc(t.name)}</div>
+      <div class="meta">${esc(t.toolId)}</div>
+      <div class="desc">${esc(t.description || '暂无描述')}</div>
+      <div class="foot">
+        <span class="badge ${t.channel}">${{ stable: '稳定', beta: '测试', internal: '内部' }[t.channel] ?? t.channel}</span>
+        <span style="color:var(--text-2);font-size:12px">v${t.latestVersion}</span>
+        <span class="compat-chip">Max ${t.compatibility.minVersion}–${t.compatibility.maxVersion}</span>
+      </div>
+    </div>`).join('') || '';
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// 筛选下拉只显示有工具的年份
+function initFilter() {
+  const sel = document.getElementById('max-filter');
+  const covered = new Set();
+  allTools.forEach(t => {
+    for (let y = Math.max(t.compatibility.minVersion, 2019); y <= Math.min(t.compatibility.maxVersion, 2026); y++) covered.add(y);
+  });
+  MAX_YEARS.forEach(y => {
+    if (!covered.has(y)) return;
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = `Max ${y}`;
+    sel.appendChild(opt);
+  });
+}
+
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('max-filter').addEventListener('change', render);
+
+loadAgentInfo();
+loadTools().then(initFilter);
+</script>
+</body>
+</html>

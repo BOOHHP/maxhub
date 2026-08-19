@@ -3,57 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MaxHub 管理后台</title>
-<style>
-  :root {
-    --bg-window: #26282B; --bg-sidebar: #1E2023; --bg-card: #2E3136; --bg-card-hover: #35393F;
-    --border: #3D4147; --text-1: #E8EAED; --text-2: #9BA0A6; --text-3: #5F6368;
-    --accent: #4C9FE0; --accent-hover: #63AFE8; --ok: #4CC38A; --warn: #F0B429; --danger: #E5534B;
-  }
-  * { box-sizing: border-box; margin: 0; }
-  body { background: var(--bg-window); color: var(--text-1); font: 13px "Microsoft YaHei UI", "Segoe UI", sans-serif; }
-  header { background: var(--bg-sidebar); padding: 12px 24px; display: flex; align-items: center; gap: 10px; }
-  header .dot { color: var(--accent); }
-  header .who { margin-left: auto; color: var(--text-2); font-size: 12px; }
-  main { max-width: 1080px; margin: 24px auto; padding: 0 24px; }
-  h2 { font-size: 15px; margin: 24px 0 10px; }
-  table { width: 100%; border-collapse: collapse; background: var(--bg-card); border-radius: 4px; overflow: hidden; }
-  th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 12.5px; }
-  th { color: var(--text-2); font-weight: normal; background: var(--bg-sidebar); }
-  tr:hover td { background: var(--bg-card-hover); }
-  .badge { padding: 2px 8px; border-radius: 4px; font-size: 12px; }
-  .badge.PendingReview { background: #3D3320; color: var(--warn); }
-  .badge.Published { background: #1B3B2A; color: var(--ok); }
-  .badge.Rejected { background: #42272A; color: var(--danger); }
-  .badge.Withdrawn { background: #3A3D42; color: var(--text-2); }
-  button { font: inherit; border: 0; border-radius: 4px; padding: 5px 14px; cursor: pointer; }
-  .primary { background: var(--accent); color: #fff; }
-  .primary:hover { background: var(--accent-hover); }
-  .outline { background: transparent; color: var(--text-2); border: 1px solid var(--border); }
-  .danger-outline { background: transparent; color: var(--danger); border: 1px solid var(--border); }
-  select, input { font: inherit; background: var(--bg-sidebar); color: var(--text-1); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; }
-  #login-panel { max-width: 360px; margin: 80px auto; text-align: center; }
-  #login-panel p { color: var(--text-2); margin: 8px 0 20px; }
-  .hint { color: var(--text-3); font-size: 12px; margin-top: 12px; }
-  .row-actions { display: flex; gap: 6px; align-items: center; }
-  #msg { position: fixed; top: 16px; right: 16px; padding: 10px 16px; border-radius: 4px; display: none; font-size: 12.5px; }
-</style>
+<title>后台管理 · MaxHub</title>
+<link rel="stylesheet" href="css/site.css">
 </head>
 <body>
-<header>
-  <span class="dot">⬤</span><strong>MaxHub 管理后台</strong>
-  <span class="who" id="who"></span>
-  <button class="outline" id="logout" style="display:none">退出</button>
-</header>
+<nav class="nav" id="topnav"></nav>
 
-<div id="login-panel">
-  <h2 style="font-size:18px">登录 MaxHub 管理后台</h2>
+<div id="login-panel" class="login-wrap" hidden>
+  <h2>登录 MaxHub 后台管理</h2>
   <p>使用飞书账号授权（需要审核者或管理员角色）</p>
-  <button class="primary" id="feishu-login" style="width:200px;height:38px">飞书扫码登录</button>
+  <button class="btn-primary" id="feishu-login" style="width:200px;height:38px">飞书扫码登录</button>
   <div class="hint">将跳转到飞书授权页，请勿关闭本页</div>
 </div>
 
-<main id="app" style="display:none">
+<main id="app" hidden>
+  <h1 class="title">后台管理</h1>
+  <p class="subtitle" id="role-hint"></p>
+
   <h2>待审核（<span id="pending-count">0</span>）</h2>
   <table id="pending-table">
     <thead><tr><th>工具</th><th>版本</th><th>提交人</th><th>提交时间</th><th>操作</th></tr></thead>
@@ -71,14 +37,21 @@
     <thead><tr><th>版本</th><th>支持 Max</th><th>大小</th><th>签名</th></tr></thead>
     <tbody></tbody>
   </table>
-  <div style="margin-top:10px;display:flex;gap:8px;align-items:center" id="connector-upload">
+  <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="connector-upload" hidden>
     <input type="file" id="conn-file" accept=".zip" style="font-size:12px">
     <input id="conn-version" placeholder="版本号 1.4.0" style="width:110px">
     <input id="conn-min" placeholder="最低 2019" style="width:90px">
     <input id="conn-max" placeholder="最高 2026" style="width:90px">
-    <button class="primary" id="conn-submit">上传并注册</button>
+    <button class="btn-primary" id="conn-submit">上传并注册</button>
   </div>
   <div class="hint">上传后立即签名并对 Agent 可见；需要管理员角色</div>
+
+  <h2 id="member-title">成员角色</h2>
+  <p class="subtitle" style="margin-bottom:8px">在飞书授权登录过的人会出现在这里。勾选即保存；不能取消自己的管理员角色。</p>
+  <table id="member-table">
+    <thead><tr><th>用户</th><th>管理员</th><th>审核者</th><th>发布者</th></tr></thead>
+    <tbody></tbody>
+  </table>
 
   <h2>使用统计 <span style="font-size:12px;color:var(--text-2)" id="active-users"></span></h2>
   <table id="stats-table">
@@ -89,72 +62,47 @@
 
 <div id="msg"></div>
 
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
 <script>
-const api = (path, opts = {}) => fetch(path, {
-  ...opts,
-  headers: {
-    'Content-Type': 'application/json',
-    ...(localStorage.maxhubToken ? { Authorization: 'Bearer ' + localStorage.maxhubToken } : {}),
-    ...opts.headers,
-  },
-});
+const api = window.Api.api;
+const toast = window.Api.toast;
 
-function toast(text, ok = true) {
-  const el = document.getElementById('msg');
-  el.textContent = text;
-  el.style.display = 'block';
-  el.style.background = ok ? '#1B3B2A' : '#42272A';
-  el.style.color = ok ? 'var(--ok)' : 'var(--danger)';
-  setTimeout(() => el.style.display = 'none', 3000);
+function startLogin() {
+  window.Api.startLogin();
 }
 
-// ---- 登录 ----
-async function startLogin() {
-  const res = await api('/api/v1/auth/feishu/qr-sessions?client=web', { method: 'POST' });
-  const s = await res.json();
-  if (s.authorizeUrl.startsWith('https://')) {
-    location.href = s.authorizeUrl; // state=sessionId 随回调带回
-  } else {
-    toast('服务端为 mock 模式，无法跳转飞书；请用测试端点授权', false);
+function render() {
+  const logged = window.Api.isLoggedIn();
+  document.getElementById('login-panel').hidden = logged;
+  document.getElementById('app').hidden = !logged;
+  if (!logged) return;
+  refresh();
+  const user = window.MaxHubAuth?.user;
+  if (user) {
+    const isAdmin = window.Api.hasRole(user.roles, 'admin');
+    document.getElementById('role-hint').textContent = `当前身份：${user.username}（${user.roles.join(' / ')}）`;
+    document.getElementById('connector-upload').hidden = !isAdmin;
+    const isReviewer = window.Api.hasRole(user.roles, 'reviewer');
+    document.getElementById('member-title').style.display = isAdmin ? '' : 'none';
+    document.getElementById('member-table').style.display = isAdmin ? '' : 'none';
+    document.querySelector('#member-title + p').style.display = isAdmin ? '' : 'none';
+    if (!isAdmin && !isReviewer) {
+      document.getElementById('app').innerHTML = '<div class="login-wrap"><h2>无权限</h2><p>当前账号需要审核者或管理员角色才能访问后台。</p></div>';
+    }
   }
 }
 
-// 飞书回调落回本页：?code=..&state=<sessionId>
-async function handleCallback(code, state) {
-  const done = await api(`/api/v1/auth/feishu/qr-sessions/${state}/complete`, {
-    method: 'POST',
-    body: JSON.stringify({ code, state, client: 'web' }),
-  });
-  if (!done.ok) { toast('授权码交换失败', false); return; }
-  const polled = await (await api(`/api/v1/auth/feishu/qr-sessions/${state}`)).json();
-  if (polled.status === 'authorized' && polled.session) {
-    localStorage.maxhubToken = polled.session.accessToken;
-    localStorage.maxhubUser = polled.session.user.username;
-    history.replaceState(null, '', location.pathname);
-    render();
-  } else {
-    toast('登录会话已过期，请重试', false);
-  }
-}
-
-function logout() {
-  delete localStorage.maxhubToken;
-  delete localStorage.maxhubUser;
-  render();
-}
-
-// ---- 数据与渲染 ----
 async function loadReleases() {
   const res = await api('/api/v1/admin/releases');
-  if (res.status === 401) { logout(); return null; }
+  if (res.status === 401) { window.Api.logout(); return null; }
   if (res.status === 403) { toast('当前账号无审核者/管理员角色', false); return null; }
   return res.json();
 }
 
 async function review(releaseId, approve, channel) {
   const res = await api(`/api/v1/releases/${releaseId}/review`, {
-    method: 'POST',
-    body: JSON.stringify({ approve, channel }),
+    method: 'POST', body: JSON.stringify({ approve, channel }),
   });
   toast(res.ok ? (approve ? `已发布到 ${channel}` : '已退回') : '操作失败', res.ok);
   if (res.ok) refresh();
@@ -180,7 +128,7 @@ async function uploadConnector() {
   form.append('maxMaxYear', max);
   const res = await fetch('/api/v1/admin/connectors', {
     method: 'POST',
-    headers: { Authorization: 'Bearer ' + localStorage.maxhubToken }, // multipart 不能手动设 Content-Type
+    headers: { Authorization: 'Bearer ' + localStorage.maxhubToken },
     body: form,
   });
   toast(res.ok ? `Connector ${version} 已注册` : (res.status === 403 ? '需要管理员角色' : '上传失败'), res.ok);
@@ -201,12 +149,12 @@ async function refresh() {
       <td>${r.version}</td>
       <td>${r.submittedBy}</td>
       <td>${fmt(r.submittedAtUtc)}</td>
-      <td><div class="row-actions">
+      <td><div style="display:flex;gap:6px;align-items:center">
         <select id="ch-${r.releaseId}"><option>stable</option><option>beta</option><option>internal</option></select>
-        <button class="primary" onclick="review('${r.releaseId}', true, document.getElementById('ch-${r.releaseId}').value)">通过</button>
-        <button class="danger-outline" onclick="review('${r.releaseId}', false, null)">退回</button>
+        <button class="btn-primary" onclick="review('${r.releaseId}', true, document.getElementById('ch-${r.releaseId}').value)">通过</button>
+        <button class="btn-danger" onclick="review('${r.releaseId}', false, null)">退回</button>
       </div></td>
-    </tr>`).join('') || '<tr><td colspan="5" style="color:var(--text-3)">暂无待审核版本</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="5" class="empty">暂无待审核版本</td></tr>';
 
   document.querySelector('#all-table tbody').innerHTML = releases.map(r => `
     <tr>
@@ -218,18 +166,38 @@ async function refresh() {
       <td>${r.submittedBy}</td>
       <td>${r.reviewedBy ?? '—'}</td>
       <td>${fmt(r.submittedAtUtc)}</td>
-      <td>${r.status === 'Published' ? `<button class="danger-outline" onclick="withdraw('${r.releaseId}')">撤回</button>` : ''}</td>
+      <td>${r.status === 'Published' ? `<button class="btn-danger" onclick="withdraw('${r.releaseId}')">撤回</button>` : ''}</td>
     </tr>`).join('');
 
   const connRes = await api('/api/v1/admin/connectors');
-  const canAdmin = connRes.status !== 403;
-  document.getElementById('connector-upload').style.display = canAdmin ? 'flex' : 'none';
   if (connRes.ok) {
     const connectors = await connRes.json();
     document.querySelector('#connector-table tbody').innerHTML = connectors.map(c => `
       <tr><td>v${c.version}</td><td>${c.minMaxYear} - ${c.maxMaxYear}</td>
       <td>${(c.sizeBytes / 1024).toFixed(1)} KB</td><td>${c.signed ? '✓ 已签名' : '—'}</td></tr>`).join('')
-      || '<tr><td colspan="4" style="color:var(--text-3)">暂无制品</td></tr>';
+      || '<tr><td colspan="4" class="empty">暂无制品</td></tr>';
+  } else if (connRes.status === 403) {
+    document.querySelector('#connector-table tbody').innerHTML =
+      '<tr><td colspan="4" class="empty">需要管理员角色</td></tr>';
+  }
+
+  // 成员角色（仅 admin）
+  const me = window.MaxHubAuth?.user;
+  const isAdmin = me ? window.Api.hasRole(me.roles, 'admin') : false;
+  if (isAdmin) {
+    const membersRes = await api('/api/v1/admin/users');
+    if (membersRes.ok) {
+      const members = await membersRes.json();
+      document.querySelector('#member-table tbody').innerHTML = members.map(u => {
+        const self = me.employeeId === u.employeeId;
+        const chk = (role, label) => `<label style="display:inline-flex;align-items:center;gap:5px;margin:0;font-size:12.5px;color:var(--text-1)">
+          <input type="checkbox" data-emp="${u.employeeId}" data-role="${role}" ${u.roles.includes(role) ? 'checked' : ''} onchange="memberChanged('${u.employeeId}')">${label}</label>`;
+        return `<tr><td>${u.username}<div style="color:var(--text-3);font-size:11px">${self ? '（我）' : ''}${u.employeeId}</div></td>
+          <td>${chk('admin', '管理员')}</td><td>${chk('reviewer', '审核者')}</td><td>${chk('publisher', '发布者')}</td></tr>`;
+      }).join('') || '<tr><td colspan="4" class="empty">暂无成员</td></tr>';
+    }
+  } else {
+    document.querySelector('#member-table tbody').innerHTML = '';
   }
 
   const statsRes = await api('/api/v1/admin/stats');
@@ -238,29 +206,27 @@ async function refresh() {
     document.getElementById('active-users').textContent = `活跃用户 ${stats.activeUsers}`;
     document.querySelector('#stats-table tbody').innerHTML = stats.subjects.map(s => `
       <tr><td>${s.subject}</td><td>${s.downloads}</td><td>${s.installs}</td></tr>`).join('')
-      || '<tr><td colspan="3" style="color:var(--text-3)">暂无数据</td></tr>';
+      || '<tr><td colspan="3" class="empty">暂无数据</td></tr>';
   }
 }
 
-function render() {
-  const loggedIn = !!localStorage.maxhubToken;
-  document.getElementById('login-panel').style.display = loggedIn ? 'none' : 'block';
-  document.getElementById('app').style.display = loggedIn ? 'block' : 'none';
-  document.getElementById('logout').style.display = loggedIn ? 'inline-block' : 'none';
-  document.getElementById('who').textContent = loggedIn ? `✓ ${localStorage.maxhubUser ?? '已登录'}` : '';
-  if (loggedIn) refresh();
+async function memberChanged(employeeId) {
+  const me = window.MaxHubAuth?.user;
+  const checked = [...document.querySelectorAll(`input[data-emp="${employeeId}"]:checked`)].map(i => i.dataset.role);
+  if (me && me.employeeId === employeeId && !checked.includes('admin')) {
+    toast('不能取消自己的管理员角色（防止锁死）', false);
+    render();
+    return;
+  }
+  const res = await api(`/api/v1/admin/users/${encodeURIComponent(employeeId)}/roles`, {
+    method: 'PUT', body: JSON.stringify({ roles: checked }),
+  });
+  toast(res.ok ? '已保存角色' : (res.status === 403 ? '需要管理员角色' : '保存失败'), res.ok);
 }
 
-document.getElementById('feishu-login').addEventListener('click', startLogin);
-document.getElementById('logout').addEventListener('click', logout);
-document.getElementById('conn-submit').addEventListener('click', uploadConnector);
-
-const params = new URLSearchParams(location.search);
-if (params.has('code') && params.has('state')) {
-  handleCallback(params.get('code'), params.get('state'));
-} else {
-  render();
-}
+document.getElementById('feishu-login')?.addEventListener('click', startLogin);
+document.getElementById('conn-submit')?.addEventListener('click', uploadConnector);
+window.addEventListener('load', () => setTimeout(render, 300)); // 等 auth.js 完成导航与 me() 解析
 </script>
 </body>
 </html>

@@ -63,6 +63,6 @@ public class AdminApiTests(ServerFixture fixture) : IClassFixture<ServerFixture>
     {
         var response = await fixture.CreateClient().GetAsync("/admin.html");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("MaxHub 管理后台", await response.Content.ReadAsStringAsync());
+        Assert.Contains("MaxHub 后台管理", await response.Content.ReadAsStringAsync());
     }
 }

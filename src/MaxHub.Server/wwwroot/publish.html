@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>发布工具 · MaxHub</title>
+<link rel="stylesheet" href="css/site.css">
+<style>
+  .publish-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .publish-layout { grid-template-columns: 1fr; } }
+  .dropzone { border: 1.5px dashed var(--border); border-radius: 8px; padding: 26px; text-align: center; color: var(--text-2); cursor: pointer; transition: border-color .15s; }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); color: var(--text-1); }
+  .dropzone .fname { color: var(--text-1); font-size: 13px; word-break: break-all; }
+</style>
+</head>
+<body>
+<nav class="nav" id="topnav"></nav>
+
+<div id="login-panel" class="login-wrap" hidden>
+  <h2>登录 MaxHub</h2>
+  <p>登录后即可上传工具或发布新版本</p>
+  <button class="btn-primary" id="feishu-login" style="width:200px;height:38px">飞书扫码登录</button>
+  <div class="hint">将跳转到飞书授权页，请勿关闭本页</div>
+</div>
+
+<main id="app" hidden>
+  <h1 class="title">发布工具</h1>
+  <p class="subtitle" id="who"></p>
+
+  <div class="publish-layout">
+    <section>
+      <h2 style="margin-top:0">上传</h2>
+      <div class="dropzone" id="dropzone">
+        <div id="dz-hint">拖拽 zip 包到此处，或点击选择文件</div>
+        <div id="dz-file" class="fname" hidden></div>
+      </div>
+      <input type="file" id="package" accept=".zip" hidden>
+      <div class="hint" style="margin-top:8px">zip 包内含 manifest.json（名称、版本、Max 兼容范围等）与 payload 文件。提交后需审核者通过才会发布。</div>
+
+      <div class="field"><label>更新说明（可选，展示给其他用户）</label>
+        <textarea id="notes" rows="3" style="width:100%" placeholder="例如：新增按前缀批量重命名…"></textarea>
+      </div>
+
+      <button class="btn-primary" id="submit" style="margin-top:14px;padding:9px 24px">提交审核</button>
+    </section>
+
+    <section>
+      <h2 style="margin-top:0">我的提交</h2>
+      <table id="mine-table">
+        <thead><tr><th>工具</th><th>版本</th><th>状态</th><th>提交时间</th><th>审核人</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
+</main>
+
+<div id="msg"></div>
+
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script>
+const api = window.Api.api;
+const toast = window.Api.toast;
+
+function render() {
+  const logged = window.Api.isLoggedIn();
+  document.getElementById('login-panel').hidden = logged;
+  document.getElementById('app').hidden = !logged;
+  if (logged) {
+    const user = window.MaxHubAuth?.user;
+    document.getElementById('who').textContent = user ? `当前身份：${user.username}` : '';
+    loadMine();
+  }
+}
+
+// ---- 文件选择 ----
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('package');
+let selectedFile = null;
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) selectFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => selectFile(fileInput.files[0]));
+
+function selectFile(f) {
+  selectedFile = f;
+  document.getElementById('dz-hint').hidden = true;
+  const fname = document.getElementById('dz-file');
+  fname.hidden = false;
+  fname.textContent = f.name + (f.size ? `（${(f.size / 1024).toFixed(1)} KB）` : '');
+}
+
+// ---- 提交 ----
+async function submit() {
+  if (!selectedFile) { toast('请先选择 zip 包', false); return; }
+  const btn = document.getElementById('submit');
+  btn.disabled = true;
+  try {
+    const form = new FormData();
+    form.append('package', selectedFile);
+    const notes = document.getElementById('notes').value.trim();
+    if (notes) form.append('notes', notes);
+    const res = await fetch('/api/v1/publish/releases', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + localStorage.maxhubToken },
+      body: form,
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) {
+      toast('已提交审核，等待审核者通过');
+      selectedFile = null;
+      fileInput.value = '';
+      document.getElementById('dz-hint').hidden = false;
+      document.getElementById('dz-file').hidden = true;
+      document.getElementById('notes').value = '';
+      loadMine();
+    } else {
+      const err = (body.errors || []).join('；') || '提交失败';
+      toast(err, false);
+    }
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ---- 我的提交 ----
+const statusText = { PendingReview: '待审核', Published: '已发布', Rejected: '已退回', Withdrawn: '已撤回' };
+const fmt = (t) => new Date(t).toLocaleString('zh-CN', { hour12: false });
+
+async function loadMine() {
+  const res = await api('/api/v1/my-tools');
+  if (!res.ok) return;
+  const mine = await res.json();
+  document.querySelector('#mine-table tbody').innerHTML = mine.map(r => `
+    <tr>
+      <td>${r.name}<div style="color:var(--text-3);font-size:11px">${r.toolId}</div></td>
+      <td>${r.version}</td>
+      <td><span class="badge ${r.status}">${statusText[r.status] ?? r.status}</span></td>
+      <td>${fmt(r.submittedAtUtc)}</td>
+      <td>${r.reviewedBy ?? '—'}</td>
+    </tr>`).join('') || '<tr><td colspan="5" class="empty">还没有提交过工具</td></tr>';
+}
+
+document.getElementById('feishu-login')?.addEventListener('click', () => window.Api.startLogin());
+document.getElementById('submit')?.addEventListener('click', submit);
+window.addEventListener('load', () => setTimeout(render, 300));
+</script>
+</body>
+</html>
