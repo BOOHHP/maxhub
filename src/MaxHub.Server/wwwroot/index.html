@@ -59,14 +59,33 @@
 const api = window.Api.api;
 
 // ---- Agent 版本横幅 ----
+// 服务器无法出网：由浏览器直连 GitHub API 拿最新版（支持 CORS），失败回退服务器端点
+const GITHUB_REPO = 'BOOHHP/maxhub';
+
+async function fetchLatestFromGitHub() {
+  const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+    headers: { Accept: 'application/vnd.github+json' },
+  });
+  if (!res.ok) throw new Error('github unreachable');
+  const release = await res.json();
+  const asset = (release.assets || []).find(a => a.name.endsWith('.exe'));
+  if (!asset) throw new Error('no exe asset');
+  return { version: release.tag_name.replace(/^v/i, ''), downloadUrl: asset.browser_download_url };
+}
+
 async function loadAgentInfo() {
-  try {
-    const res = await fetch('/api/v1/agent/latest');
-    if (!res.ok) throw new Error('no endpoint');
-    const info = await res.json();
+  let info = null;
+  try { info = await fetchLatestFromGitHub(); } catch { /* 回退服务器端点 */ }
+  if (!info) {
+    try {
+      const res = await fetch('/api/v1/agent/latest');
+      if (res.ok) info = await res.json();
+    } catch { /* ignore */ }
+  }
+  if (info) {
     document.getElementById('agent-version').textContent = `v${info.version}`;
     document.getElementById('agent-download').onclick = () => { location.href = info.downloadUrl; };
-  } catch {
+  } else {
     document.getElementById('agent-version').textContent = '版本信息暂不可用';
   }
 }
