@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Windows;
 using MaxHub.Agent.Core.Detection;
 using MaxHub.Agent.Core.Install;
 using MaxHub.Agent.Core.Paths;
@@ -451,6 +452,319 @@ public sealed class ConnectorsViewModel : ViewModelBase
             BatchProgress = 0;
             InstallAllText = "全部安装";
             InstallAllCommand.RaiseCanExecuteChanged();
+        }
+    }
+}
+
+/// <summary>本机已安装工具的账本条目行。</summary>
+public sealed class InstalledToolRowViewModel : ViewModelBase
+{
+    private readonly ToolsViewModel _owner;
+
+    public InstalledToolRowViewModel(ToolsViewModel owner, LedgerEntry entry)
+    {
+        _owner = owner;
+        Entry = entry;
+        UninstallCommand = new RelayCommand(() => owner.UninstallAsync(this));
+    }
+
+    public LedgerEntry Entry { get; }
+    public string ArtifactId => Entry.ArtifactId;
+    public string Version => Entry.Version;
+    public int MaxVersion => Entry.MaxVersion;
+    public string InstalledAt => Entry.InstalledAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+    public string Display => $"{Entry.ArtifactId}  v{Entry.Version}  · Max {Entry.MaxVersion}  · {InstalledAt}";
+    public RelayCommand UninstallCommand { get; }
+}
+
+/// <summary>服务器工具市场的索引行。</summary>
+public sealed class MarketToolRowViewModel : ViewModelBase
+{
+    private readonly ToolsViewModel _owner;
+    private string _statusText = "未安装";
+
+    public MarketToolRowViewModel(ToolsViewModel owner, ToolIndexItem item)
+    {
+        _owner = owner;
+        Item = item;
+        InstallCommand = new RelayCommand(() => owner.InstallFromMarketAsync(this));
+    }
+
+    public ToolIndexItem Item { get; }
+    public string Name => Item.Name;
+    public string Description => Item.Description ?? "";
+    public string LatestVersion => Item.LatestVersion;
+    public string Channel => Item.Channel;
+    public string StatusText { get => _statusText; set => Set(ref _statusText, value); }
+    public RelayCommand InstallCommand { get; }
+}
+
+/// <summary>工具管理页：本机工具 / 市场安装 / 脚本上传。</summary>
+public sealed class ToolsViewModel : ViewModelBase
+{
+    private readonly AppServices _services;
+    private readonly AccountViewModel _account;
+    private string _banner = "";
+    private int _selectedMaxYear;
+    private string _uploadFileName = "";
+    private string _uploadName = "";
+    private string _uploadDescription = "";
+    private string _uploadVersion = "1.0.0";
+    private int _uploadMinMaxYear = 2019;
+    private int _uploadMaxMaxYear = 2026;
+    private string _uploadStatus = "";
+    private bool _uploadBusy;
+    private bool _busy;
+    private string? _pendingUploadContent;
+
+    public ToolsViewModel(AppServices services, AccountViewModel account)
+    {
+        _services = services;
+        _account = account;
+        RefreshCommand = new RelayCommand(RefreshAsync, () => !_busy);
+        RefreshInstalledCommand = new RelayCommand(RefreshInstalledAsync, () => !_busy);
+        UninstallAllCommand = new RelayCommand(UninstallAllAsync, () => !_busy);
+        PickFileCommand = new RelayCommand(PickFileAsync, () => !_uploadBusy);
+        SubmitUploadCommand = new RelayCommand(SubmitUploadAsync, () => !_uploadBusy && _account.IsLoggedIn);
+        account.LoggedInChanged += () => _ = RefreshAsync();
+    }
+
+    public ObservableCollection<InstalledToolRowViewModel> InstalledTools { get; } = [];
+    public ObservableCollection<MarketToolRowViewModel> MarketTools { get; } = [];
+    public ObservableCollection<int> MaxYears { get; } = [];
+    /// <summary>上传兼容范围使用全量年份（2019-2026），而非仅本机安装的版本。</summary>
+    public ObservableCollection<int> AllMaxYears { get; } = [.. Enumerable.Range(2019, 2026 - 2019 + 1)];
+
+    public string Banner { get => _banner; private set { Set(ref _banner, value); Raise(nameof(HasBanner)); } }
+    public bool HasBanner => !string.IsNullOrEmpty(Banner);
+
+    public int SelectedMaxYear
+    {
+        get => _selectedMaxYear;
+        set
+        {
+            if (Set(ref _selectedMaxYear, value))
+                _ = LoadMarketAsync();
+        }
+    }
+
+    public string UploadFileName { get => _uploadFileName; private set { Set(ref _uploadFileName, value); Raise(nameof(HasFile)); Raise(nameof(PickFileText)); } }
+    public bool HasFile => !string.IsNullOrEmpty(UploadFileName);
+    public string PickFileText => HasFile ? $"📁 {UploadFileName}" : "📁 选择脚本文件";
+    public string UploadName { get => _uploadName; set => Set(ref _uploadName, value); }
+    public string UploadDescription { get => _uploadDescription; set => Set(ref _uploadDescription, value); }
+    public string UploadVersion { get => _uploadVersion; set => Set(ref _uploadVersion, value); }
+    public int UploadMinMaxYear { get => _uploadMinMaxYear; set => Set(ref _uploadMinMaxYear, value); }
+    public int UploadMaxMaxYear { get => _uploadMaxMaxYear; set => Set(ref _uploadMaxMaxYear, value); }
+    public string UploadStatus { get => _uploadStatus; private set { Set(ref _uploadStatus, value); Raise(nameof(HasUploadStatus)); } }
+    public bool HasUploadStatus => !string.IsNullOrEmpty(UploadStatus);
+    public bool IsUploading => _uploadBusy;
+
+    public RelayCommand RefreshCommand { get; }
+    public RelayCommand RefreshInstalledCommand { get; }
+    public RelayCommand UninstallAllCommand { get; }
+    public RelayCommand PickFileCommand { get; }
+    public RelayCommand SubmitUploadCommand { get; }
+
+    public async Task RefreshAsync()
+    {
+        var installations = await Task.Run(() => new MaxInstallationDetector(new WindowsMaxRegistryReader()).Detect());
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            MaxYears.Clear();
+            foreach (var max in installations.OrderBy(i => i.Year))
+                MaxYears.Add(max.Year);
+        });
+        if (MaxYears.Count > 0)
+            SelectedMaxYear = MaxYears.Max();
+        await RefreshInstalledAsync();
+        await LoadMarketAsync();
+    }
+
+    public async Task RefreshInstalledAsync()
+    {
+        var entries = await Task.Run(() =>
+            _services.Ledger.Load().Entries
+                .Where(e => e.ArtifactType == "tool" && e.Active)
+                .OrderBy(e => e.MaxVersion)
+                .ThenBy(e => e.ArtifactId)
+                .ToList());
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            InstalledTools.Clear();
+            foreach (var e in entries)
+                InstalledTools.Add(new InstalledToolRowViewModel(this, e));
+        });
+        Banner = entries.Count == 0
+            ? _account.IsLoggedIn ? "本机尚未安装任何工具，可在「市场」中安装或从「上传」提交脚本" : "请先在「账号」页登录"
+            : "";
+    }
+
+    private async Task LoadMarketAsync()
+    {
+        if (MaxYears.Count == 0 || SelectedMaxYear == 0)
+            return;
+        if (!_account.IsLoggedIn)
+            return;
+        try
+        {
+            var tools = await _services.Hub.GetToolsAsync(SelectedMaxYear);
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                MarketTools.Clear();
+                foreach (var t in tools)
+                {
+                    var row = new MarketToolRowViewModel(this, t);
+                    row.StatusText = IsInstalled(t.ToolId) ? "已安装" : "未安装";
+                    MarketTools.Add(row);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Banner = $"加载工具市场失败（{AccountViewModel.Brief(ex)}）";
+        }
+    }
+
+    private bool IsInstalled(string toolId) =>
+        _services.Ledger.Load().Entries.Any(e => e.ArtifactId == toolId && e.Active);
+
+    /// <summary>从市场安装：拉取安装计划 → 下载包 → 事务安装。</summary>
+    internal async Task InstallFromMarketAsync(MarketToolRowViewModel row)
+    {
+        if (!_account.IsLoggedIn)
+        {
+            row.StatusText = "请先登录";
+            return;
+        }
+        row.StatusText = "◌ 获取安装计划…";
+        try
+        {
+            var plan = await _services.Hub.GetInstallPlanAsync(row.Item.ToolId, row.Item.LatestVersion);
+            var zipPath = Path.Combine(Path.GetTempPath(), $"maxhub-{row.Item.ToolId}-{row.Item.LatestVersion}.zip");
+            row.StatusText = "◌ 下载中…";
+            await _services.Hub.DownloadToolAsync(row.Item.ToolId, row.Item.LatestVersion, zipPath);
+
+            var engine = new InstallEngine(_services.AgentRoot, _services.Resolver, _services.Ledger);
+            row.StatusText = "◌ 安装中…";
+            var outcome = await Task.Run(() => engine.Install(zipPath, plan.Sha256, SelectedMaxYear));
+            File.Delete(zipPath);
+            if (outcome.Success)
+            {
+                row.StatusText = "✓ 已安装";
+                await RefreshInstalledAsync();
+            }
+            else
+            {
+                row.StatusText = "✗ 安装失败";
+                Banner = $"工具 {row.Item.Name} 安装失败：{outcome.Error}";
+            }
+        }
+        catch (Exception ex)
+        {
+            row.StatusText = "✗ 安装失败";
+            Banner = $"工具 {row.Item.Name} 安装失败（{AccountViewModel.Brief(ex)}）";
+        }
+    }
+
+    internal async Task UninstallAsync(InstalledToolRowViewModel row)
+    {
+        try
+        {
+            var engine = new InstallEngine(_services.AgentRoot, _services.Resolver, _services.Ledger);
+            var outcome = await Task.Run(() => engine.Uninstall(row.ArtifactId, row.MaxVersion));
+            if (!outcome.Success)
+                Banner = $"卸载失败：{outcome.Error}";
+            await RefreshInstalledAsync();
+        }
+        catch (Exception ex)
+        {
+            Banner = $"卸载失败（{AccountViewModel.Brief(ex)}）";
+        }
+    }
+
+    private async Task UninstallAllAsync()
+    {
+        _busy = true;
+        try
+        {
+            var engine = new InstallEngine(_services.AgentRoot, _services.Resolver, _services.Ledger);
+            foreach (var row in InstalledTools.ToList())
+            {
+                await Task.Run(() => engine.Uninstall(row.ArtifactId, row.MaxVersion));
+                await RefreshInstalledAsync();
+            }
+        }
+        finally
+        {
+            _busy = false;
+            RefreshInstalledCommand.RaiseCanExecuteChanged();
+            UninstallAllCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    /// <summary>选择本地脚本文件：读取内容 → 服务端自动识别预填名称/描述。</summary>
+    private async Task PickFileAsync()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "选择要上传的 3ds Max 脚本",
+            Filter = "MaxScript 脚本 (*.ms)|*.ms|Python 脚本 (*.py)|*.py|所有文件 (*.*)|*.*",
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+        UploadFileName = Path.GetFileName(dialog.FileName);
+        UploadStatus = "◌ 正在自动识别脚本信息…";
+        try
+        {
+            _pendingUploadContent = await File.ReadAllTextAsync(dialog.FileName);
+            var result = await _services.Hub.AnalyzeScriptAsync(UploadFileName, _pendingUploadContent);
+            if (result is not null)
+            {
+                UploadName = result.Value.Name;
+                UploadDescription = result.Value.Description;
+            }
+            UploadStatus = "✓ 已识别，请核对信息后提交（提交后进入审核）";
+        }
+        catch (Exception ex)
+        {
+            UploadStatus = $"自动识别失败（{AccountViewModel.Brief(ex)}），请手动填写";
+        }
+    }
+
+    private async Task SubmitUploadAsync()
+    {
+        if (string.IsNullOrWhiteSpace(UploadFileName) || string.IsNullOrWhiteSpace(UploadName) ||
+            string.IsNullOrWhiteSpace(UploadVersion))
+        {
+            UploadStatus = "请先选择脚本并填写名称与版本";
+            return;
+        }
+        if (_pendingUploadContent is null)
+        {
+            UploadStatus = "请先选择脚本文件";
+            return;
+        }
+        _uploadBusy = true;
+        SubmitUploadCommand.RaiseCanExecuteChanged();
+        try
+        {
+            UploadStatus = "◌ 提交中…";
+            var outcome = await _services.Hub.PublishScriptAsync(
+                UploadFileName, _pendingUploadContent, UploadName, UploadDescription,
+                UploadVersion, UploadMinMaxYear, UploadMaxMaxYear);
+            UploadStatus = outcome.Success
+                ? $"✓ 已提交审核（Release {outcome.ReleaseId}），审核通过后即可在市场中安装"
+                : $"✗ 提交失败：{string.Join("；", outcome.Errors)}";
+        }
+        catch (Exception ex)
+        {
+            UploadStatus = $"✗ 提交失败（{AccountViewModel.Brief(ex)}）";
+        }
+        finally
+        {
+            _uploadBusy = false;
+            SubmitUploadCommand.RaiseCanExecuteChanged();
         }
     }
 }

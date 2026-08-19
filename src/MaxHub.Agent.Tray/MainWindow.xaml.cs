@@ -8,9 +8,10 @@ public partial class MainWindow : Window
 {
     private readonly AccountViewModel _account;
     private readonly ConnectorsViewModel _connectors;
+    private readonly ToolsViewModel _tools;
     private bool _balloonShown;
 
-    public MainWindow(AccountViewModel account, ConnectorsViewModel connectors)
+    public MainWindow(AccountViewModel account, ConnectorsViewModel connectors, ToolsViewModel tools)
     {
         InitializeComponent();
         // 无边框窗口最大化默认盖住任务栏；+12 补偿 WindowChrome 6px 边框外扩
@@ -18,10 +19,12 @@ public partial class MainWindow : Window
         MaxWidth = SystemParameters.WorkArea.Width + 12;
         _account = account;
         _connectors = connectors;
+        _tools = tools;
         VersionText.Text = "v" + (System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?");
 
         AccountPage.DataContext = account;
         ConnectorsPage.DataContext = connectors;
+        ToolsPage.DataContext = tools;
         account.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(AccountViewModel.StateName))
@@ -46,14 +49,24 @@ public partial class MainWindow : Window
     private void NavAccount_Checked(object sender, RoutedEventArgs e)
     {
         ConnectorsPage.Visibility = Visibility.Collapsed;
+        ToolsPage.Visibility = Visibility.Collapsed;
         ShowPageWithFade(AccountPage);
     }
 
     private void NavConnectors_Checked(object sender, RoutedEventArgs e)
     {
         AccountPage.Visibility = Visibility.Collapsed;
+        ToolsPage.Visibility = Visibility.Collapsed;
         ShowPageWithFade(ConnectorsPage);
         _ = _connectors.RefreshAsync();
+    }
+
+    private void NavTools_Checked(object sender, RoutedEventArgs e)
+    {
+        AccountPage.Visibility = Visibility.Collapsed;
+        ConnectorsPage.Visibility = Visibility.Collapsed;
+        ShowPageWithFade(ToolsPage);
+        _ = _tools.RefreshAsync();
     }
 
     private static void ShowPageWithFade(UIElement page)

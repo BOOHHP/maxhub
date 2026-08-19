@@ -134,6 +134,33 @@ public sealed class HubClient(HttpClient http)
         return new PublishOutcome(true, json.GetProperty("releaseId").GetString(), []);
     }
 
+    /// <summary>脚本直传：后端自动打包并提交审核（复用自动识别预填的名称/描述）。</summary>
+    public async Task<PublishOutcome> PublishScriptAsync(string fileName, string content, string name, string description, string version, int minMaxYear, int maxMaxYear)
+    {
+        var response = await http.PostAsJsonAsync("/api/v1/scripts/publish", new
+        {
+            fileName, content, name, description, version, minMaxYear, maxMaxYear,
+        });
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        if (!response.IsSuccessStatusCode)
+        {
+            var errors = json.TryGetProperty("errors", out var e)
+                ? e.EnumerateArray().Select(x => x.GetString() ?? "").ToArray()
+                : [response.StatusCode.ToString()];
+            return new PublishOutcome(false, null, errors);
+        }
+        return new PublishOutcome(true, json.GetProperty("releaseId").GetString(), []);
+    }
+
+    /// <summary>脚本自动识别：返回建议的名称/描述/ID。</summary>
+    public async Task<(string Name, string Description, string SuggestedId)?> AnalyzeScriptAsync(string fileName, string content)
+    {
+        var response = await http.PostAsJsonAsync("/api/v1/scripts/analyze", new { fileName, content });
+        if (!response.IsSuccessStatusCode) return null;
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return (json.GetProperty("name").GetString()!, json.GetProperty("description").GetString()!, json.GetProperty("suggestedId").GetString()!);
+    }
+
     public async Task ReviewAsync(string releaseId, bool approve, string channel)
     {
         var response = await http.PostAsJsonAsync($"/api/v1/releases/{releaseId}/review", new { approve, channel });

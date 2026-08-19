@@ -62,6 +62,8 @@
                                      GroupName="Nav" Checked="NavAccount_Checked" ToolTip="账号"/>
                         <RadioButton x:Name="NavConnectors" Style="{StaticResource NavButton}" Content="🔌"
                                      GroupName="Nav" Checked="NavConnectors_Checked" ToolTip="Connector 管理"/>
+                        <RadioButton x:Name="NavTools" Style="{StaticResource NavButton}" Content="🧰"
+                                     GroupName="Nav" Checked="NavTools_Checked" ToolTip="工具管理"/>
                     </StackPanel>
                 </DockPanel>
             </Border>
@@ -271,6 +273,160 @@
                 <!-- 底部提示 -->
                 <TextBlock Grid.Row="4" Text="ⓘ 安装后请重启 3ds Max，面板将出现在 宏/工具栏 中" FontSize="12"
                            Foreground="{StaticResource Text.Secondary}" Margin="0,8,0,0"/>
+            </Grid>
+
+            <!-- 工具管理页 -->
+            <Grid Grid.Column="1" x:Name="ToolsPage" Visibility="Collapsed" Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 工具条 -->
+                <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                    <TextBlock Text="工具管理" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="⟳ 刷新" Style="{StaticResource OutlineButton}" Margin="0,0,8,0"
+                                Command="{Binding RefreshCommand}"/>
+                        <Button Content="卸载全部本机工具" Style="{StaticResource DangerOutlineButton}"
+                                Command="{Binding UninstallAllCommand}"/>
+                    </StackPanel>
+                </DockPanel>
+
+                <!-- 提示条 -->
+                <Border Grid.Row="1" Background="{StaticResource Bg.Card}" CornerRadius="4" Padding="10,6" Margin="0,0,0,8"
+                        Visibility="{Binding HasBanner, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding Banner}" FontSize="12" Foreground="{StaticResource Status.Warning}"/>
+                </Border>
+
+                <!-- 三个功能页 -->
+                <TabControl Grid.Row="2" Background="Transparent" BorderThickness="0">
+                    <!-- 本机已安装 -->
+                    <TabItem Header="本机工具">
+                        <Grid Margin="0,8,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="已安装工具（卸载依据本机账本，安全回滚）" FontSize="12"
+                                       Foreground="{StaticResource Text.Secondary}" Margin="0,0,0,8"/>
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding InstalledTools}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,0,0,4">
+                                                <Border Background="{StaticResource Bg.Card}" CornerRadius="4" Height="44" Padding="12,0">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding Display}" FontSize="13"
+                                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                                   ToolTip="{Binding Display}"/>
+                                                        <Button Grid.Column="1" Content="卸载" Width="64"
+                                                                Style="{StaticResource OutlineButton}" VerticalAlignment="Center"
+                                                                Command="{Binding UninstallCommand}"/>
+                                                    </Grid>
+                                                </Border>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- 市场安装 -->
+                    <TabItem Header="市场">
+                        <Grid Margin="0,8,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock Text="安装目标 Max 版本：" FontSize="13" VerticalAlignment="Center"/>
+                                <ComboBox Width="120" ItemsSource="{Binding MaxYears}" SelectedItem="{Binding SelectedMaxYear}"
+                                          VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <TextBlock Grid.Row="1" Text="从服务器市场安装工具（审核通过的脚本自动出现在这里）" FontSize="12"
+                                       Foreground="{StaticResource Text.Secondary}" Margin="0,0,0,8"/>
+                            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding MarketTools}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,0,0,4">
+                                                <Border Background="{StaticResource Bg.Card}" CornerRadius="4" Padding="12,8">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="200"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="90"/>
+                                                            <ColumnDefinition Width="80"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13"/>
+                                                            <TextBlock Text="{Binding LatestVersion, StringFormat=v{0}}" FontSize="11"
+                                                                       Foreground="{StaticResource Text.Secondary}"/>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1" Text="{Binding Description}" FontSize="12"
+                                                                   Foreground="{StaticResource Text.Secondary}" TextWrapping="Wrap"
+                                                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                        <TextBlock Grid.Column="2" Text="{Binding StatusText}" FontSize="12"
+                                                                   VerticalAlignment="Center"/>
+                                                        <Button Grid.Column="3" Content="安装" Width="64"
+                                                                Style="{StaticResource PrimaryButton}"
+                                                                Command="{Binding InstallCommand}" VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </Border>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- 本地上传 -->
+                    <TabItem Header="上传脚本">
+                        <Grid Margin="0,8,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0" Text="选择本地脚本（.ms / .py），自动识别名称与描述后提交审核" FontSize="12"
+                                       Foreground="{StaticResource Text.Secondary}" Margin="0,0,0,10"/>
+                            <Button Grid.Row="1" Content="{Binding PickFileText}"
+                                    Style="{StaticResource OutlineButton}" Height="36" HorizontalAlignment="Stretch"
+                                    Command="{Binding PickFileCommand}"/>
+                            <TextBlock Grid.Row="2" Text="名称" FontSize="12" Margin="0,10,0,4"/>
+                            <TextBox Grid.Row="3" Text="{Binding UploadName, UpdateSourceTrigger=PropertyChanged}" Height="28"/>
+                            <TextBlock Grid.Row="4" Text="描述" FontSize="12" Margin="0,10,0,4"/>
+                            <TextBox Grid.Row="5" Text="{Binding UploadDescription, UpdateSourceTrigger=PropertyChanged}"
+                                     Height="56" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"/>
+                            <StackPanel Grid.Row="6" Orientation="Horizontal" Margin="0,12,0,0">
+                                <TextBlock Text="版本" FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBox Text="{Binding UploadVersion, UpdateSourceTrigger=PropertyChanged}" Width="80" Height="28"/>
+                                <TextBlock Text="Max" FontSize="12" VerticalAlignment="Center" Margin="16,0,8,0"/>
+                                <ComboBox Width="70" ItemsSource="{Binding AllMaxYears}" SelectedItem="{Binding UploadMinMaxYear}"/>
+                                <TextBlock Text="—" FontSize="12" VerticalAlignment="Center" Margin="8,0,8,0"/>
+                                <ComboBox Width="70" ItemsSource="{Binding AllMaxYears}" SelectedItem="{Binding UploadMaxMaxYear}"/>
+                                <Button Content="提交审核" Style="{StaticResource PrimaryButton}" Width="96" Height="30"
+                                        Margin="16,0,0,0" Command="{Binding SubmitUploadCommand}"/>
+                            </StackPanel>
+                            <TextBlock Grid.Row="7" Text="{Binding UploadStatus}" FontSize="12"
+                                       Foreground="{StaticResource Status.Warning}" Margin="0,10,0,0"
+                                       Visibility="{Binding HasUploadStatus, Converter={StaticResource BoolToVis}}"/>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
             </Grid>
         </Grid>
     </Grid>

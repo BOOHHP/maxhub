@@ -24,7 +24,8 @@ public partial class App : Application
         _services = new AppServices();
         var account = new AccountViewModel(_services);
         var connectors = new ConnectorsViewModel(_services, account);
-        _mainWindow = new MainWindow(account, connectors);
+        var tools = new ToolsViewModel(_services, account);
+        _mainWindow = new MainWindow(account, connectors, tools);
 
         if (account.IsLoggedIn)
             _services.StartLocalServer();
