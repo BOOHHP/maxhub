@@ -48,6 +48,8 @@ public partial class App : Application
 
         var openItem = new MenuItem { Header = "打开 MaxHub Agent", FontWeight = FontWeights.Bold };
         openItem.Click += (_, _) => _mainWindow.ShowFromTray();
+        var autoStartItem = new MenuItem { Header = "开机自启", IsCheckable = true, IsChecked = IsAutoStartEnabled() };
+        autoStartItem.Click += (_, _) => SetAutoStart(autoStartItem.IsChecked);
         var exitItem = new MenuItem { Header = "退出程序" };
         exitItem.Click += async (_, _) =>
         {
@@ -61,6 +63,7 @@ public partial class App : Application
         menu.Items.Add(openItem);
         menu.Items.Add(new Separator());
         menu.Items.Add(loginStatus);
+        menu.Items.Add(autoStartItem);
         menu.Items.Add(new Separator());
         menu.Items.Add(exitItem);
 
@@ -74,6 +77,24 @@ public partial class App : Application
         UpdateLoginStatus();
 
         _mainWindow.ShowFromTray();
+    }
+
+    private const string AutoStartKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string AutoStartName = "MaxHubAgent";
+
+    private static bool IsAutoStartEnabled()
+    {
+        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(AutoStartKey);
+        return key?.GetValue(AutoStartName) is string;
+    }
+
+    private static void SetAutoStart(bool enable)
+    {
+        using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(AutoStartKey);
+        if (enable && Environment.ProcessPath is { } exePath)
+            key.SetValue(AutoStartName, '"' + exePath + '"');
+        else
+            key.DeleteValue(AutoStartName, throwOnMissingValue: false);
     }
 
     private void RefreshTrayIcon()

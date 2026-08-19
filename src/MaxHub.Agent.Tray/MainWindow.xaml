@@ -47,7 +47,7 @@
             <!-- 左侧导航 -->
             <Border Grid.Column="0" Background="{StaticResource Bg.Sidebar}">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Bottom" Text="v1.0" FontSize="10"
+                    <TextBlock x:Name="VersionText" DockPanel.Dock="Bottom" Text="v?" FontSize="10"
                                Foreground="{StaticResource Text.Disabled}"
                                HorizontalAlignment="Center" Margin="0,0,0,10"/>
                     <StackPanel>

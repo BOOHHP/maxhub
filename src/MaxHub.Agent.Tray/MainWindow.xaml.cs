@@ -15,6 +15,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _account = account;
         _connectors = connectors;
+        VersionText.Text = "v" + (System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?");
 
         AccountPage.DataContext = account;
         ConnectorsPage.DataContext = connectors;
