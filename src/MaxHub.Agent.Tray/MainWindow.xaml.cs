@@ -13,6 +13,9 @@ public partial class MainWindow : Window
     public MainWindow(AccountViewModel account, ConnectorsViewModel connectors)
     {
         InitializeComponent();
+        // 无边框窗口最大化默认盖住任务栏；+12 补偿 WindowChrome 6px 边框外扩
+        MaxHeight = SystemParameters.WorkArea.Height + 12;
+        MaxWidth = SystemParameters.WorkArea.Width + 12;
         _account = account;
         _connectors = connectors;
         VersionText.Text = "v" + (System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?");
@@ -63,6 +66,15 @@ public partial class MainWindow : Window
     private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e) => DragMove();
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void Maximize_Click(object sender, RoutedEventArgs e) =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        MaximizeButton.Content = WindowState == WindowState.Maximized ? "❏" : "▢";
+    }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
