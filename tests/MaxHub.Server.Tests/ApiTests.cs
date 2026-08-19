@@ -23,6 +23,9 @@ public sealed class ServerFixture : WebApplicationFactory<Program>
             ["Roles:Publishers:0"] = "emp-pub",
             ["Roles:Reviewers:0"] = "emp-rev",
             ["Roles:Admins:0"] = "emp-admin",
+            ["Agent:LatestVersion"] = "2.0.0",
+            ["Agent:DownloadUrl"] = "https://github.com/example/maxhub/releases/download/v2.0.0/MaxHubAgent-2.0.0-win-x64.zip",
+            ["Agent:Sha256"] = "abc123",
         }));
         return base.CreateHost(builder);
     }

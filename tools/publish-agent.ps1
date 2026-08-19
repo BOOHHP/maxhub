@@ -22,5 +22,12 @@ Compress-Archive -Path $exe -DestinationPath $zipPath -Force
 
 $exeSizeMb = [Math]::Round((Get-Item $exe).Length / 1MB, 1)
 $zipSizeMb = [Math]::Round((Get-Item $zipPath).Length / 1MB, 1)
+$sha256 = (Get-FileHash -Algorithm SHA256 -Path $zipPath).Hash.ToLowerInvariant()
 Write-Host "Published: $exe ($exeSizeMb MB)"
 Write-Host "Packaged:  $zipPath ($zipSizeMb MB)"
+Write-Host "SHA256:    $sha256"
+Write-Host ""
+Write-Host "Next: upload $zipPath to GitHub Release, then set in appsettings.Local.json:"
+Write-Host "  Agent:LatestVersion = $version"
+Write-Host "  Agent:DownloadUrl   = https://github.com/<owner>/<repo>/releases/download/v$version/MaxHubAgent-$version-win-x64.zip"
+Write-Host "  Agent:Sha256        = $sha256"

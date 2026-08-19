@@ -139,6 +139,22 @@ app.MapDelete("/api/v1/auth/sessions/current", (HttpContext ctx) =>
     return header.StartsWith("Bearer ") && auth.Revoke(header["Bearer ".Length..]) ? Results.NoContent() : Results.Unauthorized();
 });
 
+// ---- Agent 版本与下载入口（公开，用于网页横幅与 Agent 自更新） ----
+app.MapGet("/api/v1/agent/latest", () =>
+{
+    var latestVersion = builder.Configuration["Agent:LatestVersion"];
+    var downloadUrl = builder.Configuration["Agent:DownloadUrl"];
+    var sha256 = builder.Configuration["Agent:Sha256"];
+    if (string.IsNullOrWhiteSpace(latestVersion))
+        return Results.NotFound();
+    return Results.Ok(new
+    {
+        version = latestVersion,
+        downloadUrl = downloadUrl ?? "",
+        sha256 = sha256 ?? "",
+    });
+});
+
 // ---- 工具索引与详情（市场公开浏览，无需登录） ----
 app.MapGet("/api/v1/tools", (int maxVersion) =>
 {
