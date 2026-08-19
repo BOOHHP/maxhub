@@ -69,6 +69,78 @@
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
 
+        <!-- 深色下拉框：默认模板是系统亮色，必须重写模板 -->
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="bg" Background="Transparent" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="{StaticResource Bg.CardHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="{StaticResource Accent.Primary}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="Background" Value="{StaticResource Bg.Card}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Border.Default}"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="4"
+                                    BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"/>
+                            <ToggleButton Background="Transparent" BorderThickness="0"
+                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                          Focusable="False" ClickMode="Press">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="Transparent"/>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              Margin="10,0,24,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                                              TextBlock.Foreground="{TemplateBinding Foreground}"/>
+                            <Path Data="M0,0 L4,4 L8,0" Stroke="{StaticResource Text.Secondary}" StrokeThickness="1.5"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,10,0" IsHitTestVisible="False"/>
+                            <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True"
+                                   StaysOpen="False" PopupAnimation="Slide">
+                                <Border Background="{StaticResource Bg.Card}" CornerRadius="4" Margin="0,2,0,0"
+                                        BorderBrush="{StaticResource Border.Default}" BorderThickness="1"
+                                        MinWidth="{TemplateBinding ActualWidth}" MaxHeight="220">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="BorderBrush" Value="{StaticResource Accent.Primary}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- 主色实心按钮 -->
         <Style x:Key="PrimaryButton" TargetType="Button">
             <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>

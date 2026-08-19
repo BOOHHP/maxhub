@@ -30,12 +30,16 @@ public static partial class ScriptDescriptor
 
     private static string ExtractName(string fileName, string content)
     {
-        // 1. rollout 标题：rollout xxx "标题"
+        // 1. @name 标记（头部元数据注释）
+        if (ExtractTag(content, "name") is { } tagName)
+            return tagName;
+
+        // 2. rollout 标题：rollout xxx "标题"
         var rollout = Regex.Match(content, @"rollout\s+\w+\s+""([^""]+)""", RegexOptions.IgnoreCase);
         if (rollout.Success && !string.IsNullOrWhiteSpace(rollout.Groups[1].Value))
             return rollout.Groups[1].Value.Trim();
 
-        // 2. 文件名（去扩展名、去下划线/连字符，转可读名）
+        // 3. 文件名（去扩展名、去下划线/连字符，转可读名）
         var baseName = Path.GetFileNameWithoutExtension(fileName);
         if (!string.IsNullOrWhiteSpace(baseName))
             return ToReadable(baseName);
@@ -43,9 +47,21 @@ public static partial class ScriptDescriptor
         return "未命名工具";
     }
 
+    /// <summary>提取 @tag 标记值（如 -- @description xxx），只取标记后到行尾的文字。</summary>
+    private static string? ExtractTag(string content, string tag)
+    {
+        var m = Regex.Match(content, $@"@{tag}[ \t:：]+([^\r\n]+)", RegexOptions.IgnoreCase);
+        var value = m.Success ? m.Groups[1].Value.Trim() : null;
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
     private static string ExtractDescription(string content, string name)
     {
-        // 1. 头部注释块：连续 -- 或 # 注释行，取第一段有意义的
+        // 1. @description 标记：只取标记后的文字
+        if (ExtractTag(content, "description") is { } tagDesc)
+            return Truncate(tagDesc, 200);
+
+        // 2. 头部注释块：连续 -- 或 # 注释行，跳过 @tag 元数据行
         var lines = content.Split('\n');
         var header = new List<string>();
         foreach (var line in lines)
@@ -54,6 +70,7 @@ public static partial class ScriptDescriptor
             if (trimmed.StartsWith("--") || trimmed.StartsWith("#"))
             {
                 var text = trimmed.TrimStart('-', '#', ' ', '\t');
+                if (text.StartsWith('@')) continue; // @name/@category 等标记不属于描述
                 if (text.Length > 0) header.Add(text);
             }
             else if (header.Count > 0)

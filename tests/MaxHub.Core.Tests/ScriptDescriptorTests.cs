@@ -22,6 +22,34 @@ public class ScriptDescriptorTests
     }
 
     [Fact]
+    public void At_tags_take_priority_and_are_excluded_from_description()
+    {
+        var content = """
+            -- @name 相交裁切工具 v1.0
+            -- @category 建模
+            -- @description 一键检测相交重叠模型(含同模型元素), 自动布尔裁切使互不相交, 支持ESC中断
+            rollout IntersectCutter "裁切" ( )
+            """;
+        var d = ScriptDescriptor.Analyze("相交裁切工具.ms", content);
+        Assert.Equal("相交裁切工具 v1.0", d.Name);
+        Assert.Equal("一键检测相交重叠模型(含同模型元素), 自动布尔裁切使互不相交, 支持ESC中断", d.Description);
+        Assert.DoesNotContain("@", d.Description);
+    }
+
+    [Fact]
+    public void Header_comment_fallback_skips_tag_lines()
+    {
+        var content = """
+            -- @author 张三
+            -- 快速导出选中对象为 FBX。
+            fn exportSelected = ()
+            """;
+        var d = ScriptDescriptor.Analyze("exporter.ms", content);
+        Assert.Equal("快速导出选中对象为 FBX。", d.Description);
+        Assert.DoesNotContain("@author", d.Description);
+    }
+
+    [Fact]
     public void Falls_back_to_filename_when_no_rollout()
     {
         var d = ScriptDescriptor.Analyze("quick_exporter.ms", "fn exportSelected() = ()");
