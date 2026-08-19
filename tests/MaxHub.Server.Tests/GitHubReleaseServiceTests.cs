@@ -110,4 +110,39 @@ public class GitHubReleaseServiceTests
         var (service, _) = ServiceFor(_ => throw new HttpRequestException("down"));
         Assert.Null(await service.GetLatestAsync());
     }
+
+    [Fact]
+    public async Task Falls_back_to_redirect_probe_when_api_unreachable()
+    {
+        var (service, _) = ServiceFor(req =>
+        {
+            if (req.RequestUri!.Host == "api.github.com")
+                throw new HttpRequestException("api blocked");
+            var redirect = new HttpResponseMessage(HttpStatusCode.Found);
+            redirect.Headers.Location = new Uri("https://github.com/owner/repo/releases/tag/v1.0.3");
+            return redirect;
+        });
+
+        var release = await service.GetLatestAsync();
+
+        Assert.NotNull(release);
+        Assert.Equal("1.0.3", release!.Version);
+        Assert.Equal("https://github.com/owner/repo/releases/download/v1.0.3/MaxHubAgent-1.0.3-win-x64.exe", release.DownloadUrl);
+        Assert.Equal("", release.Sha256);
+    }
+
+    [Fact]
+    public async Task Redirect_probe_rejects_non_version_location()
+    {
+        var (service, _) = ServiceFor(req =>
+        {
+            if (req.RequestUri!.Host == "api.github.com")
+                throw new HttpRequestException("api blocked");
+            var redirect = new HttpResponseMessage(HttpStatusCode.Found);
+            redirect.Headers.Location = new Uri("https://github.com/login");
+            return redirect;
+        });
+
+        Assert.Null(await service.GetLatestAsync());
+    }
 }

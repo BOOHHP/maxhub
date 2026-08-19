@@ -45,7 +45,21 @@ public sealed class GitHubReleaseService(HttpClient http, string repo, TimeSpan?
 
     private async Task<GitHubAgentRelease?> FetchAsync()
     {
-        var json = await http.GetFromJsonAsync<JsonElement>($"/repos/{repo}/releases/latest");
+        try
+        {
+            if (await FetchFromApiAsync() is { } fromApi)
+                return fromApi;
+        }
+        catch
+        {
+            // api.github.com 在部分内网不可达，退到 github.com 302 探测
+        }
+        return await FetchFromRedirectAsync();
+    }
+
+    private async Task<GitHubAgentRelease?> FetchFromApiAsync()
+    {
+        var json = await http.GetFromJsonAsync<JsonElement>($"https://api.github.com/repos/{repo}/releases/latest");
         var version = json.GetProperty("tag_name").GetString()?.TrimStart('v', 'V');
         if (string.IsNullOrWhiteSpace(version) || !json.TryGetProperty("assets", out var assets))
             return null;
@@ -65,5 +79,20 @@ public sealed class GitHubReleaseService(HttpClient http, string repo, TimeSpan?
             return new GitHubAgentRelease(version, url, sha256);
         }
         return null;
+    }
+
+    /// <summary>releases/latest 会 302 到 tag 页；从 Location 解析版本并按发布命名规则拼下载地址（无 sha256）。</summary>
+    private async Task<GitHubAgentRelease?> FetchFromRedirectAsync()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"https://github.com/{repo}/releases/latest");
+        using var response = await http.SendAsync(request);
+        if ((int)response.StatusCode is < 300 or >= 400 || response.Headers.Location is not { } location)
+            return null;
+        var tag = location.Segments[^1].Trim('/');
+        var version = tag.TrimStart('v', 'V');
+        if (!Version.TryParse(version, out _))
+            return null;
+        return new GitHubAgentRelease(version,
+            $"https://github.com/{repo}/releases/download/{tag}/MaxHubAgent-{version}-win-x64.exe", "");
     }
 }

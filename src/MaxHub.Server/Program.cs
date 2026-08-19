@@ -69,7 +69,11 @@ var roleService = app.Services.GetRequiredService<RoleService>();
 GitHubReleaseService? githubReleases = null;
 if (builder.Configuration["Agent:GitHubRepo"] is { Length: > 0 } githubRepo)
 {
-    var githubHttp = new HttpClient { BaseAddress = new Uri("https://api.github.com") };
+    // AllowAutoRedirect=false：api.github.com 不可达时靠 releases/latest 的 302 Location 解析版本
+    var githubHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+    {
+        Timeout = TimeSpan.FromSeconds(10),
+    };
     githubHttp.DefaultRequestHeaders.UserAgent.ParseAdd("MaxHub-Server");
     githubHttp.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
     githubReleases = new GitHubReleaseService(githubHttp, githubRepo);
