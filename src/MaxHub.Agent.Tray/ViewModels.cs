@@ -17,7 +17,7 @@ public sealed class AppServices
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MaxHub");
 
     public string ServerUrl { get; } =
-        Environment.GetEnvironmentVariable("MAXHUB_SERVER") ?? "http://127.0.0.1:5100";
+        Environment.GetEnvironmentVariable("MAXHUB_SERVER") ?? "http://10.2.13.8:5100";
 
     public AgentSessionStore SessionStore { get; }
     public HubClient Hub { get; }
