@@ -1,3 +1,4 @@
+using MaxHub.Core.Packaging;
 using MaxHub.Server.Data;
 using MaxHub.Server.Domain;
 using MaxHub.Server.Services;
@@ -242,6 +243,43 @@ app.MapPost("/api/v1/publish/releases", async (HttpContext ctx) =>
         : Results.BadRequest(new { errors = outcome.Errors });
 });
 
+// ---- 脚本直传：自动识别 + 打包提交 ----
+app.MapPost("/api/v1/scripts/analyze", (HttpContext ctx, AnalyzeScriptRequest request) =>
+{
+    if (CurrentUser(ctx) is null) return Results.Unauthorized();
+    if (string.IsNullOrWhiteSpace(request.FileName) || string.IsNullOrWhiteSpace(request.Content))
+        return Results.BadRequest(new { errors = new[] { "缺少文件名或脚本内容。" } });
+    var d = ScriptDescriptor.Analyze(request.FileName, request.Content);
+    return Results.Ok(new { name = d.Name, description = d.Description, suggestedId = d.SuggestedId });
+});
+
+app.MapPost("/api/v1/scripts/publish", async (HttpContext ctx, PublishScriptRequest request) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    if (!IsPublisher(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (string.IsNullOrWhiteSpace(request.FileName) || string.IsNullOrWhiteSpace(request.Content) ||
+        string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Version))
+        return Results.BadRequest(new { errors = new[] { "缺少文件名、脚本内容、名称或版本。" } });
+
+    var zipPath = Path.Combine(Path.GetTempPath(), $"maxhub-script-{Guid.NewGuid():N}.zip");
+    try
+    {
+        ScriptPackage.Pack(new ScriptPublishRequest(
+            request.FileName, request.Content, request.Name,
+            request.Description ?? "", request.Version,
+            request.MinMaxYear, request.MaxMaxYear), zipPath);
+        await using var stream = File.OpenRead(zipPath);
+        var outcome = registry.SubmitRelease(user, stream);
+        return outcome.Success
+            ? Results.Ok(new { releaseId = outcome.ReleaseId, status = "pendingReview" })
+            : Results.BadRequest(new { errors = outcome.Errors });
+    }
+    finally
+    {
+        File.Delete(zipPath);
+    }
+});
+
 app.MapPost("/api/v1/releases/{releaseId}/review", (HttpContext ctx, string releaseId, ReviewRequest request) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
@@ -428,6 +466,8 @@ internal sealed record ReviewRequest(bool Approve, string? Channel);
 internal sealed record CompleteQrRequest(string Code, string State, string? Client = null);
 internal sealed record ClientEvent(string EventId, string Type, string Subject, string? ClientVersion);
 internal sealed record SetRolesRequest(string[] Roles);
+internal sealed record AnalyzeScriptRequest(string FileName, string Content);
+internal sealed record PublishScriptRequest(string FileName, string Content, string Name, string? Description, string Version, int MinMaxYear, int MaxMaxYear);
 
 public partial class Program;
 
