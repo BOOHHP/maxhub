@@ -6,12 +6,14 @@ namespace MaxHub.Agent.Core.Remote;
 /// </summary>
 public static class TrustedKeyStore
 {
-    public const string PinFileName = "trusted-signing-key.txt";
+    /// <summary>pin 按服务器隔离：本地开发服务器与生产服务器各自固定，互不冲突。</summary>
+    public static string PinFileNameFor(string serverAuthority) =>
+        $"trusted-signing-key-{serverAuthority.Replace(':', '_')}.txt";
 
     public static async Task<string> GetOrPinAsync(HubClient hub, string agentRoot)
     {
         var current = await hub.GetSigningPublicKeyAsync();
-        var pinPath = Path.Combine(agentRoot, PinFileName);
+        var pinPath = Path.Combine(agentRoot, PinFileNameFor(hub.ServerAuthority));
         if (File.Exists(pinPath))
         {
             var pinned = File.ReadAllText(pinPath).Trim();

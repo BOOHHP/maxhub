@@ -41,6 +41,9 @@ public sealed class HubClient(HttpClient http)
     public void UseToken(string accessToken) =>
         http.DefaultRequestHeaders.Authorization = new("Bearer", accessToken);
 
+    /// <summary>服务器标识（host:port），用于按服务器隔离本地固定的签名公钥。</summary>
+    public string ServerAuthority => http.BaseAddress?.Authority ?? "default";
+
     /// <summary>本机回调模式：把飞书重定向拿到的授权码交给服务端换身份。</summary>
     public async Task CompleteQrAsync(string sessionId, string code, string state)
     {
