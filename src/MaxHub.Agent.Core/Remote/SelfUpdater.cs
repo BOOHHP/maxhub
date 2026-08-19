@@ -1,31 +1,80 @@
 using System.Diagnostics;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace MaxHub.Agent.Core.Remote;
 
 /// <summary>
-/// Agent 自更新：从服务器获取最新版本元数据，下载 exe、校验 SHA256、替换并重启。
-/// 更新期间写一个 pending-update 标记，避免进程被替换后无法重启自己。
+/// Agent 自更新：优先直连 GitHub Releases（用户机器可出网，服务器不能），
+/// 失败回退服务器端点。下载 exe、校验 SHA256、替换并重启。
 /// </summary>
-public sealed class SelfUpdater(HubClient hub)
+public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
 {
     public string? CurrentVersion { get; init; }
+    public string GitHubRepo { get; init; } = "BOOHHP/maxhub";
 
-    /// <summary>检查服务器是否有比当前更新的版本。未配置（404）或无更新返回 null。</summary>
+    private readonly HttpClient _github = githubHttp ?? CreateGitHubClient();
+
+    private static HttpClient CreateGitHubClient()
+    {
+        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("MaxHub-Agent");
+        http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        return http;
+    }
+
+    /// <summary>检查是否有更新：GitHub 优先，回退服务器。无更新或都不可达返回 null。</summary>
     public async Task<AgentReleaseInfo?> CheckForUpdateAsync()
     {
-        AgentReleaseInfo? release;
+        var release = await GetLatestFromGitHubAsync() ?? await GetLatestFromServerAsync();
+        if (release is null || string.IsNullOrWhiteSpace(release.DownloadUrl))
+            return null;
+        return IsNewer(release.Version) ? release : null;
+    }
+
+    private async Task<AgentReleaseInfo?> GetLatestFromGitHubAsync()
+    {
         try
         {
-            release = await hub.GetLatestAgentAsync();
+            var json = await _github.GetFromJsonAsync<JsonElement>(
+                $"https://api.github.com/repos/{GitHubRepo}/releases/latest");
+            var version = json.GetProperty("tag_name").GetString()?.TrimStart('v', 'V');
+            if (string.IsNullOrWhiteSpace(version) || !json.TryGetProperty("assets", out var assets))
+                return null;
+            foreach (var asset in assets.EnumerateArray())
+            {
+                var name = asset.GetProperty("name").GetString() ?? "";
+                if (!name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var url = asset.GetProperty("browser_download_url").GetString() ?? "";
+                var sha256 = "";
+                if (asset.TryGetProperty("digest", out var digest) && digest.ValueKind == JsonValueKind.String)
+                {
+                    var value = digest.GetString()!;
+                    sha256 = value.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) ? value[7..] : value;
+                }
+                return new AgentReleaseInfo(version, url, sha256);
+            }
+            return null;
+        }
+        catch
+        {
+            return null; // GitHub 不可达时走服务器回退
+        }
+    }
+
+    private async Task<AgentReleaseInfo?> GetLatestFromServerAsync()
+    {
+        try
+        {
+            return await hub.GetLatestAgentAsync();
         }
         catch
         {
             return null; // 服务器不可达时不打扰用户
         }
-        if (release is null || string.IsNullOrWhiteSpace(release.DownloadUrl))
-            return null;
-        return IsNewer(release.Version) ? release : null;
     }
 
     /// <summary>下载新版本 exe 到应用目录旁的临时文件，校验后替换并重启。</summary>

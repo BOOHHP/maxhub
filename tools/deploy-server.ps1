@@ -8,6 +8,11 @@ $dst = "\\10.2.13.8\Server\maxhub"
 
 if (-not (Test-Path $dst)) { throw "Server share not reachable: $dst" }
 
+# Always publish fresh so wwwroot and binaries match the current source tree
+if (Test-Path $src) { Remove-Item $src -Recurse -Force }
+dotnet publish (Join-Path $repoRoot "src\MaxHub.Server\MaxHub.Server.csproj") -c Release -o $src
+if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE" }
+
 # Preserve server-local files: data/ (db + signing key) and appsettings.Local.json
 # Copy everything else (program files + wwwroot portal pages)
 Get-ChildItem $src | Where-Object {
