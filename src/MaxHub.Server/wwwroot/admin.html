@@ -266,7 +266,7 @@ async function saveAgentRelease() {
 document.getElementById('feishu-login')?.addEventListener('click', startLogin);
 document.getElementById('conn-submit')?.addEventListener('click', uploadConnector);
 document.getElementById('agent-submit')?.addEventListener('click', saveAgentRelease);
-window.addEventListener('load', () => setTimeout(render, 300)); // 等 auth.js 完成导航与 me() 解析
+window.addEventListener('maxhub-auth-ready', render); // auth.js 完成登录态解析后触发
 </script>
 </body>
 </html>

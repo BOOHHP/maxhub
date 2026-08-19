@@ -227,7 +227,7 @@ async function loadMine() {
 document.getElementById('feishu-login')?.addEventListener('click', () => window.Api.startLogin());
 document.getElementById('submit')?.addEventListener('click', submit);
 setMode('script'); // 默认脚本直传模式
-window.addEventListener('load', () => setTimeout(render, 300));
+window.addEventListener('maxhub-auth-ready', render); // auth.js 完成登录态解析后触发
 </script>
 </body>
 </html>

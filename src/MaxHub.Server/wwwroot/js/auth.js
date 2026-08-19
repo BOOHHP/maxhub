@@ -29,10 +29,14 @@
   }
 
   window.addEventListener('DOMContentLoaded', async () => {
-    // 处理飞书回调（若有）
+    // 处理飞书回调（若有）：登录成功后统一跳转到工具市场
     const handled = await window.Api.handleCallback();
+    if (handled) {
+      location.href = 'index.html';
+      return;
+    }
     let user = null;
-    if (window.Api.isLoggedIn() && !handled) {
+    if (window.Api.isLoggedIn()) {
       try {
         user = await window.Api.me();
       } catch (e) {
@@ -40,7 +44,8 @@
       }
     }
     renderNav(user);
-    // 暴露给页面（如 publish 页判断是否已登录）
+    // 暴露给页面并广播就绪事件（页面用事件代替 setTimeout 轮询）
     window.MaxHubAuth = { user, roles: user?.roles ?? [] };
+    window.dispatchEvent(new CustomEvent('maxhub-auth-ready'));
   });
 })();
