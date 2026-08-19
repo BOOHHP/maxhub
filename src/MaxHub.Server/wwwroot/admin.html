@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>后台管理 · MaxHub</title>
 <link rel="stylesheet" href="css/site.css">
+<style>
+  .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .stat-card .num { font-size: 24px; font-weight: 700; color: var(--text-1); }
+  .stat-card .label { color: var(--text-2); font-size: 12px; margin-top: 2px; }
+  section h2 { margin-top: 0; }
+</style>
 </head>
 <body>
 <nav class="nav" id="topnav"></nav>
@@ -20,54 +27,84 @@
   <h1 class="title">后台管理</h1>
   <p class="subtitle" id="role-hint"></p>
 
-  <h2>待审核（<span id="pending-count">0</span>）</h2>
-  <table id="pending-table">
-    <thead><tr><th>工具</th><th>版本</th><th>提交人</th><th>提交时间</th><th>操作</th></tr></thead>
-    <tbody></tbody>
-  </table>
+  <div class="side-layout">
+    <aside class="side-nav" id="sidenav">
+      <button class="side-item active" data-sec="review">审核队列<span class="count" id="nav-pending"></span></button>
+      <button class="side-item" data-sec="releases">版本管理</button>
+      <button class="side-item" data-sec="connectors">Connector</button>
+      <button class="side-item admin-only" data-sec="members">成员角色</button>
+      <button class="side-item admin-only" data-sec="agent">Agent 版本</button>
+      <button class="side-item" data-sec="stats">使用统计</button>
+    </aside>
 
-  <h2>全部版本</h2>
-  <table id="all-table">
-    <thead><tr><th>工具</th><th>版本</th><th>状态</th><th>频道</th><th>签名</th><th>提交人</th><th>审核人</th><th>提交时间</th><th></th></tr></thead>
-    <tbody></tbody>
-  </table>
+    <div class="side-content">
+      <section id="sec-review">
+        <h2>审核队列（<span id="pending-count">0</span>）</h2>
+        <table id="pending-table">
+          <thead><tr><th>工具</th><th>版本</th><th>提交人</th><th>提交时间</th><th>操作</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
 
-  <h2>Connector 制品</h2>
-  <table id="connector-table">
-    <thead><tr><th>版本</th><th>支持 Max</th><th>大小</th><th>签名</th></tr></thead>
-    <tbody></tbody>
-  </table>
-  <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="connector-upload" hidden>
-    <input type="file" id="conn-file" accept=".zip" style="font-size:12px">
-    <input id="conn-version" placeholder="版本号 1.4.0" style="width:110px">
-    <input id="conn-min" placeholder="最低 2019" style="width:90px">
-    <input id="conn-max" placeholder="最高 2026" style="width:90px">
-    <button class="btn-primary" id="conn-submit">上传并注册</button>
+      <section id="sec-releases" hidden>
+        <h2>版本管理</h2>
+        <table id="all-table">
+          <thead><tr><th>工具</th><th>版本</th><th>状态</th><th>频道</th><th>签名</th><th>提交人</th><th>审核人</th><th>提交时间</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section id="sec-connectors" hidden>
+        <h2>Connector 制品</h2>
+        <table id="connector-table">
+          <thead><tr><th>版本</th><th>支持 Max</th><th>大小</th><th>签名</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="connector-upload" hidden>
+          <input type="file" id="conn-file" accept=".zip" style="font-size:12px">
+          <input id="conn-version" placeholder="版本号 1.4.0" style="width:110px">
+          <input id="conn-min" placeholder="最低 2019" style="width:90px">
+          <input id="conn-max" placeholder="最高 2026" style="width:90px">
+          <button class="btn-primary" id="conn-submit">上传并注册</button>
+        </div>
+        <div class="hint">上传后立即签名并对 Agent 可见；需要管理员角色</div>
+      </section>
+
+      <section id="sec-members" hidden>
+        <h2>成员角色</h2>
+        <p class="subtitle" style="margin-bottom:10px">在飞书授权登录过的人会出现在这里。勾选即保存；不能取消自己的管理员角色。</p>
+        <table id="member-table">
+          <thead><tr><th>用户</th><th>管理员</th><th>审核者</th><th>发布者</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section id="sec-agent" hidden>
+        <h2>Agent 版本</h2>
+        <p class="subtitle" style="margin-bottom:10px">更新后立即生效，无需重启服务器。发布新版 Agent 到 GitHub 后在此登记。</p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="agent-form">
+          <input id="agent-version" placeholder="版本号 1.0.2" style="width:110px">
+          <input id="agent-url" placeholder="GitHub Release 下载地址" style="flex:1;min-width:260px">
+          <input id="agent-sha" placeholder="SHA256（可选）" style="width:280px">
+          <button class="btn-primary" id="agent-submit">保存</button>
+        </div>
+        <div class="hint" id="agent-current" style="margin-top:8px"></div>
+      </section>
+
+      <section id="sec-stats" hidden>
+        <h2>使用统计</h2>
+        <div class="stat-cards">
+          <div class="stat-card"><div class="num" id="stat-users">—</div><div class="label">活跃用户</div></div>
+          <div class="stat-card"><div class="num" id="stat-downloads">—</div><div class="label">总下载次数</div></div>
+          <div class="stat-card"><div class="num" id="stat-installs">—</div><div class="label">总安装次数</div></div>
+        </div>
+        <table id="stats-table">
+          <thead><tr><th>工具@版本</th><th>下载</th><th>安装</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </div>
   </div>
-  <div class="hint">上传后立即签名并对 Agent 可见；需要管理员角色</div>
-
-  <h2 id="member-title">成员角色</h2>
-  <p class="subtitle" style="margin-bottom:8px">在飞书授权登录过的人会出现在这里。勾选即保存；不能取消自己的管理员角色。</p>
-  <table id="member-table">
-    <thead><tr><th>用户</th><th>管理员</th><th>审核者</th><th>发布者</th></tr></thead>
-    <tbody></tbody>
-  </table>
-
-  <h2 id="agent-title">Agent 版本</h2>
-  <p class="subtitle" style="margin-bottom:8px">更新后立即生效，无需重启服务器。发布新版 Agent 到 GitHub 后在此登记。</p>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="agent-form">
-    <input id="agent-version" placeholder="版本号 1.0.2" style="width:110px">
-    <input id="agent-url" placeholder="GitHub Release 下载地址" style="flex:1;min-width:260px">
-    <input id="agent-sha" placeholder="SHA256（可选）" style="width:280px">
-    <button class="btn-primary" id="agent-submit">保存</button>
-  </div>
-  <div class="hint" id="agent-current"></div>
-
-  <h2>使用统计 <span style="font-size:12px;color:var(--text-2)" id="active-users"></span></h2>
-  <table id="stats-table">
-    <thead><tr><th>工具@版本</th><th>下载</th><th>安装</th></tr></thead>
-    <tbody></tbody>
-  </table>
 </main>
 
 <div id="msg"></div>
@@ -78,33 +115,38 @@
 const api = window.Api.api;
 const toast = window.Api.toast;
 
-function startLogin() {
-  window.Api.startLogin();
+function startLogin() { window.Api.startLogin(); }
+
+// ---- 侧边栏分页 ----
+function showSection(name) {
+  document.querySelectorAll('.side-content section').forEach(s => s.hidden = s.id !== `sec-${name}`);
+  document.querySelectorAll('#sidenav .side-item').forEach(b => b.classList.toggle('active', b.dataset.sec === name));
 }
+document.querySelectorAll('#sidenav .side-item').forEach(b =>
+  b.addEventListener('click', () => showSection(b.dataset.sec)));
 
 function render() {
   const logged = window.Api.isLoggedIn();
   document.getElementById('login-panel').hidden = logged;
   document.getElementById('app').hidden = !logged;
   if (!logged) return;
-  refresh();
+
   const user = window.MaxHubAuth?.user;
-  if (user) {
-    const isAdmin = window.Api.hasRole(user.roles, 'admin');
-    document.getElementById('role-hint').textContent = `当前身份：${user.username}（${user.roles.join(' / ')}）`;
-    document.getElementById('connector-upload').hidden = !isAdmin;
-    const isReviewer = window.Api.hasRole(user.roles, 'reviewer');
-    document.getElementById('member-title').style.display = isAdmin ? '' : 'none';
-    document.getElementById('member-table').style.display = isAdmin ? '' : 'none';
-    document.querySelector('#member-title + p').style.display = isAdmin ? '' : 'none';
-    document.getElementById('agent-title').style.display = isAdmin ? '' : 'none';
-    document.getElementById('agent-form').style.display = isAdmin ? '' : 'none';
-    document.querySelector('#agent-title + p').style.display = isAdmin ? '' : 'none';
-    if (isAdmin) loadAgentRelease();
-    if (!isAdmin && !isReviewer) {
-      document.getElementById('app').innerHTML = '<div class="login-wrap"><h2>无权限</h2><p>当前账号需要审核者或管理员角色才能访问后台。</p></div>';
-    }
+  if (!user) return;
+  const isAdmin = window.Api.hasRole(user.roles, 'admin');
+  const isReviewer = window.Api.hasRole(user.roles, 'reviewer');
+
+  // publisher 无后台权限：直接回工具市场
+  if (!isAdmin && !isReviewer) {
+    location.href = 'index.html';
+    return;
   }
+
+  document.getElementById('role-hint').textContent = `当前身份：${user.username}（${user.roles.join(' / ')}）`;
+  document.getElementById('connector-upload').hidden = !isAdmin;
+  document.querySelectorAll('#sidenav .admin-only').forEach(b => b.style.display = isAdmin ? '' : 'none');
+  if (isAdmin) loadAgentRelease();
+  refresh();
 }
 
 async function loadReleases() {
@@ -157,6 +199,7 @@ async function refresh() {
 
   const pending = releases.filter(r => r.status === 'PendingReview');
   document.getElementById('pending-count').textContent = pending.length;
+  document.getElementById('nav-pending').textContent = pending.length > 0 ? pending.length : '';
   document.querySelector('#pending-table tbody').innerHTML = pending.map(r => `
     <tr>
       <td>${r.name}<div style="color:var(--text-3);font-size:11px">${r.toolId}</div></td>
@@ -195,7 +238,6 @@ async function refresh() {
       '<tr><td colspan="4" class="empty">需要管理员角色</td></tr>';
   }
 
-  // 成员角色（仅 admin）
   const me = window.MaxHubAuth?.user;
   const isAdmin = me ? window.Api.hasRole(me.roles, 'admin') : false;
   if (isAdmin) {
@@ -210,14 +252,16 @@ async function refresh() {
           <td>${chk('admin', '管理员')}</td><td>${chk('reviewer', '审核者')}</td><td>${chk('publisher', '发布者')}</td></tr>`;
       }).join('') || '<tr><td colspan="4" class="empty">暂无成员</td></tr>';
     }
-  } else {
-    document.querySelector('#member-table tbody').innerHTML = '';
   }
 
   const statsRes = await api('/api/v1/admin/stats');
   if (statsRes.ok) {
     const stats = await statsRes.json();
-    document.getElementById('active-users').textContent = `活跃用户 ${stats.activeUsers}`;
+    const totalDownloads = stats.subjects.reduce((s, x) => s + x.downloads, 0);
+    const totalInstalls = stats.subjects.reduce((s, x) => s + x.installs, 0);
+    document.getElementById('stat-users').textContent = stats.activeUsers;
+    document.getElementById('stat-downloads').textContent = totalDownloads;
+    document.getElementById('stat-installs').textContent = totalInstalls;
     document.querySelector('#stats-table tbody').innerHTML = stats.subjects.map(s => `
       <tr><td>${s.subject}</td><td>${s.downloads}</td><td>${s.installs}</td></tr>`).join('')
       || '<tr><td colspan="3" class="empty">暂无数据</td></tr>';

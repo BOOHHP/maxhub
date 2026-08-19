@@ -6,15 +6,15 @@
 <title>工具市场 · MaxHub</title>
 <link rel="stylesheet" href="css/site.css">
 <style>
-  .market-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
+  .market-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
   .market-toolbar input[type=search] { flex: 1; min-width: 200px; }
   .download-banner { background: linear-gradient(135deg, #1E2A38, #26323F); border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; display: flex; align-items: center; gap: 18px; margin-bottom: 26px; flex-wrap: wrap; }
   .download-banner .icon { font-size: 30px; }
   .download-banner .info { flex: 1; min-width: 220px; }
   .download-banner .info h2 { font-size: 16px; margin: 0 0 3px; }
   .download-banner .info p { color: var(--text-2); font-size: 12.5px; margin: 0; }
-  .tool-card .channels { display: flex; gap: 4px; }
   .compat-chip { color: var(--text-3); font-size: 11.5px; border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px; }
+  .cat-chip { color: var(--accent); font-size: 11.5px; background: rgba(76,159,224,.12); border-radius: 3px; padding: 1px 7px; }
 </style>
 </head>
 <body>
@@ -36,15 +36,19 @@
     </div>
   </div>
 
-  <div class="market-toolbar">
-    <input type="search" id="search" placeholder="搜索工具名称或描述…">
-    <select id="max-filter">
-      <option value="">全部 Max 版本</option>
-    </select>
+  <div class="side-layout">
+    <aside class="side-nav" id="cat-nav"></aside>
+    <div class="side-content">
+      <div class="market-toolbar">
+        <input type="search" id="search" placeholder="搜索工具名称或描述…">
+        <select id="max-filter">
+          <option value="">全部 Max 版本</option>
+        </select>
+      </div>
+      <div id="tools" class="tools-grid"></div>
+      <div id="empty" class="empty" hidden>没有匹配的工具</div>
+    </div>
   </div>
-
-  <div id="tools" class="tools-grid"></div>
-  <div id="empty" class="empty" hidden>没有匹配的工具</div>
 </main>
 
 <div id="msg"></div>
@@ -67,18 +71,55 @@ async function loadAgentInfo() {
   }
 }
 
+// ---- 自动分类（按名称/描述/id 关键词） ----
+const CATEGORIES = [
+  ['重命名', /rename|重命名|命名/i],
+  ['导入导出', /export|import|导出|导入|fbx|obj|gltf/i],
+  ['材质贴图', /material|texture|shader|材质|贴图/i],
+  ['UV', /\buv\b|unwrap|展开/i],
+  ['清理优化', /clean|cleanup|optimi|清理|优化|检查|check/i],
+  ['动画绑定', /anim|rig|bone|skin|动画|绑定|骨骼|蒙皮/i],
+  ['灯光渲染', /light|render|camera|灯光|渲染|相机|摄像机/i],
+  ['场景对象', /scene|object|selection|场景|对象|选择/i],
+];
+function classify(t) {
+  const s = `${t.name} ${t.description || ''} ${t.toolId}`;
+  for (const [cat, re] of CATEGORIES)
+    if (re.test(s)) return cat;
+  return '其他';
+}
+
 // ---- 工具市场 ----
 let allTools = [];
+let activeCat = '';
 const MAX_YEARS = Array.from({ length: 2026 - 2019 + 1 }, (_, i) => 2019 + i);
 
 async function loadTools() {
   const res = await api('/api/v1/tools?maxVersion=2026', { retry: false });
   if (!res.ok) { document.getElementById('tools').innerHTML = '<div class="empty">加载失败</div>'; return; }
-  allTools = await res.json();
+  allTools = (await res.json()).map(t => ({ ...t, category: classify(t) }));
+  renderCatNav();
+  render();
+}
+
+function renderCatNav() {
+  const counts = {};
+  allTools.forEach(t => counts[t.category] = (counts[t.category] || 0) + 1);
+  const cats = ['', ...CATEGORIES.map(c => c[0]).filter(c => counts[c]), ...(counts['其他'] ? ['其他'] : [])];
+  document.getElementById('cat-nav').innerHTML = cats.map(c => `
+    <button class="side-item ${activeCat === c ? 'active' : ''}" onclick="setCat('${c}')">
+      ${c === '' ? '全部工具' : c}<span class="count">${c === '' ? allTools.length : counts[c] || 0}</span>
+    </button>`).join('');
+}
+
+function setCat(c) {
+  activeCat = c;
+  renderCatNav();
   render();
 }
 
 function matchesFilter(t) {
+  if (activeCat && t.category !== activeCat) return false;
   const q = document.getElementById('search').value.trim().toLowerCase();
   const maxY = document.getElementById('max-filter').value;
   if (q && !(t.name.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q) || t.toolId.toLowerCase().includes(q))) return false;
@@ -97,7 +138,8 @@ function render() {
       <div class="foot">
         <span class="badge ${t.channel}">${{ stable: '稳定', beta: '测试', internal: '内部' }[t.channel] ?? t.channel}</span>
         <span style="color:var(--text-2);font-size:12px">v${t.latestVersion}</span>
-        <span class="compat-chip">Max ${t.compatibility.minVersion}–${t.compatibility.maxVersion}</span>
+        <span class="cat-chip">${t.category}</span>
+        <span class="compat-chip" style="margin-left:auto">Max ${t.compatibility.minVersion}–${t.compatibility.maxVersion}</span>
       </div>
     </div>`).join('') || '';
 }
@@ -106,7 +148,6 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-// 筛选下拉只显示有工具的年份
 function initFilter() {
   const sel = document.getElementById('max-filter');
   const covered = new Set();
