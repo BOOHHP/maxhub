@@ -52,6 +52,7 @@ using (var db = app.Services.GetRequiredService<IDbContextFactory<MaxHubDb>>().C
         "ALTER TABLE Connectors ADD COLUMN SignatureBase64 TEXT",
         "ALTER TABLE Users ADD COLUMN Roles TEXT DEFAULT ''",
         """CREATE TABLE IF NOT EXISTS "Users" ("EmployeeId" TEXT NOT NULL CONSTRAINT "PK_Users" PRIMARY KEY, "Username" TEXT NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS "AgentReleases" ("Id" INTEGER NOT NULL CONSTRAINT "PK_AgentReleases" PRIMARY KEY AUTOINCREMENT, "Version" TEXT NOT NULL, "DownloadUrl" TEXT NOT NULL, "Sha256" TEXT NOT NULL, "UpdatedAtUtc" TEXT NOT NULL)""",
     })
     {
         try { db.Database.ExecuteSqlRaw(sql); }
@@ -142,17 +143,31 @@ app.MapDelete("/api/v1/auth/sessions/current", (HttpContext ctx) =>
 // ---- Agent 版本与下载入口（公开，用于网页横幅与 Agent 自更新） ----
 app.MapGet("/api/v1/agent/latest", () =>
 {
+    // 优先读数据库（后台网页可更新），无记录时回退配置文件（初始化兜底）
+    var dbRelease = registry.GetAgentRelease();
+    if (dbRelease is not null)
+        return Results.Ok(new { version = dbRelease.Version, downloadUrl = dbRelease.DownloadUrl, sha256 = dbRelease.Sha256 });
+
     var latestVersion = builder.Configuration["Agent:LatestVersion"];
-    var downloadUrl = builder.Configuration["Agent:DownloadUrl"];
-    var sha256 = builder.Configuration["Agent:Sha256"];
     if (string.IsNullOrWhiteSpace(latestVersion))
         return Results.NotFound();
     return Results.Ok(new
     {
         version = latestVersion,
-        downloadUrl = downloadUrl ?? "",
-        sha256 = sha256 ?? "",
+        downloadUrl = builder.Configuration["Agent:DownloadUrl"] ?? "",
+        sha256 = builder.Configuration["Agent:Sha256"] ?? "",
     });
+});
+
+// 后台更新 Agent 版本元数据（仅 admin，DB 存储后立即生效，无需重启）
+app.MapPut("/api/v1/admin/agent-release", (HttpContext ctx, SetAgentReleaseRequest request) =>
+{
+    if (CurrentUser(ctx) is null) return Results.Unauthorized();
+    if (!IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (string.IsNullOrWhiteSpace(request.Version) || string.IsNullOrWhiteSpace(request.DownloadUrl))
+        return Results.BadRequest(new { errors = new[] { "版本号与下载地址必填。" } });
+    registry.SetAgentRelease(request.Version, request.DownloadUrl, request.Sha256 ?? "");
+    return Results.Ok();
 });
 
 // ---- 工具索引与详情（市场公开浏览，无需登录） ----
@@ -484,6 +499,7 @@ internal sealed record ClientEvent(string EventId, string Type, string Subject, 
 internal sealed record SetRolesRequest(string[] Roles);
 internal sealed record AnalyzeScriptRequest(string FileName, string Content);
 internal sealed record PublishScriptRequest(string FileName, string Content, string Name, string? Description, string Version, int MinMaxYear, int MaxMaxYear);
+internal sealed record SetAgentReleaseRequest(string Version, string DownloadUrl, string? Sha256);
 
 public partial class Program;
 

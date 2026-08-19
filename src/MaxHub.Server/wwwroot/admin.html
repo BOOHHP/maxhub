@@ -53,6 +53,16 @@
     <tbody></tbody>
   </table>
 
+  <h2 id="agent-title">Agent 版本</h2>
+  <p class="subtitle" style="margin-bottom:8px">更新后立即生效，无需重启服务器。发布新版 Agent 到 GitHub 后在此登记。</p>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="agent-form">
+    <input id="agent-version" placeholder="版本号 1.0.2" style="width:110px">
+    <input id="agent-url" placeholder="GitHub Release 下载地址" style="flex:1;min-width:260px">
+    <input id="agent-sha" placeholder="SHA256（可选）" style="width:280px">
+    <button class="btn-primary" id="agent-submit">保存</button>
+  </div>
+  <div class="hint" id="agent-current"></div>
+
   <h2>使用统计 <span style="font-size:12px;color:var(--text-2)" id="active-users"></span></h2>
   <table id="stats-table">
     <thead><tr><th>工具@版本</th><th>下载</th><th>安装</th></tr></thead>
@@ -87,6 +97,10 @@ function render() {
     document.getElementById('member-title').style.display = isAdmin ? '' : 'none';
     document.getElementById('member-table').style.display = isAdmin ? '' : 'none';
     document.querySelector('#member-title + p').style.display = isAdmin ? '' : 'none';
+    document.getElementById('agent-title').style.display = isAdmin ? '' : 'none';
+    document.getElementById('agent-form').style.display = isAdmin ? '' : 'none';
+    document.querySelector('#agent-title + p').style.display = isAdmin ? '' : 'none';
+    if (isAdmin) loadAgentRelease();
     if (!isAdmin && !isReviewer) {
       document.getElementById('app').innerHTML = '<div class="login-wrap"><h2>无权限</h2><p>当前账号需要审核者或管理员角色才能访问后台。</p></div>';
     }
@@ -224,8 +238,34 @@ async function memberChanged(employeeId) {
   toast(res.ok ? '已保存角色' : (res.status === 403 ? '需要管理员角色' : '保存失败'), res.ok);
 }
 
+// ---- Agent 版本管理 ----
+async function loadAgentRelease() {
+  try {
+    const res = await fetch('/api/v1/agent/latest');
+    if (!res.ok) { document.getElementById('agent-current').textContent = '尚未配置 Agent 版本'; return; }
+    const info = await res.json();
+    document.getElementById('agent-current').textContent = `当前：v${info.version}`;
+    document.getElementById('agent-version').value = info.version;
+    document.getElementById('agent-url').value = info.downloadUrl;
+    document.getElementById('agent-sha').value = info.sha256;
+  } catch { /* ignore */ }
+}
+
+async function saveAgentRelease() {
+  const version = document.getElementById('agent-version').value.trim();
+  const url = document.getElementById('agent-url').value.trim();
+  const sha = document.getElementById('agent-sha').value.trim();
+  if (!version || !url) { toast('请填写版本号与下载地址', false); return; }
+  const res = await api('/api/v1/admin/agent-release', {
+    method: 'PUT', body: JSON.stringify({ version, downloadUrl: url, sha256: sha }),
+  });
+  toast(res.ok ? '已保存，立即生效' : (res.status === 403 ? '需要管理员角色' : '保存失败'), res.ok);
+  if (res.ok) loadAgentRelease();
+}
+
 document.getElementById('feishu-login')?.addEventListener('click', startLogin);
 document.getElementById('conn-submit')?.addEventListener('click', uploadConnector);
+document.getElementById('agent-submit')?.addEventListener('click', saveAgentRelease);
 window.addEventListener('load', () => setTimeout(render, 300)); // 等 auth.js 完成导航与 me() 解析
 </script>
 </body>

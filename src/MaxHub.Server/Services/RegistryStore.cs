@@ -254,6 +254,29 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
 
     public sealed record SubjectStats(string Subject, int Downloads, int Installs);
 
+    // ---- Agent 版本元数据（DB 存储，后台可更新，无需重启） ----
+    public AgentReleaseRow? GetAgentRelease()
+    {
+        using var db = dbFactory.CreateDbContext();
+        return db.AgentReleases.AsNoTracking().OrderByDescending(a => a.Id).FirstOrDefault();
+    }
+
+    public void SetAgentRelease(string version, string downloadUrl, string sha256)
+    {
+        lock (_writeLock)
+        {
+            using var db = dbFactory.CreateDbContext();
+            db.AgentReleases.Add(new AgentReleaseRow
+            {
+                Version = version,
+                DownloadUrl = downloadUrl,
+                Sha256 = sha256,
+                UpdatedAtUtc = DateTimeOffset.UtcNow,
+            });
+            db.SaveChanges();
+        }
+    }
+
     /// <summary>使用统计：按主题（toolId@version）聚合下载/安装次数，及活跃用户数。</summary>
     public (IReadOnlyList<SubjectStats> Subjects, int ActiveUsers) GetStats()
     {

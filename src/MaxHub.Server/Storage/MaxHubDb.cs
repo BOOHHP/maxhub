@@ -13,6 +13,7 @@ public sealed class MaxHubDb(DbContextOptions<MaxHubDb> options) : DbContext(opt
     public DbSet<InstallEventRow> InstallEvents => Set<InstallEventRow>();
     public DbSet<RefreshTokenRow> RefreshTokens => Set<RefreshTokenRow>();
     public DbSet<UserRow> Users => Set<UserRow>();
+    public DbSet<AgentReleaseRow> AgentReleases => Set<AgentReleaseRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,6 +22,7 @@ public sealed class MaxHubDb(DbContextOptions<MaxHubDb> options) : DbContext(opt
         modelBuilder.Entity<ActivityEventRow>().HasKey(e => e.EventId);
         modelBuilder.Entity<RefreshTokenRow>().HasKey(t => t.TokenHash);
         modelBuilder.Entity<UserRow>().HasKey(u => u.EmployeeId);
+        modelBuilder.Entity<AgentReleaseRow>().HasKey(a => a.Id);
     }
 }
 
@@ -88,6 +90,16 @@ public sealed class UserRow
     public required string Username { get; set; }
     /// <summary>逗号分隔的角色（admin/reviewer/publisher）。旧库加列后存量行为 NULL，读取时按空串处理。</summary>
     public string? Roles { get; set; }
+}
+
+/// <summary>Agent 版本元数据（数据库存储，后台网页可直接更新，无需重启服务器）。</summary>
+public sealed class AgentReleaseRow
+{
+    public int Id { get; set; }
+    public required string Version { get; set; }
+    public required string DownloadUrl { get; set; }
+    public required string Sha256 { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
 }
 
 /// <summary>员工目录：登录时记录 employeeId→姓名，供后台展示用；并承载角色读写。</summary>
