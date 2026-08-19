@@ -65,6 +65,16 @@ var auth = app.Services.GetRequiredService<AuthService>();
 var registry = app.Services.GetRequiredService<RegistryStore>();
 var roleService = app.Services.GetRequiredService<RoleService>();
 
+// GitHub Releases 自动同步 Agent 版本（配置 Agent:GitHubRepo 后启用，如 "BOOHHP/maxhub"）
+GitHubReleaseService? githubReleases = null;
+if (builder.Configuration["Agent:GitHubRepo"] is { Length: > 0 } githubRepo)
+{
+    var githubHttp = new HttpClient { BaseAddress = new Uri("https://api.github.com") };
+    githubHttp.DefaultRequestHeaders.UserAgent.ParseAdd("MaxHub-Server");
+    githubHttp.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+    githubReleases = new GitHubReleaseService(githubHttp, githubRepo);
+}
+
 EmployeeIdentity? CurrentUser(HttpContext ctx) => auth.Resolve(ctx.Request.Headers.Authorization);
 string[] CurrentRoles(HttpContext ctx) =>
     CurrentUser(ctx) is { } u ? roleService.Resolve(u.EmployeeId) : [];
@@ -141,13 +151,18 @@ app.MapDelete("/api/v1/auth/sessions/current", (HttpContext ctx) =>
 });
 
 // ---- Agent 版本与下载入口（公开，用于网页横幅与 Agent 自更新） ----
-app.MapGet("/api/v1/agent/latest", () =>
+app.MapGet("/api/v1/agent/latest", async () =>
 {
-    // 优先读数据库（后台网页可更新），无记录时回退配置文件（初始化兜底）
+    // 1. GitHub 最新 Release（发版后自动跟随，无需人工登记）
+    if (githubReleases is not null && await githubReleases.GetLatestAsync() is { } gh)
+        return Results.Ok(new { version = gh.Version, downloadUrl = gh.DownloadUrl, sha256 = gh.Sha256 });
+
+    // 2. 数据库手动登记（GitHub 不可达时的兜底/覆盖）
     var dbRelease = registry.GetAgentRelease();
     if (dbRelease is not null)
         return Results.Ok(new { version = dbRelease.Version, downloadUrl = dbRelease.DownloadUrl, sha256 = dbRelease.Sha256 });
 
+    // 3. 配置文件（初始化兜底）
     var latestVersion = builder.Configuration["Agent:LatestVersion"];
     if (string.IsNullOrWhiteSpace(latestVersion))
         return Results.NotFound();
