@@ -8,6 +8,7 @@ public sealed record HubSession(string AccessToken, string RefreshToken, string 
 public sealed record ToolIndexItem(string ToolId, string Name, string? Description, string LatestVersion, string Channel);
 public sealed record RemoteInstallPlan(string ToolId, string Version, string Sha256, long SizeBytes, bool RestartRequired, string RiskLevel, string? Signature = null);
 public sealed record ConnectorInfo(string Version, int MinMaxYear, int MaxMaxYear, string Sha256, long SizeBytes, string? Signature = null);
+public sealed record AgentReleaseInfo(string Version, string DownloadUrl, string Sha256);
 
 /// <summary>Agent 侧的 Hub API 客户端。所有请求携带 MaxHub 会话令牌。</summary>
 public sealed class HubClient(HttpClient http)
@@ -62,6 +63,20 @@ public sealed class HubClient(HttpClient http)
         return json.GetProperty("publicKey").GetString()!;
     }
 
+    /// <summary>最新 Agent 版本元数据（公开端点，用于自更新）。未配置时服务端返回 404。</summary>
+    public async Task<AgentReleaseInfo?> GetLatestAgentAsync()
+    {
+        var response = await http.GetAsync("/api/v1/agent/latest");
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return new AgentReleaseInfo(
+            json.GetProperty("version").GetString()!,
+            json.GetProperty("downloadUrl").GetString() ?? "",
+            json.GetProperty("sha256").GetString() ?? "");
+    }
+
     public async Task DownloadToolAsync(string toolId, string version, string targetPath, IProgress<double>? progress = null)
     {
         await DownloadAsync($"/downloads/{toolId}/{version}/package.zip", targetPath, progress);
@@ -70,6 +85,27 @@ public sealed class HubClient(HttpClient http)
     public async Task DownloadConnectorAsync(int maxYear, string version, string targetPath, IProgress<double>? progress = null)
     {
         await DownloadAsync($"/downloads/connectors/{maxYear}/{version}/package.zip", targetPath, progress);
+    }
+
+    /// <summary>从任意 URL 下载文件（用于 Agent 自更新，走 GitHub Release）。</summary>
+    public async Task DownloadAgentAsync(string url, string targetPath, IProgress<double>? progress = null)
+    {
+        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(targetPath))!);
+        var totalBytes = response.Content.Headers.ContentLength;
+        await using var file = File.Create(targetPath);
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        var buffer = new byte[81920];
+        long readTotal = 0;
+        int read;
+        while ((read = await stream.ReadAsync(buffer)) > 0)
+        {
+            await file.WriteAsync(buffer.AsMemory(0, read));
+            readTotal += read;
+            if (totalBytes > 0)
+                progress?.Report(readTotal * 100.0 / totalBytes.Value);
+        }
     }
 
     public async Task PostInstallEventAsync(string eventId, string type, string subject, string? clientVersion = null)
