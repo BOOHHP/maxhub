@@ -33,6 +33,9 @@ var dbPath = Path.Combine(dataDir, "maxhub.db");
 builder.Services.AddDbContextFactory<MaxHubDb>(o => o.UseSqlite($"Data Source={dbPath}"));
 builder.Services.AddSingleton<IRefreshTokenStore, SqliteRefreshTokenStore>();
 builder.Services.AddSingleton<IUserDirectory, SqliteUserDirectory>();
+builder.Services.AddSingleton(sp => new RoleService(
+    sp.GetRequiredService<IUserDirectory>(),
+    admins, reviewers, publishers));
 builder.Services.AddSingleton(new SigningKeyStore(dataDir));
 builder.Services.AddSingleton(sp => new RegistryStore(dataDir, sp.GetRequiredService<IDbContextFactory<MaxHubDb>>(), sp.GetRequiredService<SigningKeyStore>()));
 
@@ -46,6 +49,7 @@ using (var db = app.Services.GetRequiredService<IDbContextFactory<MaxHubDb>>().C
     {
         "ALTER TABLE Releases ADD COLUMN SignatureBase64 TEXT",
         "ALTER TABLE Connectors ADD COLUMN SignatureBase64 TEXT",
+        "ALTER TABLE Users ADD COLUMN Roles TEXT",
         """CREATE TABLE IF NOT EXISTS "Users" ("EmployeeId" TEXT NOT NULL CONSTRAINT "PK_Users" PRIMARY KEY, "Username" TEXT NOT NULL)""",
     })
     {
@@ -57,9 +61,14 @@ app.Services.GetRequiredService<RegistryStore>().SignMissingSignatures();
 
 var auth = app.Services.GetRequiredService<AuthService>();
 var registry = app.Services.GetRequiredService<RegistryStore>();
+var roleService = app.Services.GetRequiredService<RoleService>();
 
 EmployeeIdentity? CurrentUser(HttpContext ctx) => auth.Resolve(ctx.Request.Headers.Authorization);
-bool IsIn(string[] roleMembers, EmployeeIdentity user) => roleMembers.Contains(user.EmployeeId);
+string[] CurrentRoles(HttpContext ctx) =>
+    CurrentUser(ctx) is { } u ? roleService.Resolve(u.EmployeeId) : [];
+bool IsAdmin(HttpContext ctx) => roleService.IsIn(CurrentRoles(ctx), Roles.Admin);
+bool IsReviewer(HttpContext ctx) => roleService.IsIn(CurrentRoles(ctx), Roles.Reviewer);
+bool IsPublisher(HttpContext ctx) => roleService.IsIn(CurrentRoles(ctx), Roles.Publisher);
 
 // ---- 认证：飞书扫码会话 ----
 app.MapPost("/api/v1/auth/feishu/qr-sessions", (HttpContext ctx) =>
@@ -77,7 +86,7 @@ if (enableMockAuth)
         auth.AuthorizeQr(sessionId, identity) ? Results.Ok() : Results.NotFound());
 }
 
-app.MapGet("/api/v1/auth/feishu/qr-sessions/{sessionId}", (string sessionId) =>
+app.MapGet("/api/v1/auth/feishu/qr-sessions/{sessionId}", (HttpContext ctx, string sessionId) =>
 {
     var (status, session) = auth.PollQr(sessionId);
     return Results.Ok(new
@@ -89,6 +98,7 @@ app.MapGet("/api/v1/auth/feishu/qr-sessions/{sessionId}", (string sessionId) =>
             refreshToken = session.RefreshToken,
             expiresAtUtc = session.ExpiresAtUtc,
             user = new { employeeId = session.User.EmployeeId, username = session.User.Username },
+            roles = roleService.Resolve(session.User.EmployeeId),
         },
     });
 });
@@ -190,7 +200,7 @@ app.MapGet("/api/v1/tools/{toolId}/releases/{version}/install-plan", (HttpContex
 app.MapPost("/api/v1/publish/releases", async (HttpContext ctx) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
-    if (!IsIn(publishers, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (!IsPublisher(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     var form = await ctx.Request.ReadFormAsync();
     if (form.Files["package"] is not { } file) return Results.BadRequest(new { errors = new[] { "缺少 package 文件。" } });
 
@@ -204,7 +214,7 @@ app.MapPost("/api/v1/publish/releases", async (HttpContext ctx) =>
 app.MapPost("/api/v1/releases/{releaseId}/review", (HttpContext ctx, string releaseId, ReviewRequest request) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
-    if (!IsIn(reviewers, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (!IsReviewer(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     var allowedChannels = new[] { "internal", "beta", "stable" };
     if (request.Approve && !allowedChannels.Contains(request.Channel)) return Results.BadRequest(new { errors = new[] { "非法频道。" } });
     return registry.Review(releaseId, request.Approve, request.Channel ?? "internal", user) ? Results.Ok() : Results.NotFound();
@@ -214,7 +224,7 @@ app.MapPost("/api/v1/releases/{releaseId}/review", (HttpContext ctx, string rele
 app.MapPost("/api/v1/admin/connectors", async (HttpContext ctx) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
-    if (!IsIn(admins, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (!IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     var form = await ctx.Request.ReadFormAsync();
     if (form.Files["package"] is not { } file ||
         !int.TryParse(form["minMaxYear"], out var minYear) ||
@@ -267,7 +277,7 @@ app.MapGet("/admin", () => Results.Redirect("/admin.html"));
 app.MapGet("/api/v1/admin/releases", (HttpContext ctx) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
-    if (!IsIn(reviewers, user) && !IsIn(admins, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (!IsReviewer(ctx) && !IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     var releases = registry.GetAllReleases();
     var users = app.Services.GetRequiredService<IUserDirectory>();
     var names = users.GetNames(releases.SelectMany(r => new[] { r.SubmittedBy, r.ReviewedBy ?? "" }));
@@ -290,14 +300,14 @@ app.MapGet("/api/v1/admin/releases", (HttpContext ctx) =>
 app.MapPost("/api/v1/releases/{releaseId}/withdraw", (HttpContext ctx, string releaseId) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
-    if (!IsIn(reviewers, user) && !IsIn(admins, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (!IsReviewer(ctx) && !IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     return registry.Withdraw(releaseId, user) ? Results.Ok() : Results.NotFound();
 });
 
 app.MapGet("/api/v1/admin/connectors", (HttpContext ctx) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
-    if (!IsIn(admins, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (!IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     return Results.Ok(registry.GetAllConnectors().Select(c => new
     {
         version = c.Version,
@@ -311,13 +321,39 @@ app.MapGet("/api/v1/admin/connectors", (HttpContext ctx) =>
 app.MapGet("/api/v1/admin/stats", (HttpContext ctx) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
-    if (!IsIn(reviewers, user) && !IsIn(admins, user)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (!IsReviewer(ctx) && !IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     var (subjects, activeUsers) = registry.GetStats();
     return Results.Ok(new
     {
         activeUsers,
         subjects = subjects.Select(s => new { subject = s.Subject, downloads = s.Downloads, installs = s.Installs }),
     });
+});
+
+// ---- 成员角色管理（仅 admin） ----
+app.MapGet("/api/v1/admin/users", (HttpContext ctx) =>
+{
+    if (CurrentUser(ctx) is null) return Results.Unauthorized();
+    if (!IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    var users = app.Services.GetRequiredService<IUserDirectory>();
+    return Results.Ok(users.GetAllUsers().Select(u => new
+    {
+        employeeId = u.EmployeeId,
+        username = u.Username,
+        roles = string.IsNullOrWhiteSpace(u.Roles) ? new[] { Roles.Publisher } : u.Roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+    }));
+});
+
+app.MapPut("/api/v1/admin/users/{employeeId}/roles", (HttpContext ctx, string employeeId, SetRolesRequest request) =>
+{
+    if (CurrentUser(ctx) is null) return Results.Unauthorized();
+    if (!IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    var allowed = new[] { Roles.Admin, Roles.Reviewer, Roles.Publisher };
+    if (request.Roles.Any(r => !allowed.Contains(r)))
+        return Results.BadRequest(new { errors = new[] { "非法角色。" } });
+    var users = app.Services.GetRequiredService<IUserDirectory>();
+    users.SetRoles(employeeId, request.Roles);
+    return Results.Ok();
 });
 
 // ---- 下载（服务端按认证主体记账） ----
@@ -360,6 +396,7 @@ internal sealed record RefreshRequest(string RefreshToken);
 internal sealed record ReviewRequest(bool Approve, string? Channel);
 internal sealed record CompleteQrRequest(string Code, string State, string? Client = null);
 internal sealed record ClientEvent(string EventId, string Type, string Subject, string? ClientVersion);
+internal sealed record SetRolesRequest(string[] Roles);
 
 public partial class Program;
 

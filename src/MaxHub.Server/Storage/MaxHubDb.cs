@@ -86,13 +86,18 @@ public sealed class UserRow
 {
     public required string EmployeeId { get; set; }
     public required string Username { get; set; }
+    /// <summary>逗号分隔的角色（admin/reviewer/publisher），空串视为默认 publisher。</summary>
+    public string Roles { get; set; } = "";
 }
 
-/// <summary>员工目录：登录时记录 employeeId→姓名，供后台展示用。</summary>
+/// <summary>员工目录：登录时记录 employeeId→姓名，供后台展示用；并承载角色读写。</summary>
 public interface IUserDirectory
 {
     void Upsert(EmployeeIdentity user);
     IReadOnlyDictionary<string, string> GetNames(IEnumerable<string> employeeIds);
+    string[] GetRoles(string employeeId);
+    void SetRoles(string employeeId, string[] roles);
+    IReadOnlyList<UserRow> GetAllUsers();
 }
 
 public sealed class SqliteUserDirectory(IDbContextFactory<MaxHubDb> dbFactory) : IUserDirectory
@@ -115,6 +120,32 @@ public sealed class SqliteUserDirectory(IDbContextFactory<MaxHubDb> dbFactory) :
         return db.Users.Where(u => ids.Contains(u.EmployeeId))
             .ToDictionary(u => u.EmployeeId, u => u.Username);
     }
+
+    public string[] GetRoles(string employeeId)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var row = db.Users.Find(employeeId);
+        return row is null || string.IsNullOrWhiteSpace(row.Roles) ? [] : SplitRoles(row.Roles);
+    }
+
+    public void SetRoles(string employeeId, string[] roles)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var row = db.Users.Find(employeeId);
+        if (row is null)
+            return;
+        row.Roles = string.Join(",", roles.Distinct().OrderBy(r => r));
+        db.SaveChanges();
+    }
+
+    public IReadOnlyList<UserRow> GetAllUsers()
+    {
+        using var db = dbFactory.CreateDbContext();
+        return db.Users.OrderBy(u => u.Username).ToList();
+    }
+
+    private static string[] SplitRoles(string roles) =>
+        roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }
 
 /// <summary>刷新令牌落库（哈希存储），使 MaxHub 会话跨服务端重启存活。</summary>

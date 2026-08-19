@@ -152,10 +152,15 @@ public class ApiTests(ServerFixture fixture) : IClassFixture<ServerFixture>
     }
 
     [Fact]
-    public async Task Non_publisher_cannot_upload_and_non_reviewer_cannot_review()
+    public async Task Default_user_can_upload_but_cannot_review()
     {
+        // Phase 1 语义：登录用户默认 publisher（上传须经审核），但无审核权限
         var viewer = await LoginAsync("emp-viewer3", "钱七");
-        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsync("/api/v1/publish/releases", PackageContent("quick-exporter"))).StatusCode);
+        var upload = await viewer.PostAsync("/api/v1/publish/releases", PackageContent("quick-exporter"));
+        Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
+        var body = await upload.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("pendingReview", body.GetProperty("status").GetString());
+
         Assert.Equal(HttpStatusCode.Forbidden, (await viewer.PostAsJsonAsync("/api/v1/releases/any/review", new { approve = true, channel = "stable" })).StatusCode);
     }
 
