@@ -138,10 +138,9 @@ app.MapDelete("/api/v1/auth/sessions/current", (HttpContext ctx) =>
     return header.StartsWith("Bearer ") && auth.Revoke(header["Bearer ".Length..]) ? Results.NoContent() : Results.Unauthorized();
 });
 
-// ---- 工具索引与详情 ----
-app.MapGet("/api/v1/tools", (HttpContext ctx, int maxVersion) =>
+// ---- 工具索引与详情（市场公开浏览，无需登录） ----
+app.MapGet("/api/v1/tools", (int maxVersion) =>
 {
-    if (CurrentUser(ctx) is null) return Results.Unauthorized();
     var items = registry.QueryIndex(maxVersion).Select(r => new
     {
         toolId = r.Manifest.Id,
@@ -154,15 +153,15 @@ app.MapGet("/api/v1/tools", (HttpContext ctx, int maxVersion) =>
     return Results.Ok(items);
 });
 
-app.MapGet("/api/v1/tools/{toolId}", (HttpContext ctx, string toolId) =>
+app.MapGet("/api/v1/tools/{toolId}", (string toolId) =>
 {
-    if (CurrentUser(ctx) is null) return Results.Unauthorized();
     var releases = registry.GetToolReleases(toolId);
     if (releases.Count == 0) return Results.NotFound();
     return Results.Ok(new
     {
         toolId,
         name = releases[0].Manifest.Name,
+        description = releases[0].Manifest.Description,
         releases = releases.Select(r => new
         {
             version = r.Manifest.Version,
@@ -173,6 +172,38 @@ app.MapGet("/api/v1/tools/{toolId}", (HttpContext ctx, string toolId) =>
             restartRequired = r.Manifest.Install.RestartRequired,
         }),
     });
+});
+
+// ---- 当前用户与角色（供前端导航角色感知） ----
+app.MapGet("/api/v1/auth/me", (HttpContext ctx) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    return Results.Ok(new
+    {
+        employeeId = user.EmployeeId,
+        username = user.Username,
+        roles = roleService.Resolve(user.EmployeeId),
+    });
+});
+
+// ---- 我的提交（publish 页跟踪审核状态） ----
+app.MapGet("/api/v1/my-tools", (HttpContext ctx) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    var releases = registry.GetAllReleases().Where(r => r.SubmittedBy == user.EmployeeId);
+    var users = app.Services.GetRequiredService<IUserDirectory>();
+    var names = users.GetNames(releases.Select(r => r.ReviewedBy ?? ""));
+    return Results.Ok(releases.Select(r => new
+    {
+        releaseId = r.ReleaseId,
+        toolId = r.Manifest.Id,
+        name = r.Manifest.Name,
+        version = r.Manifest.Version,
+        status = r.Status.ToString(),
+        channel = r.Channel,
+        reviewedBy = r.ReviewedBy is null ? null : names.GetValueOrDefault(r.ReviewedBy, r.ReviewedBy),
+        submittedAtUtc = r.SubmittedAtUtc,
+    }));
 });
 
 app.MapGet("/api/v1/tools/{toolId}/releases/{version}/install-plan", (HttpContext ctx, string toolId, string version) =>

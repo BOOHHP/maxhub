@@ -101,9 +101,21 @@ public class ApiTests(ServerFixture fixture) : IClassFixture<ServerFixture>
     public async Task Anonymous_requests_are_rejected()
     {
         var client = fixture.CreateClient();
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/tools?maxVersion=2026")).StatusCode);
+        // 工具市场公开浏览，无需登录
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/v1/tools?maxVersion=2026")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/auth/me")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/downloads/com.x.y/1.0.0/package.zip")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/activity/events", new { eventId = "e", type = "t", subject = "s" })).StatusCode);
+    }
+
+    [Fact]
+    public async Task Auth_me_returns_roles_for_logged_in_user()
+    {
+        var viewer = await LoginAsync("emp-viewer", "王五");
+        var me = await viewer.GetFromJsonAsync<JsonElement>("/api/v1/auth/me");
+        Assert.Equal("emp-viewer", me.GetProperty("employeeId").GetString());
+        Assert.Equal("王五", me.GetProperty("username").GetString());
+        Assert.Equal("publisher", Assert.Single(me.GetProperty("roles").EnumerateArray()).GetString());
     }
 
     [Fact]
@@ -249,9 +261,9 @@ public class ApiTests(ServerFixture fixture) : IClassFixture<ServerFixture>
 
         var authed = fixture.CreateClient();
         authed.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", newToken);
-        Assert.Equal(HttpStatusCode.OK, (await authed.GetAsync("/api/v1/tools?maxVersion=2026")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await authed.GetAsync("/api/v1/auth/me")).StatusCode);
 
         Assert.Equal(HttpStatusCode.NoContent, (await authed.DeleteAsync("/api/v1/auth/sessions/current")).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await authed.GetAsync("/api/v1/tools?maxVersion=2026")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await authed.GetAsync("/api/v1/auth/me")).StatusCode);
     }
 }
