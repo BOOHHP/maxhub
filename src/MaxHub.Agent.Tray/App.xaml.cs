@@ -83,7 +83,7 @@ public partial class App : Application
         CheckForAgentUpdate();
     }
 
-    /// <summary>启动后静默检查 Agent 新版本；发现更新时气泡提示并静默下载替换重启。</summary>
+    /// <summary>启动后静默检查 Agent 新版本；下载完成后必须退出当前进程，释放 exe 文件锁让替换脚本接管。</summary>
     private async void CheckForAgentUpdate()
     {
         try
@@ -95,7 +95,10 @@ public partial class App : Application
                 return;
             ShowBalloon("发现新版本", $"MaxHub Agent v{release.Version} 已可用，正在后台下载并自动更新…");
             await updater.DownloadAndInstallAsync(release);
-            // 下载完成后重启脚本会替换 exe 并拉起新进程，这里无需额外动作
+            // 退出当前进程：替换脚本等待文件锁释放后 move 新 exe 并重新拉起
+            _trayIcon?.Dispose();
+            await _services.StopLocalServerAsync();
+            Shutdown();
         }
         catch (Exception ex)
         {

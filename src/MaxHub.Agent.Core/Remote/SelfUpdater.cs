@@ -133,12 +133,20 @@ public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
 
     private static string BuildRestartScript(string currentExe, string newExe)
     {
-        // 延时等当前进程退出 → 替换 → 启动新版本
+        // 循环等待旧进程退出释放文件锁（最多 30 次），move 成功才启动新版本
         return string.Join("\r\n", new[]
         {
             "@echo off",
-            "timeout /t 2 /nobreak > nul",
-            $"move /y \"{newExe}\" \"{currentExe}\" > nul",
+            "set /a tries=0",
+            ":retry",
+            "timeout /t 1 /nobreak > nul",
+            $"move /y \"{newExe}\" \"{currentExe}\" > nul 2>&1",
+            "if errorlevel 1 (",
+            "  set /a tries+=1",
+            "  if %tries% lss 30 goto retry",
+            "  del \"%~f0\"",
+            "  exit /b 1",
+            ")",
             $"start \"\" \"{currentExe}\"",
             "del \"%~f0\"",
         });
