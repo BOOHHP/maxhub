@@ -112,6 +112,7 @@ global MaxHubConnector
         local currentJobId = undefined
         local currentToolLabel = ""
         local currentPage = 1
+        local resizingToMinimum = false
         -- 前向声明：showPage 需要引用后面定义的刷新函数
         local refreshDiscover, refreshInstalled, refreshUpdates, refreshEnvironment, refreshDiagnostics
 
@@ -168,9 +169,18 @@ global MaxHubConnector
         (
             local w = if size.x < 480 then 480 else (size.x as integer)
             local h = if size.y < 380 then 380 else (size.y as integer)
+            if not resizingToMinimum and (size.x < 480 or size.y < 380) then (
+                resizingToMinimum = true
+                setDialogSize maxHubRollout [w, h]
+                resizingToMinimum = false
+            )
             local margin = 12
             local contentW = w - margin * 2
             local btnY = h - 32
+            local groupHeight = btnY - 58
+            local detailWidth = contentW - 28
+            local detailHeight = groupHeight - 178
+            if detailHeight < 40 then detailHeight = 40
             local tabW = ((w - 20 - 16) / 5) as integer
             tabDiscover.pos = [10, 8]; tabDiscover.width = tabW
             tabInstalled.pos = [10 + (tabW + 4), 8]; tabInstalled.width = tabW
@@ -192,8 +202,14 @@ global MaxHubConnector
             btnRollback.pos = [w - margin - 110, btnY]
             btnUpdateAll.pos = [margin, btnY]
             btnUpdateSel.pos = [w - margin - 110, btnY]
-            grpEnvironment.pos = [margin, 46]; grpEnvironment.width = contentW
-            grpDiagnostics.pos = [margin, 46]; grpDiagnostics.width = contentW
+            grpEnvironment.pos = [margin, 46]; grpEnvironment.width = contentW; grpEnvironment.height = groupHeight
+            lblEnvAgent.width = detailWidth; lblEnvMax.width = detailWidth
+            lblEnvInstalled.width = detailWidth; lblEnvUpdates.width = detailWidth; lblEnvPanel.width = detailWidth
+            lblEnvNotice.width = detailWidth; lblEnvNotice.height = detailHeight
+            grpDiagnostics.pos = [margin, 46]; grpDiagnostics.width = contentW; grpDiagnostics.height = groupHeight
+            lblDiagService.width = detailWidth; lblDiagMax.width = detailWidth
+            lblDiagInstalled.width = detailWidth; lblDiagUpdates.width = detailWidth; lblDiagChecked.width = detailWidth
+            lblDiagIssue.width = detailWidth; lblDiagIssue.height = detailHeight
             btnEnvironmentRefresh.pos = [margin, btnY]
             btnDiagnosticRefresh.pos = [margin, btnY]
             btnCopyDiagnostics.pos = [w - margin - 110, btnY]
