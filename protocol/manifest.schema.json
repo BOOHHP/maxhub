@@ -10,7 +10,7 @@
     "schemaVersion": { "const": 1 },
     "id": {
       "type": "string",
-      "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$",
+      "pattern": "^(MaxTool[0-9]{8}|[a-z0-9]+(\\.[a-z0-9-]+)+)$",
       "maxLength": 128
     },
     "name": { "type": "string", "minLength": 1, "maxLength": 100 },
@@ -86,7 +86,7 @@
         "required": ["id", "range"],
         "additionalProperties": false,
         "properties": {
-          "id": { "type": "string", "pattern": "^[a-z0-9]+(\\.[a-z0-9-]+)+$" },
+          "id": { "type": "string", "pattern": "^(MaxTool[0-9]{8}|[a-z0-9]+(\\.[a-z0-9-]+)+)$" },
           "range": { "type": "string", "pattern": "^[\\^~]?\\d+\\.\\d+\\.\\d+$" }
         }
       }

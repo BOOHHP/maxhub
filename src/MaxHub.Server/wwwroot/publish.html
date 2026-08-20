@@ -216,7 +216,7 @@ async function loadMine() {
   const mine = await res.json();
   document.querySelector('#mine-table tbody').innerHTML = mine.map(r => `
     <tr>
-      <td>${r.name}<div style="color:var(--text-3);font-size:11px">${r.toolId}</div></td>
+      <td>${r.name}<div style="color:var(--text-3);font-size:11px">${r.publicToolId || r.toolId}</div></td>
       <td>${r.version}</td>
       <td><span class="badge ${r.status}">${statusText[r.status] ?? r.status}</span></td>
       <td>${fmt(r.submittedAtUtc)}</td>

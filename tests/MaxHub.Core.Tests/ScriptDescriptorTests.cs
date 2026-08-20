@@ -18,7 +18,8 @@ public class ScriptDescriptorTests
         var d = ScriptDescriptor.Analyze("batch_renamer.ms", content);
         Assert.Equal("批量重命名", d.Name);
         Assert.Contains("批量重命名场景对象", d.Description);
-        Assert.Equal("com.company.batch-renamer", d.SuggestedId);
+        Assert.Matches("^MaxTool[0-9]{8}$", d.SuggestedId);
+        Assert.Equal(ToolId.Generate(d.Name), d.SuggestedId);
     }
 
     [Fact]
@@ -95,6 +96,7 @@ public class ScriptPackageTests
             Assert.Contains(zip.Entries, e => e.FullName == "payload/3dsmax/scripts/batch_renamer.ms");
 
             var manifest = ToolPackage.ReadManifest(zipPath);
+            Assert.Matches("^MaxTool[0-9]{8}$", manifest.Id);
             Assert.Equal("批量重命名", manifest.Name);
             Assert.Equal("1.0.0", manifest.Version);
             Assert.Equal(2019, manifest.Compatibility.MinVersion);

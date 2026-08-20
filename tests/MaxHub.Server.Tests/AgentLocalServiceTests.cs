@@ -90,6 +90,12 @@ public class AgentLocalServiceTests(ServerFixture fixture) : IClassFixture<Serve
             var resolver = new DefaultMaxPathResolver(Path.Combine(agentRoot, "maxuser"));
             Assert.True(File.Exists(Path.Combine(resolver.Resolve(2024, "userScripts"), "SceneBatchRenamer.ms")));
 
+            // 兼容旧账本：移除 DisplayName 后仍应从市场补全名称，而不是暴露内部 ID
+            var ledgerPath = Path.Combine(agentRoot, "installed.json");
+            var ledgerJson = await File.ReadAllTextAsync(ledgerPath);
+            ledgerJson = System.Text.RegularExpressions.Regex.Replace(
+                ledgerJson, "\\s*\"displayName\"\\s*:\\s*\"[^\"]*\",?", "");
+            await File.WriteAllTextAsync(ledgerPath, ledgerJson);
             var installed = await panel.GetStringAsync("/max/installed?maxYear=2024");
             Assert.Contains("com.company.scene-batch-renamer|1.4.0|Scene Batch Renamer", installed);
 

@@ -212,10 +212,7 @@ const fmt = (t) => new Date(t).toLocaleString('zh-CN', { hour12: false });
 let releasesCache = [];
 
 // 从使用统计跳到版本管理并展开对应版本的编辑表单
-function editFromStats(subject) {
-  const at = subject.lastIndexOf('@');
-  const toolId = subject.slice(0, at);
-  const version = subject.slice(at + 1);
+function editFromStats(toolId, version) {
   const rel = releasesCache.find(r => r.toolId === toolId && r.version === version)
     ?? releasesCache.find(r => r.toolId === toolId);
   if (!rel) { toast('未找到对应的版本记录（可能已删除）', false); return; }
@@ -237,7 +234,7 @@ async function refresh() {
   document.getElementById('nav-pending').textContent = pending.length > 0 ? pending.length : '';
   document.querySelector('#pending-table tbody').innerHTML = pending.map(r => `
     <tr>
-      <td>${r.name}<div style="color:var(--text-3);font-size:11px">${r.toolId}</div></td>
+      <td>${r.name}<div style="color:var(--text-3);font-size:11px">${r.publicToolId || r.toolId}</div></td>
       <td>${r.version}</td>
       <td>${r.submittedBy}</td>
       <td>${fmt(r.submittedAtUtc)}</td>
@@ -250,7 +247,7 @@ async function refresh() {
 
   document.querySelector('#all-table tbody').innerHTML = releases.map(r => `
     <tr>
-      <td>${r.name}<div style="color:var(--text-3);font-size:11px">${r.toolId}</div></td>
+      <td>${r.name}<div style="color:var(--text-3);font-size:11px">${r.publicToolId || r.toolId}</div></td>
       <td>${r.version}</td>
       <td><span class="badge ${r.status}">${{ PendingReview: '待审核', Published: '已发布', Rejected: '已退回', Withdrawn: '已撤回' }[r.status] ?? r.status}</span></td>
       <td>${r.channel}</td>
@@ -319,8 +316,9 @@ async function refresh() {
     document.getElementById('stat-downloads').textContent = totalDownloads;
     document.getElementById('stat-installs').textContent = totalInstalls;
     document.querySelector('#stats-table tbody').innerHTML = stats.subjects.map(s => `
-      <tr><td>${s.subject}</td><td>${s.downloads}</td><td>${s.installs}</td>
-      <td><button class="btn-outline" onclick="editFromStats('${s.subject}')">编辑工具信息</button></td></tr>`).join('')
+      <tr><td>${s.name}${s.version ? ` <span style="color:var(--text-3)">v${s.version}</span>` : ''}</td>
+      <td>${s.downloads}</td><td>${s.installs}</td>
+      <td><button class="btn-outline" onclick="editFromStats('${s.toolId}', '${s.version}')">编辑工具信息</button></td></tr>`).join('')
       || '<tr><td colspan="4" class="empty">暂无数据</td></tr>';
   }
 }

@@ -22,7 +22,7 @@ public class ScriptPublishTests(ServerFixture fixture) : IClassFixture<ServerFix
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("批量重命名", body.GetProperty("name").GetString());
         Assert.Contains("批量重命名场景对象", body.GetProperty("description").GetString());
-        Assert.Equal("com.company.batch-renamer", body.GetProperty("suggestedId").GetString());
+        Assert.Matches("^MaxTool[0-9]{8}$", body.GetProperty("suggestedId").GetString());
     }
 
     [Fact]

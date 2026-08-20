@@ -41,8 +41,9 @@ public static partial class ManifestValidator
 
         if (manifest.SchemaVersion != 1)
             errors.Add($"schemaVersion 必须为 1，当前为 {manifest.SchemaVersion}。");
-        if (string.IsNullOrEmpty(manifest.Id) || manifest.Id.Length > 128 || !IdPattern().IsMatch(manifest.Id))
-            errors.Add("id 必须是小写反向域名格式，例如 com.company.tool。");
+        if (string.IsNullOrEmpty(manifest.Id) || manifest.Id.Length > 128 ||
+            (!ToolId.IsCanonical(manifest.Id) && !IdPattern().IsMatch(manifest.Id)))
+            errors.Add("id 必须是 MaxTool 加 8 位数字，或兼容旧版小写反向域名格式。");
         if (string.IsNullOrWhiteSpace(manifest.Name) || manifest.Name.Length > 100)
             errors.Add("name 必须为 1-100 个字符。");
         if (!SemverPattern().IsMatch(manifest.Version))
@@ -115,7 +116,7 @@ public static partial class ManifestValidator
     {
         foreach (var dependency in dependencies ?? [])
         {
-            if (!IdPattern().IsMatch(dependency.Id))
+            if (!ToolId.IsCanonical(dependency.Id) && !IdPattern().IsMatch(dependency.Id))
                 errors.Add($"依赖 id \"{dependency.Id}\" 格式不合法。");
             if (!RangePattern().IsMatch(dependency.Range))
                 errors.Add($"依赖 range \"{dependency.Range}\" 格式不合法。");

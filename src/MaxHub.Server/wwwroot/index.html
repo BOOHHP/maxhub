@@ -141,7 +141,8 @@ function matchesFilter(t) {
   if (activeCat && t.category !== activeCat) return false;
   const q = document.getElementById('search').value.trim().toLowerCase();
   const maxY = document.getElementById('max-filter').value;
-  if (q && !(t.name.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q) || t.toolId.toLowerCase().includes(q))) return false;
+  if (q && !(t.name.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q) ||
+    t.toolId.toLowerCase().includes(q) || (t.publicToolId || '').toLowerCase().includes(q))) return false;
   if (maxY && !(t.compatibility.minVersion <= +maxY && t.compatibility.maxVersion >= +maxY)) return false;
   return true;
 }
@@ -152,7 +153,7 @@ function render() {
   document.getElementById('tools').innerHTML = list.map(t => `
     <div class="card tool-card">
       <div class="name">${esc(t.name)}</div>
-      <div class="meta">${esc(t.toolId)}</div>
+      <div class="meta">${esc(t.publicToolId || t.toolId)}</div>
       <div class="desc">${esc(t.description || '暂无描述')}</div>
       <div class="foot">
         <span class="badge ${t.channel}">${{ stable: '稳定', beta: '测试', internal: '内部' }[t.channel] ?? t.channel}</span>

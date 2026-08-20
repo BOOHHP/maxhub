@@ -177,11 +177,12 @@ global MaxHubConnector
             tabUpdates.pos = [10 + (tabW + 4) * 2, 8]; tabUpdates.width = tabW
             tabEnvironment.pos = [10 + (tabW + 4) * 3, 8]; tabEnvironment.width = tabW
             tabDiagnostics.pos = [10 + (tabW + 4) * 4, 8]; tabDiagnostics.width = tabW
-            local listRows = (((btnY - 24 - 86) / 14.0) as integer)
-            if listRows < 5 then listRows = 5
-            lstTools.pos = [margin, 66]; lstTools.width = contentW; lstTools.height = listRows
-            lstInstalled.pos = [margin, 46]; lstInstalled.width = contentW; lstInstalled.height = listRows + 1
-            lstUpdates.pos = [margin, 46]; lstUpdates.width = contentW; lstUpdates.height = listRows + 1
+            -- listbox 声明时 height 是行数，运行时 .height 是像素；直接按可用像素撑满
+            local listHeight = ((btnY - 24 - 86) as integer)
+            if listHeight < 80 then listHeight = 80
+            lstTools.pos = [margin, 66]; lstTools.width = contentW; lstTools.height = listHeight
+            lstInstalled.pos = [margin, 46]; lstInstalled.width = contentW; lstInstalled.height = listHeight + 20
+            lstUpdates.pos = [margin, 46]; lstUpdates.width = contentW; lstUpdates.height = listHeight + 20
             lblStatus.pos = [margin, 46]; lblStatus.width = contentW
             pbInstall.pos = [margin, btnY - 16]; pbInstall.width = contentW
             btnRefresh.pos = [margin, btnY]

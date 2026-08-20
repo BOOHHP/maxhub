@@ -22,6 +22,7 @@ public class AdminApiTests(ServerFixture fixture) : IClassFixture<ServerFixture>
         var reviewer = await api.LoginPublicAsync("emp-rev", "李四");
         var releases = await reviewer.GetFromJsonAsync<JsonElement[]>("/api/v1/admin/releases");
         var release = Assert.Single(releases!, r => r.GetProperty("toolId").GetString() == "com.company.scene-batch-renamer");
+        Assert.Matches("^MaxTool[0-9]{8}$", release.GetProperty("publicToolId").GetString());
         Assert.Equal("Published", release.GetProperty("status").GetString());
         Assert.True(release.GetProperty("signed").GetBoolean());
         // 提交人/审核人显示姓名（登录时写入员工目录）
@@ -55,7 +56,11 @@ public class AdminApiTests(ServerFixture fixture) : IClassFixture<ServerFixture>
         var stats = await reviewer.GetFromJsonAsync<JsonElement>("/api/v1/admin/stats");
         Assert.True(stats.GetProperty("activeUsers").GetInt32() >= 1);
         Assert.Contains(stats.GetProperty("subjects").EnumerateArray(),
-            s => s.GetProperty("subject").GetString() == $"{toolId}@{version}" && s.GetProperty("downloads").GetInt32() >= 1);
+            s => s.GetProperty("subject").GetString() == $"{toolId}@{version}" &&
+                 s.GetProperty("name").GetString() == "Quick Exporter" &&
+                 s.GetProperty("toolId").GetString() == toolId &&
+                 s.GetProperty("version").GetString() == version &&
+                 s.GetProperty("downloads").GetInt32() >= 1);
     }
 
     [Fact]

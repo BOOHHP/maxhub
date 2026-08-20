@@ -35,7 +35,7 @@ public static class ScriptPackage
         var manifest = new ToolManifest
         {
             SchemaVersion = 1,
-            Id = SuggestId(req.Name),
+            Id = ToolId.Generate(req.Name),
             Name = req.Name,
             Version = req.Version,
             HostType = "3dsmax",
@@ -82,10 +82,4 @@ public static class ScriptPackage
         return string.IsNullOrWhiteSpace(safe) ? "script.ms" : safe;
     }
 
-    private static string SuggestId(string name)
-    {
-        var slug = System.Text.RegularExpressions.Regex.Replace(name.ToLowerInvariant(), @"[^a-z0-9]+", "-").Trim('-');
-        if (string.IsNullOrEmpty(slug)) slug = "tool";
-        return $"com.company.{slug}";
-    }
 }

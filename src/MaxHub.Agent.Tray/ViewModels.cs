@@ -500,19 +500,21 @@ public sealed class InstalledToolRowViewModel : ViewModelBase
 {
     private readonly ToolsViewModel _owner;
 
-    public InstalledToolRowViewModel(ToolsViewModel owner, LedgerEntry entry)
+    public InstalledToolRowViewModel(ToolsViewModel owner, LedgerEntry entry, string displayName)
     {
         _owner = owner;
         Entry = entry;
+        DisplayName = displayName;
         UninstallCommand = new RelayCommand(() => owner.UninstallAsync(this));
     }
 
     public LedgerEntry Entry { get; }
+    public string DisplayName { get; }
     public string ArtifactId => Entry.ArtifactId;
     public string Version => Entry.Version;
     public int MaxVersion => Entry.MaxVersion;
     public string InstalledAt => Entry.InstalledAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
-    public string Display => $"{Entry.ArtifactId}  v{Entry.Version}  · Max {Entry.MaxVersion}  · {InstalledAt}";
+    public string Display => $"{DisplayName}  v{Entry.Version}  · Max {Entry.MaxVersion}  · {InstalledAt}";
     public RelayCommand UninstallCommand { get; }
 }
 
@@ -628,11 +630,28 @@ public sealed class ToolsViewModel : ViewModelBase
                 .OrderBy(e => e.MaxVersion)
                 .ThenBy(e => e.ArtifactId)
                 .ToList());
+        var names = entries
+            .Where(e => !string.IsNullOrWhiteSpace(e.DisplayName))
+            .GroupBy(e => e.ArtifactId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First().DisplayName!, StringComparer.Ordinal);
+        foreach (var year in entries.Where(e => !names.ContainsKey(e.ArtifactId)).Select(e => e.MaxVersion).Distinct())
+        {
+            try
+            {
+                foreach (var tool in await _services.Hub.GetToolsAsync(year))
+                    names[tool.ToolId] = tool.Name;
+            }
+            catch
+            {
+                // 离线时仍展示账本中的名称；历史账本无名称则显示通用占位文本
+            }
+        }
         Application.Current.Dispatcher.Invoke(() =>
         {
             InstalledTools.Clear();
             foreach (var e in entries)
-                InstalledTools.Add(new InstalledToolRowViewModel(this, e));
+                InstalledTools.Add(new InstalledToolRowViewModel(
+                    this, e, names.GetValueOrDefault(e.ArtifactId) ?? "未命名工具"));
         });
         Banner = entries.Count == 0
             ? _account.IsLoggedIn ? "本机尚未安装任何工具，可在「市场」中安装或从「上传」提交脚本" : "请先在「账号」页登录"

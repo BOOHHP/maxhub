@@ -18,6 +18,19 @@ public class ManifestValidatorTests
         Assert.True(result.IsValid, string.Join("; ", result.Errors));
     }
 
+    [Fact]
+    public void Canonical_MaxTool_id_passes()
+    {
+        Assert.True(ManifestValidator.Validate(Valid(m => m.Id = "MaxTool12345678")).IsValid);
+    }
+
+    [Fact]
+    public void Canonical_MaxTool_dependency_id_passes()
+    {
+        Assert.True(ManifestValidator.Validate(Valid(m =>
+            m.Dependencies = [new DependencySpec { Id = "MaxTool12345678", Range = "^1.0.0" }])).IsValid);
+    }
+
     [Theory]
     [InlineData("NotReverseDns")]
     [InlineData("com")]

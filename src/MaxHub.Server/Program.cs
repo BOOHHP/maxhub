@@ -1,4 +1,5 @@
 using MaxHub.Core.Packaging;
+using MaxHub.Core.Manifests;
 using MaxHub.Server.Data;
 using MaxHub.Server.Domain;
 using MaxHub.Server.Services;
@@ -195,6 +196,7 @@ app.MapGet("/api/v1/tools", (int maxVersion) =>
     var items = registry.QueryIndex(maxVersion).Select(r => new
     {
         toolId = r.Manifest.Id,
+        publicToolId = ToolId.PublicCode(r.Manifest.Id),
         name = r.Manifest.Name,
         description = r.Manifest.Description,
         latestVersion = r.Manifest.Version,
@@ -248,6 +250,7 @@ app.MapGet("/api/v1/my-tools", (HttpContext ctx) =>
     {
         releaseId = r.ReleaseId,
         toolId = r.Manifest.Id,
+        publicToolId = ToolId.PublicCode(r.Manifest.Id),
         name = r.Manifest.Name,
         version = r.Manifest.Version,
         status = r.Status.ToString(),
@@ -404,6 +407,7 @@ app.MapGet("/api/v1/admin/releases", (HttpContext ctx) =>
     {
         releaseId = r.ReleaseId,
         toolId = r.Manifest.Id,
+        publicToolId = ToolId.PublicCode(r.Manifest.Id),
         name = r.Manifest.Name,
         description = r.Manifest.Description,
         version = r.Manifest.Version,
@@ -455,10 +459,29 @@ app.MapGet("/api/v1/admin/stats", (HttpContext ctx) =>
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
     if (!IsReviewer(ctx) && !IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     var (subjects, activeUsers) = registry.GetStats();
+    var releasesBySubject = registry.GetAllReleases()
+        .GroupBy(r => $"{r.Manifest.Id}@{r.Manifest.Version}")
+        .ToDictionary(g => g.Key, g => g.First());
     return Results.Ok(new
     {
         activeUsers,
-        subjects = subjects.Select(s => new { subject = s.Subject, downloads = s.Downloads, installs = s.Installs }),
+        subjects = subjects.Select(s =>
+        {
+            var separator = s.Subject.LastIndexOf('@');
+            var toolId = separator > 0 ? s.Subject[..separator] : s.Subject;
+            var version = separator > 0 ? s.Subject[(separator + 1)..] : "";
+            releasesBySubject.TryGetValue(s.Subject, out var release);
+            return new
+            {
+                subject = s.Subject,
+                toolId,
+                publicToolId = ToolId.PublicCode(toolId),
+                version,
+                name = release?.Manifest.Name ?? "未知工具",
+                downloads = s.Downloads,
+                installs = s.Installs,
+            };
+        }),
     });
 });
 

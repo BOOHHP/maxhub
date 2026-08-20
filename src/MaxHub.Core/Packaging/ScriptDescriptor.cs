@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using MaxHub.Core.Manifests;
 
 namespace MaxHub.Core.Packaging;
 
@@ -25,7 +26,7 @@ public static partial class ScriptDescriptor
     {
         var name = ExtractName(fileName, content);
         var description = ExtractDescription(content, name);
-        return new ScriptDescriptorResult(name, description, SuggestId(fileName, name));
+        return new ScriptDescriptorResult(name, description, ToolId.Generate(name));
     }
 
     private static string ExtractName(string fileName, string content)
@@ -94,16 +95,6 @@ public static partial class ScriptDescriptor
             return $"{name}：支持{string.Join("、", actions)}。";
 
         return $"{name}（自动识别，请补充功能说明）";
-    }
-
-    private static string SuggestId(string fileName, string name)
-    {
-        // 优先用 ASCII 文件名生成 id（中文名 slug 化会为空）
-        var baseName = Path.GetFileNameWithoutExtension(fileName);
-        var source = !string.IsNullOrWhiteSpace(baseName) && baseName.Any(c => c < 128) ? baseName : name;
-        var slug = Regex.Replace(source.ToLowerInvariant(), @"[^a-z0-9]+", "-").Trim('-');
-        if (string.IsNullOrEmpty(slug)) slug = "tool";
-        return $"com.company.{slug}";
     }
 
     private static string ToReadable(string name)

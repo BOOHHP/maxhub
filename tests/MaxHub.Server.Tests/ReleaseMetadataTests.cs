@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using MaxHub.Core.Manifests;
 
 namespace MaxHub.Server.Tests;
 
@@ -51,7 +52,7 @@ public class ReleaseMetadataTests(ServerFixture fixture) : IClassFixture<ServerF
 
         // 公开索引反映修改
         var tools = await fixture.CreateClient().GetFromJsonAsync<JsonElement[]>("/api/v1/tools?maxVersion=2025");
-        var tool = tools!.Single(t => t.GetProperty("toolId").GetString() == "com.company.meta-tool");
+        var tool = tools!.Single(t => t.GetProperty("toolId").GetString() == ToolId.Generate("Meta Tool"));
         Assert.Equal("规范名称", tool.GetProperty("name").GetString());
         Assert.Equal("规范描述：材质贴图整理", tool.GetProperty("description").GetString());
     }

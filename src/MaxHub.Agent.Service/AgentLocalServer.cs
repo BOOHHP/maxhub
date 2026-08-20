@@ -46,11 +46,26 @@ public static class AgentLocalServer
             }
         });
 
-        app.MapGet("/max/installed", (int maxYear) =>
+        app.MapGet("/max/installed", async (int maxYear) =>
         {
-            var lines = ledger.Load().Entries
+            var entries = ledger.Load().Entries
                 .Where(e => e.MaxVersion == maxYear && e.Active && e.ArtifactType == "tool")
-                .Select(e => $"{e.ArtifactId}|{e.Version}|{(string.IsNullOrWhiteSpace(e.DisplayName) ? e.ArtifactId : e.DisplayName)}");
+                .ToList();
+            var names = entries
+                .Where(e => !string.IsNullOrWhiteSpace(e.DisplayName))
+                .GroupBy(e => e.ArtifactId, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First().DisplayName!, StringComparer.Ordinal);
+            try
+            {
+                foreach (var tool in await hub.GetToolsAsync(maxYear))
+                    names[tool.ToolId] = tool.Name;
+            }
+            catch
+            {
+                // Agent 离线时保留本地可读性，不暴露内部 ID 作为名称
+            }
+            var lines = entries.Select(e =>
+                $"{e.ArtifactId}|{e.Version}|{names.GetValueOrDefault(e.ArtifactId) ?? "未命名工具"}");
             return Results.Text(string.Join("\n", lines));
         });
 
