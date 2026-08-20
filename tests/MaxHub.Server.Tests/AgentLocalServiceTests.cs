@@ -91,7 +91,17 @@ public class AgentLocalServiceTests(ServerFixture fixture) : IClassFixture<Serve
             Assert.True(File.Exists(Path.Combine(resolver.Resolve(2024, "userScripts"), "SceneBatchRenamer.ms")));
 
             var installed = await panel.GetStringAsync("/max/installed?maxYear=2024");
-            Assert.Contains("com.company.scene-batch-renamer|1.4.0", installed);
+            Assert.Contains("com.company.scene-batch-renamer|1.4.0|Scene Batch Renamer", installed);
+
+            // 运行入口：返回脚本类型与绝对路径
+            var runInfo = await panel.GetStringAsync("/max/run-info?artifactId=com.company.scene-batch-renamer&maxYear=2024");
+            var runParts = runInfo.Split('|');
+            Assert.Equal("ok", runParts[0]);
+            Assert.Equal("ms", runParts[1]);
+            Assert.True(File.Exists(runParts[2]));
+
+            var noRunInfo = await panel.GetAsync("/max/run-info?artifactId=com.x.none&maxYear=2024");
+            Assert.Equal(HttpStatusCode.NotFound, noRunInfo.StatusCode);
 
             // 不存在的工具：任务终态为 error
             var badResult = await InstallAndWaitAsync(panel, "toolId=com.x.none&version=1.0.0&maxYear=2024");

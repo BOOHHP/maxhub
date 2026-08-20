@@ -50,8 +50,28 @@ public static class AgentLocalServer
         {
             var lines = ledger.Load().Entries
                 .Where(e => e.MaxVersion == maxYear && e.Active && e.ArtifactType == "tool")
-                .Select(e => $"{e.ArtifactId}|{e.Version}");
+                .Select(e => $"{e.ArtifactId}|{e.Version}|{(string.IsNullOrWhiteSpace(e.DisplayName) ? e.ArtifactId : e.DisplayName)}");
             return Results.Text(string.Join("\n", lines));
+        });
+
+        // 运行入口：返回 ok|{ms|py}|{绝对路径}，供 Connector fileIn / python 执行
+        app.MapGet("/max/run-info", (string artifactId, int maxYear) =>
+        {
+            var entry = ledger.Find(artifactId, maxYear);
+            if (entry is null)
+                return Results.Text("error|未找到该工具的安装记录", statusCode: 404);
+            foreach (var file in entry.Files)
+            {
+                var ext = Path.GetExtension(file.RelativePath).ToLowerInvariant();
+                if (ext is ".ms" or ".mse" or ".mcr" or ".py")
+                {
+                    var absolute = Path.Combine(pathResolver.Resolve(maxYear, file.Destination), file.RelativePath);
+                    if (!File.Exists(absolute))
+                        return Results.Text("error|脚本文件不存在，可能已被移动或删除", statusCode: 404);
+                    return Results.Text($"ok|{(ext == ".py" ? "py" : "ms")}|{absolute}");
+                }
+            }
+            return Results.Text("error|该工具没有可运行的脚本入口", statusCode: 404);
         });
 
         // 已安装工具中，服务器存在更新版本的列表：toolId|installedVersion|latestVersion|name

@@ -11,6 +11,8 @@ public sealed class LedgerEntry
     public string ArtifactId { get; init; } = "";
     public string ArtifactType { get; init; } = "tool";
     public string Version { get; init; } = "";
+    /// <summary>manifest 中的展示名；旧账本条目可能为空，展示时回退 ArtifactId。</summary>
+    public string? DisplayName { get; init; }
     public int MaxVersion { get; init; }
     public string Scope { get; init; } = "user";
     public List<LedgerFile> Files { get; init; } = [];

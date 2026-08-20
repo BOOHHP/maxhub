@@ -116,6 +116,7 @@ public sealed class InstallEngine(string agentRoot, IMaxPathResolver pathResolve
                 ArtifactId = plan.Manifest.Id,
                 ArtifactType = "tool",
                 Version = plan.Manifest.Version,
+                DisplayName = plan.Manifest.Name,
                 MaxVersion = maxYear,
                 Files = ledgerFiles,
                 InstalledAtUtc = DateTimeOffset.UtcNow,

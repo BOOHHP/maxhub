@@ -48,49 +48,51 @@ global MaxHubConnector
 
     rollout maxHubRollout "MaxHub 工具中心"
     (
-        -- MaxScript 无原生 tabControl，用单行五列 radiobuttons 作页签
-        radiobuttons rdoPages labels:#("发现", "已装", "更新", "环境", "诊断") default:1 columns:5 pos:[10,10]
+        -- 页签：checkbutton 有按下态，作分区切换按钮
+        checkbutton tabDiscover "发现" pos:[10,8] width:102 height:28 checked:true
+        checkbutton tabInstalled "已安装" pos:[116,8] width:102 height:28
+        checkbutton tabUpdates "更新" pos:[222,8] width:102 height:28
+        checkbutton tabEnvironment "环境" pos:[328,8] width:102 height:28
+        checkbutton tabDiagnostics "诊断" pos:[434,8] width:102 height:28
 
         -- ===== 发现页 =====
-        groupBox grpDiscover "发现" pos:[8,40] width:304 height:196
-        label lblStatus "正在连接 MaxHub Agent…" pos:[16,58] width:288 align:#left
-        listbox lstTools "可用工具:" pos:[16,78] width:288 height:9
-        progressBar pbInstall "" pos:[16,232] width:200 height:8 value:0 visible:false color:(color 76 159 224)
-        button btnRefresh "刷新" pos:[16,246] width:90 align:#left
-        button btnInstall "安装选中" pos:[222,246] width:82 align:#right
+        label lblStatus "正在连接 MaxHub Agent…" pos:[12,46] width:520 align:#left
+        listbox lstTools "可用工具（选中后点击安装）:" pos:[12,66] width:524 height:19
+        progressBar pbInstall "" pos:[12,382] width:524 height:8 value:0 visible:false color:(color 76 159 224)
+        button btnRefresh "刷新列表" pos:[12,398] width:110 height:28 align:#left
+        button btnInstall "安装选中" pos:[426,398] width:110 height:28 align:#right
 
         -- ===== 已安装页 =====
-        groupBox grpInstalled "已安装" pos:[8,40] width:304 height:196 visible:false
-        listbox lstInstalled "已安装工具:" pos:[16,58] width:288 height:10 visible:false
-        button btnUninstall "卸载选中" pos:[16,246] width:90 visible:false
-        button btnRollback "回滚到上一版" pos:[214,246] width:90 visible:false
+        listbox lstInstalled "已安装工具（双击运行）:" pos:[12,46] width:524 height:20 visible:false
+        button btnRun "▶ 运行选中" pos:[12,398] width:110 height:28 visible:false
+        button btnUninstall "卸载选中" pos:[310,398] width:110 height:28 visible:false
+        button btnRollback "回滚上一版" pos:[426,398] width:110 height:28 visible:false
 
         -- ===== 更新页 =====
-        groupBox grpUpdates "更新" pos:[8,40] width:304 height:196 visible:false
-        listbox lstUpdates "可更新工具:" pos:[16,58] width:288 height:10 visible:false
-        button btnUpdateAll "全部更新" pos:[16,246] width:90 visible:false
-        button btnUpdateSel "更新选中" pos:[214,246] width:90 visible:false
+        listbox lstUpdates "可更新工具:" pos:[12,46] width:524 height:20 visible:false
+        button btnUpdateAll "全部更新" pos:[12,398] width:110 height:28 visible:false
+        button btnUpdateSel "更新选中" pos:[426,398] width:110 height:28 visible:false
 
         -- ===== 环境页 =====
-        groupBox grpEnvironment "环境" pos:[8,40] width:304 height:196 visible:false
-        label lblEnvAgent "Agent：检查中…" pos:[16,60] width:280 visible:false align:#left
-        label lblEnvMax "当前：3ds Max" pos:[16,82] width:280 visible:false align:#left
-        label lblEnvInstalled "已安装：检查中…" pos:[16,104] width:280 visible:false align:#left
-        label lblEnvUpdates "可更新：检查中…" pos:[16,126] width:280 visible:false align:#left
-        label lblEnvPanel "面板：本次会话已加载" pos:[16,148] width:280 visible:false align:#left
-        label lblEnvNotice "" pos:[16,174] width:280 height:28 visible:false align:#left
-        button btnEnvironmentRefresh "重新检查" pos:[16,246] width:90 visible:false
+        groupBox grpEnvironment "环境状态" pos:[12,46] width:524 height:220 visible:false
+        label lblEnvAgent "Agent：检查中…" pos:[26,72] width:490 visible:false align:#left
+        label lblEnvMax "当前：3ds Max" pos:[26,98] width:490 visible:false align:#left
+        label lblEnvInstalled "已安装：检查中…" pos:[26,124] width:490 visible:false align:#left
+        label lblEnvUpdates "可更新：检查中…" pos:[26,150] width:490 visible:false align:#left
+        label lblEnvPanel "面板：本次会话已加载" pos:[26,176] width:490 visible:false align:#left
+        label lblEnvNotice "" pos:[26,206] width:490 height:40 visible:false align:#left
+        button btnEnvironmentRefresh "重新检查" pos:[12,398] width:110 height:28 visible:false
 
         -- ===== 诊断页 =====
-        groupBox grpDiagnostics "诊断摘要" pos:[8,40] width:304 height:196 visible:false
-        label lblDiagService "服务：检查中…" pos:[16,60] width:280 visible:false align:#left
-        label lblDiagMax "当前 Max：检查中…" pos:[16,82] width:280 visible:false align:#left
-        label lblDiagInstalled "已安装：检查中…" pos:[16,104] width:280 visible:false align:#left
-        label lblDiagUpdates "可更新：检查中…" pos:[16,126] width:280 visible:false align:#left
-        label lblDiagChecked "检查时间：尚未检查" pos:[16,148] width:280 visible:false align:#left
-        label lblDiagIssue "最近问题：无" pos:[16,174] width:280 height:28 visible:false align:#left
-        button btnDiagnosticRefresh "重新检查" pos:[16,246] width:90 visible:false
-        button btnCopyDiagnostics "复制摘要" pos:[214,246] width:90 visible:false
+        groupBox grpDiagnostics "诊断摘要" pos:[12,46] width:524 height:220 visible:false
+        label lblDiagService "服务：检查中…" pos:[26,72] width:490 visible:false align:#left
+        label lblDiagMax "当前 Max：检查中…" pos:[26,98] width:490 visible:false align:#left
+        label lblDiagInstalled "已安装：检查中…" pos:[26,124] width:490 visible:false align:#left
+        label lblDiagUpdates "可更新：检查中…" pos:[26,150] width:490 visible:false align:#left
+        label lblDiagChecked "检查时间：尚未检查" pos:[26,176] width:490 visible:false align:#left
+        label lblDiagIssue "最近问题：无" pos:[26,206] width:490 height:40 visible:false align:#left
+        button btnDiagnosticRefresh "重新检查" pos:[12,398] width:110 height:28 visible:false
+        button btnCopyDiagnostics "复制摘要" pos:[426,398] width:110 height:28 visible:false
 
         timer pollTimer interval:200 active:false
 
@@ -116,21 +118,25 @@ global MaxHubConnector
         fn showPage page =
         (
             currentPage = page
+            tabDiscover.checked = (page == 1)
+            tabInstalled.checked = (page == 2)
+            tabUpdates.checked = (page == 3)
+            tabEnvironment.checked = (page == 4)
+            tabDiagnostics.checked = (page == 5)
             local showDiscover = (page == 1)
             local showInstalled = (page == 2)
             local showUpdates = (page == 3)
             local showEnvironment = (page == 4)
             local showDiagnostics = (page == 5)
-            grpDiscover.visible = showDiscover
+            lblStatus.visible = showDiscover
             lstTools.visible = showDiscover
             pbInstall.visible = (showDiscover and currentJobId != undefined)
             btnRefresh.visible = showDiscover
             btnInstall.visible = showDiscover
-            grpInstalled.visible = showInstalled
             lstInstalled.visible = showInstalled
+            btnRun.visible = showInstalled
             btnUninstall.visible = showInstalled
             btnRollback.visible = showInstalled
-            grpUpdates.visible = showUpdates
             lstUpdates.visible = showUpdates
             btnUpdateAll.visible = showUpdates
             btnUpdateSel.visible = showUpdates
@@ -155,6 +161,41 @@ global MaxHubConnector
             if showUpdates then refreshUpdates()
             if showEnvironment then refreshEnvironment()
             if showDiagnostics then refreshDiagnostics()
+        )
+
+        -- 自适应布局：窗口拉伸时列表撑满、按钮吸底
+        fn layoutControls size =
+        (
+            local w = if size.x < 480 then 480 else (size.x as integer)
+            local h = if size.y < 380 then 380 else (size.y as integer)
+            local margin = 12
+            local contentW = w - margin * 2
+            local btnY = h - 32
+            local tabW = ((w - 20 - 16) / 5) as integer
+            tabDiscover.pos = [10, 8]; tabDiscover.width = tabW
+            tabInstalled.pos = [10 + (tabW + 4), 8]; tabInstalled.width = tabW
+            tabUpdates.pos = [10 + (tabW + 4) * 2, 8]; tabUpdates.width = tabW
+            tabEnvironment.pos = [10 + (tabW + 4) * 3, 8]; tabEnvironment.width = tabW
+            tabDiagnostics.pos = [10 + (tabW + 4) * 4, 8]; tabDiagnostics.width = tabW
+            local listRows = (((btnY - 24 - 86) / 14.0) as integer)
+            if listRows < 5 then listRows = 5
+            lstTools.pos = [margin, 66]; lstTools.width = contentW; lstTools.height = listRows
+            lstInstalled.pos = [margin, 46]; lstInstalled.width = contentW; lstInstalled.height = listRows + 1
+            lstUpdates.pos = [margin, 46]; lstUpdates.width = contentW; lstUpdates.height = listRows + 1
+            lblStatus.pos = [margin, 46]; lblStatus.width = contentW
+            pbInstall.pos = [margin, btnY - 16]; pbInstall.width = contentW
+            btnRefresh.pos = [margin, btnY]
+            btnInstall.pos = [w - margin - 110, btnY]
+            btnRun.pos = [margin, btnY]
+            btnUninstall.pos = [w - margin - 226, btnY]
+            btnRollback.pos = [w - margin - 110, btnY]
+            btnUpdateAll.pos = [margin, btnY]
+            btnUpdateSel.pos = [w - margin - 110, btnY]
+            grpEnvironment.pos = [margin, 46]; grpEnvironment.width = contentW
+            grpDiagnostics.pos = [margin, 46]; grpDiagnostics.width = contentW
+            btnEnvironmentRefresh.pos = [margin, btnY]
+            btnDiagnosticRefresh.pos = [margin, btnY]
+            btnCopyDiagnostics.pos = [w - margin - 110, btnY]
         )
 
         fn refreshDiscover =
@@ -199,13 +240,16 @@ global MaxHubConnector
                             if parts.count >= 2 then (
                                 append installedIds parts[1]
                                 append installedVersions parts[2]
-                                append items (parts[1] + "  v" + parts[2])
+                                -- 第 3 段为展示名（旧账本没有时回退 id）
+                                local displayName = if parts.count >= 3 then parts[3] else parts[1]
+                                append items (displayName + "  v" + parts[2])
                             )
                         )
                     )
                 )
             )
             lstInstalled.items = items
+            btnRun.enabled = (items.count > 0)
             btnUninstall.enabled = (items.count > 0)
             btnRollback.enabled = (items.count > 0)
         )
@@ -292,7 +336,6 @@ global MaxHubConnector
 
         fn startInstall toolId version =
         (
-            rdoPages.state = 1
             showPage 1
             local result = httpPost (agentBaseUrl + "/max/install?toolId=" + toolId + "&version=" + version + "&maxYear=" + (currentMaxYear() as string))
             local parts = if result != undefined then (filterString result "|") else #()
@@ -380,6 +423,31 @@ global MaxHubConnector
             )
         )
 
+        -- 运行选中工具：向 Agent 查询脚本入口路径，.ms 用 fileIn，.py 用 Max 内置 Python
+        fn runSelected =
+        (
+            if lstInstalled.selection == 0 or lstInstalled.selection > installedIds.count then (
+                messageBox "请先在列表中选择一个工具。" title:"MaxHub"
+            ) else (
+                local toolId = installedIds[lstInstalled.selection]
+                local body = httpGet (agentBaseUrl + "/max/run-info?artifactId=" + toolId + "&maxYear=" + (currentMaxYear() as string)) timeoutMs:5000
+                local parts = if body != undefined then (filterString body "|") else #()
+                if parts.count >= 3 and parts[1] == "ok" then (
+                    local scriptType = parts[2]
+                    local scriptPath = parts[3]
+                    try (
+                        if scriptType == "py" then ( python.ExecuteFile scriptPath )
+                        else ( fileIn scriptPath )
+                    ) catch (
+                        messageBox ("运行出错：" + (getCurrentException())) title:"MaxHub"
+                    )
+                ) else (
+                    local err = if parts.count >= 2 then parts[2] else "Agent 无响应"
+                    messageBox ("无法运行：" + err) title:"MaxHub"
+                )
+            )
+        )
+
         fn finishInstall message success =
         (
             pollTimer.active = false
@@ -433,9 +501,15 @@ global MaxHubConnector
             )
         )
 
-        on rdoPages changed val do showPage val
+        on tabDiscover changed state do showPage 1
+        on tabInstalled changed state do showPage 2
+        on tabUpdates changed state do showPage 3
+        on tabEnvironment changed state do showPage 4
+        on tabDiagnostics changed state do showPage 5
         on btnRefresh pressed do refreshDiscover()
         on btnInstall pressed do installSelected()
+        on btnRun pressed do runSelected()
+        on lstInstalled doubleClicked sel do runSelected()
         on btnUninstall pressed do uninstallSelected()
         on btnRollback pressed do rollbackSelected()
         on btnUpdateSel pressed do updateSelected()
@@ -443,12 +517,14 @@ global MaxHubConnector
         on btnEnvironmentRefresh pressed do refreshEnvironment()
         on btnDiagnosticRefresh pressed do refreshDiagnostics()
         on btnCopyDiagnostics pressed do copyDiagnostics()
-        on maxHubRollout open do ( refreshDiscover(); showPage 1 )
+        on maxHubRollout resized size do layoutControls size
+        on maxHubRollout open do ( layoutControls [548, 440]; refreshDiscover(); showPage 1 )
     )
 
     struct MaxHubConnectorStruct
     (
-        fn show = createDialog maxHubRollout width:320 height:284,
+        fn show = createDialog maxHubRollout width:548 height:440 \
+            style:#(#style_titlebar, #style_border, #style_sysmenu, #style_resizing),
         fn online = isAgentOnline()
     )
     MaxHubConnector = MaxHubConnectorStruct()
