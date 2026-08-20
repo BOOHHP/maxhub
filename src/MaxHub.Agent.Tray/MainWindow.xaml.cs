@@ -1,6 +1,8 @@
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 
 namespace MaxHub.Agent.Tray;
 
@@ -10,6 +12,9 @@ public partial class MainWindow : Window
     private readonly ConnectorsViewModel _connectors;
     private readonly ToolsViewModel _tools;
     private bool _balloonShown;
+
+    // 与 App 中注册同名消息：第二个实例启动时广播它，本窗口回到前台
+    private static readonly uint ShowMainWindowMessage = RegisterWindowMessage("MaxHubAgent.ShowMain");
 
     public MainWindow(
         AccountViewModel account,
@@ -128,4 +133,23 @@ public partial class MainWindow : Window
         WindowState = WindowState.Normal;
         Activate();
     }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WndProc);
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if ((uint)msg == ShowMainWindowMessage)
+        {
+            Dispatcher.Invoke(ShowFromTray);
+            handled = true;
+        }
+        return IntPtr.Zero;
+    }
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern uint RegisterWindowMessage(string messageName);
 }

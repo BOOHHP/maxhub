@@ -19,22 +19,28 @@ public partial class App : Application
     private bool _iconHasUpdate;
     private Mutex? _singleInstanceMutex;
 
+    private const string SingleInstanceMutexName = @"Local\MaxHubAgent.SingleInstance";
+    private const string ShowMainWindowMessageName = "MaxHubAgent.ShowMain";
+    private static readonly uint ShowMainWindowMessage = RegisterWindowMessage(ShowMainWindowMessageName);
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        // 单实例：已有 Agent 运行时直接退出，避免托盘/本地服务/自更新互相冲突
-        _singleInstanceMutex = new Mutex(initiallyOwned: true, @"Local\MaxHubAgent.SingleInstance", out var createdNew);
-        if (!createdNew)
+        if (SelfUpdater.TryNormalizeVersionedExecutableName(CurrentVersion))
         {
-            _singleInstanceMutex.Dispose();
-            _singleInstanceMutex = null;
             Shutdown();
             return;
         }
 
-        if (SelfUpdater.TryNormalizeVersionedExecutableName(CurrentVersion))
+        // 单实例：已有 Agent 运行时把其主窗口带到前台并立即退出，
+        // 避免多开抢占托盘、本地服务端口与自更新文件锁
+        _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var createdNew);
+        if (!createdNew)
         {
+            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex = null;
+            BringExistingInstanceToFront();
             Shutdown();
             return;
         }
@@ -169,6 +175,18 @@ public partial class App : Application
         }
         base.OnExit(e);
     }
+
+    /// <summary>向已有实例广播自定义消息，由其主窗口 Show+Activate 到前台。</summary>
+    private static void BringExistingInstanceToFront() =>
+        SendMessage(HWND_BROADCAST, ShowMainWindowMessage, UIntPtr.Zero, UIntPtr.Zero);
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern uint RegisterWindowMessage(string messageName);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SendMessage(IntPtr hWnd, uint msg, UIntPtr wParam, UIntPtr lParam);
+
+    private static readonly IntPtr HWND_BROADCAST = new(0xFFFF);
 
     /// <summary>运行时绘制 MaxHub 分发中枢图标：未登录=灰，已登录=蓝，有可更新=右下角橙点。</summary>
     private static Icon CreateTrayIcon(bool loggedIn, bool hasUpdate)
