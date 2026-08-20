@@ -46,6 +46,14 @@ global MaxHubConnector
         ((maxVersion())[1] / 1000) + 1998
     )
 
+    fn decodeBase64 value =
+    (
+        try (
+            local bytes = (dotNetClass "System.Convert").FromBase64String value
+            (dotNetClass "System.Text.Encoding").UTF8.GetString bytes
+        ) catch ( "" )
+    )
+
     rollout maxHubRollout "MaxHub 工具中心"
     (
         -- 页签：checkbutton 有按下态，作分区切换按钮
@@ -57,19 +65,24 @@ global MaxHubConnector
 
         -- ===== 发现页 =====
         label lblStatus "正在连接 MaxHub Agent…" pos:[12,46] width:520 align:#left
-        listbox lstTools "可用工具（选中后点击安装）:" pos:[12,66] width:524 height:19
+        label lblDiscoverTitle "可用工具（按分类排列）" pos:[12,64] width:524 align:#left
+        listbox lstTools pos:[12,84] width:524 height:12
+        groupBox grpToolDescription "工具说明" pos:[12,278] width:524 height:98
+        editText txtToolDescription "" pos:[20,298] width:508 height:70 readOnly:true text:"请选择一个工具查看说明。"
         progressBar pbInstall "" pos:[12,382] width:524 height:8 value:0 visible:false color:(color 76 159 224)
         button btnRefresh "刷新列表" pos:[12,398] width:110 height:28 align:#left
         button btnInstall "安装选中" pos:[426,398] width:110 height:28 align:#right
 
         -- ===== 已安装页 =====
-        listbox lstInstalled "已安装工具（双击运行）:" pos:[12,46] width:524 height:20 visible:false
+        label lblInstalledTitle "已安装工具（双击运行）" pos:[12,46] width:524 visible:false align:#left
+        listbox lstInstalled pos:[12,66] width:524 height:19 visible:false
         button btnRun "▶ 运行选中" pos:[12,398] width:110 height:28 visible:false
         button btnUninstall "卸载选中" pos:[310,398] width:110 height:28 visible:false
         button btnRollback "回滚上一版" pos:[426,398] width:110 height:28 visible:false
 
         -- ===== 更新页 =====
-        listbox lstUpdates "可更新工具:" pos:[12,46] width:524 height:20 visible:false
+        label lblUpdatesTitle "可更新工具" pos:[12,46] width:524 visible:false align:#left
+        listbox lstUpdates pos:[12,66] width:524 height:19 visible:false
         button btnUpdateAll "全部更新" pos:[12,398] width:110 height:28 visible:false
         button btnUpdateSel "更新选中" pos:[426,398] width:110 height:28 visible:false
 
@@ -99,6 +112,7 @@ global MaxHubConnector
         -- 数据缓存
         local toolIds = #()
         local toolVersions = #()
+        local toolDescriptions = #()
         local installedIds = #()
         local installedVersions = #()
         local updateIds = #()
@@ -130,15 +144,20 @@ global MaxHubConnector
             local showEnvironment = (page == 4)
             local showDiagnostics = (page == 5)
             lblStatus.visible = showDiscover
+            lblDiscoverTitle.visible = showDiscover
             lstTools.visible = showDiscover
+            grpToolDescription.visible = showDiscover
+            txtToolDescription.visible = showDiscover
             pbInstall.visible = (showDiscover and currentJobId != undefined)
             btnRefresh.visible = showDiscover
             btnInstall.visible = showDiscover
             lstInstalled.visible = showInstalled
+            lblInstalledTitle.visible = showInstalled
             btnRun.visible = showInstalled
             btnUninstall.visible = showInstalled
             btnRollback.visible = showInstalled
             lstUpdates.visible = showUpdates
+            lblUpdatesTitle.visible = showUpdates
             btnUpdateAll.visible = showUpdates
             btnUpdateSel.visible = showUpdates
             grpEnvironment.visible = showEnvironment
@@ -168,19 +187,20 @@ global MaxHubConnector
         fn layoutControls size =
         (
             local w = if size.x < 480 then 480 else (size.x as integer)
-            local h = if size.y < 380 then 380 else (size.y as integer)
-            if not resizingToMinimum and (size.x < 480 or size.y < 380) then (
+            local h = if size.y < 400 then 400 else (size.y as integer)
+            if not resizingToMinimum and (size.x < 480 or size.y < 400) then (
                 resizingToMinimum = true
                 setDialogSize maxHubRollout [w, h]
                 resizingToMinimum = false
             )
             local margin = 12
             local contentW = w - margin * 2
-            local btnY = h - 32
+            local btnY = h - 40
+            local progressY = btnY - 16
             local groupHeight = btnY - 58
             local detailWidth = contentW - 28
-            local detailHeight = groupHeight - 178
-            if detailHeight < 40 then detailHeight = 40
+            local environmentDetailHeight = groupHeight - 178
+            if environmentDetailHeight < 40 then environmentDetailHeight = 40
             local tabW = ((w - 20 - 16) / 5) as integer
             tabDiscover.pos = [10, 8]; tabDiscover.width = tabW
             tabInstalled.pos = [10 + (tabW + 4), 8]; tabInstalled.width = tabW
@@ -188,13 +208,24 @@ global MaxHubConnector
             tabEnvironment.pos = [10 + (tabW + 4) * 3, 8]; tabEnvironment.width = tabW
             tabDiagnostics.pos = [10 + (tabW + 4) * 4, 8]; tabDiagnostics.width = tabW
             -- listbox 声明时 height 是行数，运行时 .height 是像素；直接按可用像素撑满
-            local listHeight = ((btnY - 24 - 86) as integer)
-            if listHeight < 80 then listHeight = 80
-            lstTools.pos = [margin, 66]; lstTools.width = contentW; lstTools.height = listHeight
-            lstInstalled.pos = [margin, 46]; lstInstalled.width = contentW; lstInstalled.height = listHeight + 20
-            lstUpdates.pos = [margin, 46]; lstUpdates.width = contentW; lstUpdates.height = listHeight + 20
+            local detailHeight = 88 + (((h - 400) / 4) as integer)
+            if detailHeight > 140 then detailHeight = 140
+            local detailY = progressY - 8 - detailHeight
+            local discoverListHeight = detailY - 8 - 84
+            local plainListHeight = btnY - 8 - 66
+            if discoverListHeight < 80 then discoverListHeight = 80
+            if plainListHeight < 120 then plainListHeight = 120
+            lblDiscoverTitle.pos = [margin, 64]; lblDiscoverTitle.width = contentW
+            lstTools.pos = [margin, 84]; lstTools.width = contentW; lstTools.height = discoverListHeight
+            grpToolDescription.pos = [margin, detailY]; grpToolDescription.width = contentW; grpToolDescription.height = detailHeight
+            txtToolDescription.pos = [margin + 8, detailY + 20]
+            txtToolDescription.width = contentW - 16; txtToolDescription.height = detailHeight - 28
+            lblInstalledTitle.pos = [margin, 46]; lblInstalledTitle.width = contentW
+            lstInstalled.pos = [margin, 66]; lstInstalled.width = contentW; lstInstalled.height = plainListHeight
+            lblUpdatesTitle.pos = [margin, 46]; lblUpdatesTitle.width = contentW
+            lstUpdates.pos = [margin, 66]; lstUpdates.width = contentW; lstUpdates.height = plainListHeight
             lblStatus.pos = [margin, 46]; lblStatus.width = contentW
-            pbInstall.pos = [margin, btnY - 16]; pbInstall.width = contentW
+            pbInstall.pos = [margin, progressY]; pbInstall.width = contentW
             btnRefresh.pos = [margin, btnY]
             btnInstall.pos = [w - margin - 110, btnY]
             btnRun.pos = [margin, btnY]
@@ -205,11 +236,11 @@ global MaxHubConnector
             grpEnvironment.pos = [margin, 46]; grpEnvironment.width = contentW; grpEnvironment.height = groupHeight
             lblEnvAgent.width = detailWidth; lblEnvMax.width = detailWidth
             lblEnvInstalled.width = detailWidth; lblEnvUpdates.width = detailWidth; lblEnvPanel.width = detailWidth
-            lblEnvNotice.width = detailWidth; lblEnvNotice.height = detailHeight
+            lblEnvNotice.width = detailWidth; lblEnvNotice.height = environmentDetailHeight
             grpDiagnostics.pos = [margin, 46]; grpDiagnostics.width = contentW; grpDiagnostics.height = groupHeight
             lblDiagService.width = detailWidth; lblDiagMax.width = detailWidth
             lblDiagInstalled.width = detailWidth; lblDiagUpdates.width = detailWidth; lblDiagChecked.width = detailWidth
-            lblDiagIssue.width = detailWidth; lblDiagIssue.height = detailHeight
+            lblDiagIssue.width = detailWidth; lblDiagIssue.height = environmentDetailHeight
             btnEnvironmentRefresh.pos = [margin, btnY]
             btnDiagnosticRefresh.pos = [margin, btnY]
             btnCopyDiagnostics.pos = [w - margin - 110, btnY]
@@ -217,19 +248,26 @@ global MaxHubConnector
 
         fn refreshDiscover =
         (
-            toolIds = #(); toolVersions = #()
+            toolIds = #(); toolVersions = #(); toolDescriptions = #()
+            txtToolDescription.text = "请选择一个工具查看说明。"
             if isAgentOnline() then (
                 local year = currentMaxYear()
                 lblStatus.text = "Agent 已连接 | Max " + (year as string)
-                local body = httpGet (agentBaseUrl + "/max/tools?maxYear=" + (year as string)) timeoutMs:10000
+                local body = httpGet (agentBaseUrl + "/max/tools-v2?maxYear=" + (year as string)) timeoutMs:10000
+                local useV2 = (body != undefined)
+                if not useV2 then body = httpGet (agentBaseUrl + "/max/tools?maxYear=" + (year as string)) timeoutMs:10000
                 local items = #()
                 if body != undefined and body != "" then (
                     for line in (filterString body "\n") do (
                         local parts = filterString line "|"
-                        if parts.count >= 3 then (
+                        if (useV2 and parts.count >= 5) or ((not useV2) and parts.count >= 3) then (
+                            local toolName = if useV2 then (decodeBase64 parts[3]) else parts[3]
+                            local category = if useV2 then (decodeBase64 parts[4]) else "其他"
+                            local description = if useV2 then (decodeBase64 parts[5]) else "暂无说明。"
                             append toolIds parts[1]
                             append toolVersions parts[2]
-                            append items (parts[3] + "  v" + parts[2])
+                            append toolDescriptions description
+                            append items ("[" + category + "]  " + toolName + "  v" + parts[2])
                         )
                     )
                 )
@@ -238,6 +276,7 @@ global MaxHubConnector
             ) else (
                 lblStatus.text = "Agent 离线 — 请先启动 MaxHub Agent（不可安装）"
                 lstTools.items = #()
+                txtToolDescription.text = "Agent 离线，暂时无法读取工具说明。"
                 btnInstall.enabled = false
             )
         )
@@ -523,6 +562,13 @@ global MaxHubConnector
         on tabUpdates changed state do showPage 3
         on tabEnvironment changed state do showPage 4
         on tabDiagnostics changed state do showPage 5
+        on lstTools selected sel do
+        (
+            if sel > 0 and sel <= toolDescriptions.count then
+                txtToolDescription.text = toolDescriptions[sel]
+            else
+                txtToolDescription.text = "请选择一个工具查看说明。"
+        )
         on btnRefresh pressed do refreshDiscover()
         on btnInstall pressed do installSelected()
         on btnRun pressed do runSelected()

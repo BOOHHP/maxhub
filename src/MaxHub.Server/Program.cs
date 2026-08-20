@@ -199,6 +199,7 @@ app.MapGet("/api/v1/tools", (int maxVersion) =>
         publicToolId = ToolId.PublicCode(r.Manifest.Id),
         name = r.Manifest.Name,
         description = r.Manifest.Description,
+        category = ToolCategoryClassifier.Classify(r.Manifest.Name, r.Manifest.Description, r.Manifest.Id),
         latestVersion = r.Manifest.Version,
         channel = r.Channel,
         compatibility = r.Manifest.Compatibility,

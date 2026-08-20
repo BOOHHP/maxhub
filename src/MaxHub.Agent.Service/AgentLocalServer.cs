@@ -1,4 +1,6 @@
 using System.Net;
+using System.Text;
+using MaxHub.Core.Manifests;
 using MaxHub.Agent.Core.Install;
 using MaxHub.Agent.Core.Paths;
 using MaxHub.Agent.Core.Remote;
@@ -38,6 +40,28 @@ public static class AgentLocalServer
             {
                 var tools = await hub.GetToolsAsync(maxYear);
                 var lines = tools.Select(t => $"{t.ToolId}|{t.LatestVersion}|{t.Name}");
+                return Results.Text(string.Join("\n", lines));
+            }
+            catch (Exception ex)
+            {
+                return Results.Text($"error {ex.Message}", statusCode: 502);
+            }
+        });
+
+        app.MapGet("/max/tools-v2", async (int maxYear) =>
+        {
+            try
+            {
+                var tools = (await hub.GetToolsAsync(maxYear))
+                    .OrderBy(t => ToolCategoryClassifier.SortOrder(t.Category))
+                    .ThenBy(t => t.Name, StringComparer.CurrentCulture)
+                    .ToList();
+                var lines = tools.Select(t => string.Join("|",
+                    t.ToolId,
+                    t.LatestVersion,
+                    Base64(t.Name),
+                    Base64(t.Category),
+                    Base64(t.Description ?? "暂无说明。")));
                 return Results.Text(string.Join("\n", lines));
             }
             catch (Exception ex)
@@ -201,6 +225,9 @@ public static class AgentLocalServer
 
         return app;
     }
+
+    private static string Base64(string value) =>
+        Convert.ToBase64String(Encoding.UTF8.GetBytes(value));
 
     private sealed class InstallJob
     {

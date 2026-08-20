@@ -40,6 +40,7 @@ public class AdminApiTests(ServerFixture fixture) : IClassFixture<ServerFixture>
         // 制造一次下载供统计验证
         var index = await viewer.GetFromJsonAsync<JsonElement[]>("/api/v1/tools?maxVersion=2026");
         var tool = Assert.Single(index!, t => t.GetProperty("toolId").GetString()!.Contains("quick-exporter"));
+        Assert.Equal("导入导出", tool.GetProperty("category").GetString());
         var toolId = tool.GetProperty("toolId").GetString()!;
         var version = tool.GetProperty("latestVersion").GetString()!;
         Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync($"/downloads/{toolId}/{version}/package.zip")).StatusCode);

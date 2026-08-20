@@ -123,6 +123,13 @@
                     <StackPanel Margin="0,28,0,0" HorizontalAlignment="Center">
                         <Button Content="⟳ 检查更新" Style="{StaticResource OutlineButton}" Width="140" Height="30"
                                 Command="{Binding CheckUpdateCommand}"/>
+                        <Button Content="{Binding UpdateButtonText}" Style="{StaticResource PrimaryButton}" Width="160" Height="32"
+                            Margin="0,8,0,0" Command="{Binding UpdateCommand}"
+                            Visibility="{Binding HasAvailableUpdate, Converter={StaticResource BoolToVis}}"/>
+                        <ProgressBar Width="240" Height="5" Minimum="0" Maximum="100" Margin="0,10,0,0"
+                                 Value="{Binding UpdateProgress}" Background="{StaticResource Bg.Card}"
+                                 Foreground="{StaticResource Accent.Primary}" BorderThickness="0"
+                                 Visibility="{Binding IsDownloadingUpdate, Converter={StaticResource BoolToVis}}"/>
                         <TextBlock Text="{Binding UpdateStatus}" FontSize="12" HorizontalAlignment="Center"
                                    Foreground="{StaticResource Text.Secondary}" Margin="0,8,0,0"
                                    Visibility="{Binding HasUpdateStatus, Converter={StaticResource BoolToVis}}"/>

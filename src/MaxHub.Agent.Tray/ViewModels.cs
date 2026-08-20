@@ -83,6 +83,9 @@ public sealed class AccountViewModel : ViewModelBase
     private string _notice = "";
     private string _updateStatus = "";
     private bool _checkingUpdate;
+    private bool _downloadingUpdate;
+    private double _updateProgress;
+    private AgentReleaseInfo? _pendingUpdate;
     private bool _confirmingLogout;
     private CancellationTokenSource? _loginCts;
 
@@ -96,7 +99,8 @@ public sealed class AccountViewModel : ViewModelBase
         LogoutCommand = new RelayCommand(() => ConfirmingLogout = true);
         ConfirmLogoutCommand = new RelayCommand(Logout);
         CancelLogoutCommand = new RelayCommand(() => ConfirmingLogout = false);
-        CheckUpdateCommand = new RelayCommand(CheckUpdateAsync, () => !_checkingUpdate);
+        CheckUpdateCommand = new RelayCommand(CheckUpdateAsync, () => !_checkingUpdate && !_downloadingUpdate);
+        UpdateCommand = new RelayCommand(UpdateAsync, () => _pendingUpdate is not null && !_downloadingUpdate);
         if (services.TryRestoreSession())
         {
             var user = services.SessionStore.ReadUser();
@@ -121,9 +125,14 @@ public sealed class AccountViewModel : ViewModelBase
     public RelayCommand ConfirmLogoutCommand { get; }
     public RelayCommand CancelLogoutCommand { get; }
     public RelayCommand CheckUpdateCommand { get; }
+    public RelayCommand UpdateCommand { get; }
 
     public string UpdateStatus { get => _updateStatus; private set { Set(ref _updateStatus, value); Raise(nameof(HasUpdateStatus)); } }
     public bool HasUpdateStatus => !string.IsNullOrEmpty(UpdateStatus);
+    public bool HasAvailableUpdate => _pendingUpdate is not null;
+    public bool IsDownloadingUpdate { get => _downloadingUpdate; private set => Set(ref _downloadingUpdate, value); }
+    public double UpdateProgress { get => _updateProgress; private set => Set(ref _updateProgress, value); }
+    public string UpdateButtonText => _pendingUpdate is null ? "立即更新" : $"更新到 v{_pendingUpdate.Version}";
 
     /// <summary>手动检查更新：GitHub 直连优先；有新版则下载并退出交给替换脚本重启。</summary>
     private async Task CheckUpdateAsync()
@@ -133,6 +142,8 @@ public sealed class AccountViewModel : ViewModelBase
         try
         {
             var current = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
+            SetPendingUpdate(null);
+            UpdateProgress = 0;
             UpdateStatus = "◌ 正在检查更新…";
             var updater = new SelfUpdater(_services.Hub) { CurrentVersion = current };
             var release = await updater.CheckForUpdateAsync();
@@ -141,10 +152,8 @@ public sealed class AccountViewModel : ViewModelBase
                 UpdateStatus = $"✓ 当前已是最新版本（v{current}）";
                 return;
             }
-            UpdateStatus = $"◌ 发现 v{release.Version}，正在下载…";
-            await updater.DownloadAndInstallAsync(release);
-            UpdateStatus = "✓ 下载完成，即将自动重启更新…";
-            await ((App)System.Windows.Application.Current).ExitCleanlyAsync();
+            SetPendingUpdate(release);
+            UpdateStatus = $"发现新版本 v{release.Version}，点击按钮开始更新";
         }
         catch (Exception ex)
         {
@@ -155,6 +164,47 @@ public sealed class AccountViewModel : ViewModelBase
             _checkingUpdate = false;
             CheckUpdateCommand.RaiseCanExecuteChanged();
         }
+    }
+
+    private async Task UpdateAsync()
+    {
+        if (_pendingUpdate is not { } release)
+            return;
+        IsDownloadingUpdate = true;
+        UpdateProgress = 0;
+        CheckUpdateCommand.RaiseCanExecuteChanged();
+        UpdateCommand.RaiseCanExecuteChanged();
+        try
+        {
+            var updater = new SelfUpdater(_services.Hub);
+            var progress = new Progress<double>(value =>
+            {
+                UpdateProgress = value;
+                UpdateStatus = $"正在下载 v{release.Version}… {(int)value}%";
+            });
+            await updater.DownloadAndInstallAsync(release, progress);
+            UpdateProgress = 100;
+            UpdateStatus = "下载完成，正在关闭并覆盖旧版本…";
+            await ((App)System.Windows.Application.Current).ExitCleanlyAsync();
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus = $"✗ 更新失败（{Brief(ex)}），可重试";
+        }
+        finally
+        {
+            IsDownloadingUpdate = false;
+            CheckUpdateCommand.RaiseCanExecuteChanged();
+            UpdateCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private void SetPendingUpdate(AgentReleaseInfo? release)
+    {
+        _pendingUpdate = release;
+        Raise(nameof(HasAvailableUpdate));
+        Raise(nameof(UpdateButtonText));
+        UpdateCommand.RaiseCanExecuteChanged();
     }
 
     private async Task LoginAsync()

@@ -66,6 +66,14 @@ public class AgentLocalServiceTests(ServerFixture fixture) : IClassFixture<Serve
             var tools = await panel.GetStringAsync("/max/tools?maxYear=2024");
             Assert.Contains("com.company.scene-batch-renamer|1.4.0|Scene Batch Renamer", tools);
 
+            var toolsV2 = await panel.GetStringAsync("/max/tools-v2?maxYear=2024");
+            var fields = toolsV2.Split('|');
+            Assert.Equal("com.company.scene-batch-renamer", fields[0]);
+            Assert.Equal("1.4.0", fields[1]);
+            Assert.Equal("Scene Batch Renamer", Decode(fields[2]));
+            Assert.Equal("重命名", Decode(fields[3]));
+            Assert.Contains("批量重命名", Decode(fields[4]));
+
             // 安装为异步任务：返回 job|{id}，轮询状态直到终态
             static async Task<string> InstallAndWaitAsync(HttpClient panel, string query)
             {
@@ -119,6 +127,9 @@ public class AgentLocalServiceTests(ServerFixture fixture) : IClassFixture<Serve
             Directory.Delete(agentRoot, recursive: true);
         }
     }
+
+    private static string Decode(string value) =>
+        System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(value));
 
     [Fact]
     public async Task Panel_protocol_uninstall_rollback_and_updates()

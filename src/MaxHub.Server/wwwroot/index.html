@@ -90,23 +90,8 @@ async function loadAgentInfo() {
   }
 }
 
-// ---- 自动分类（按名称/描述/id 关键词） ----
-const CATEGORIES = [
-  ['重命名', /rename|重命名|命名/i],
-  ['导入导出', /export|import|导出|导入|fbx|obj|gltf/i],
-  ['材质贴图', /material|texture|shader|材质|贴图/i],
-  ['UV', /\buv\b|unwrap|展开/i],
-  ['清理优化', /clean|cleanup|optimi|清理|优化|检查|check/i],
-  ['动画绑定', /anim|rig|bone|skin|动画|绑定|骨骼|蒙皮/i],
-  ['灯光渲染', /light|render|camera|灯光|渲染|相机|摄像机/i],
-  ['场景对象', /scene|object|selection|场景|对象|选择/i],
-];
-function classify(t) {
-  const s = `${t.name} ${t.description || ''} ${t.toolId}`;
-  for (const [cat, re] of CATEGORIES)
-    if (re.test(s)) return cat;
-  return '其他';
-}
+// ---- 分类由服务端统一计算，网页与 Max 工具中心消费同一结果 ----
+const CATEGORIES = ['重命名', '导入导出', '材质贴图', 'UV', '清理优化', '动画绑定', '灯光渲染', '场景对象'];
 
 // ---- 工具市场 ----
 let allTools = [];
@@ -116,7 +101,7 @@ const MAX_YEARS = Array.from({ length: 2026 - 2019 + 1 }, (_, i) => 2019 + i);
 async function loadTools() {
   const res = await api('/api/v1/tools?maxVersion=2026', { retry: false });
   if (!res.ok) { document.getElementById('tools').innerHTML = '<div class="empty">加载失败</div>'; return; }
-  allTools = (await res.json()).map(t => ({ ...t, category: classify(t) }));
+  allTools = await res.json();
   renderCatNav();
   render();
 }
@@ -124,7 +109,7 @@ async function loadTools() {
 function renderCatNav() {
   const counts = {};
   allTools.forEach(t => counts[t.category] = (counts[t.category] || 0) + 1);
-  const cats = ['', ...CATEGORIES.map(c => c[0]).filter(c => counts[c]), ...(counts['其他'] ? ['其他'] : [])];
+  const cats = ['', ...CATEGORIES.filter(c => counts[c]), ...(counts['其他'] ? ['其他'] : [])];
   document.getElementById('cat-nav').innerHTML = cats.map(c => `
     <button class="side-item ${activeCat === c ? 'active' : ''}" onclick="setCat('${c}')">
       ${c === '' ? '全部工具' : c}<span class="count">${c === '' ? allTools.length : counts[c] || 0}</span>

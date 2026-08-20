@@ -1,11 +1,9 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using Hardcodet.Wpf.TaskbarNotification;
-using MaxHub.Agent.Core.Remote;
 
 namespace MaxHub.Agent.Tray;
 
@@ -74,7 +72,6 @@ public partial class App : Application
         UpdateLoginStatus();
 
         _mainWindow.ShowFromTray();
-        CheckForAgentUpdate();
     }
 
     /// <summary>释放托盘与本地服务后退出；自更新替换前也走这里释放 exe 文件锁。</summary>
@@ -84,27 +81,6 @@ public partial class App : Application
         if (_services is not null)
             await _services.StopLocalServerAsync();
         Shutdown();
-    }
-
-    /// <summary>启动后静默检查 Agent 新版本；下载完成后必须退出当前进程，释放 exe 文件锁让替换脚本接管。</summary>
-    private async void CheckForAgentUpdate()
-    {
-        try
-        {
-            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
-            var updater = new SelfUpdater(_services!.Hub) { CurrentVersion = version };
-            var release = await updater.CheckForUpdateAsync();
-            if (release is null)
-                return;
-            ShowBalloon("发现新版本", $"MaxHub Agent v{release.Version} 已可用，正在后台下载并自动更新…");
-            await updater.DownloadAndInstallAsync(release);
-            // 退出当前进程：替换脚本等待文件锁释放后 move 新 exe 并重新拉起
-            await ExitCleanlyAsync();
-        }
-        catch (Exception ex)
-        {
-            ShowBalloon("更新失败", ex.Message);
-        }
     }
 
     private const string AutoStartKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
