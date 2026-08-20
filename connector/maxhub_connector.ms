@@ -227,7 +227,9 @@ global MaxHubConnector
             lblUpdatesTitle.pos = [margin, 46]; lblUpdatesTitle.width = contentW
             lstUpdates.pos = [margin, 66]; lstUpdates.width = contentW; lstUpdates.height = categorizedListHeight
             lblStatus.pos = [margin, 46]; lblStatus.width = contentW
-            pbInstall.pos = [margin, progressY]; pbInstall.width = contentW
+            pbInstall.pos = [margin, progressY]
+            -- 部分 Max 版本的 ProgressBar 运行时不支持 width，失败时保留声明宽度，避免重开面板抛异常
+            try ( pbInstall.width = contentW ) catch ()
             btnRefresh.pos = [margin, btnY]
             btnInstall.pos = [w - margin - 110, btnY]
             btnRun.pos = [margin, btnY]
