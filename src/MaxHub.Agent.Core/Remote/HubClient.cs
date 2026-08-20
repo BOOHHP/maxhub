@@ -6,7 +6,14 @@ namespace MaxHub.Agent.Core.Remote;
 public sealed record QrSessionInfo(string SessionId, string AuthorizeUrl);
 public sealed record HubSession(string AccessToken, string RefreshToken, string EmployeeId, string Username, DateTimeOffset ExpiresAtUtc);
 public sealed record ToolIndexItem(
-    string ToolId, string Name, string? Description, string LatestVersion, string Channel, string Category = "其他");
+    string ToolId,
+    string Name,
+    string? Description,
+    string LatestVersion,
+    string Channel,
+    string Category = "其他",
+    int MinMaxYear = 2019,
+    int MaxMaxYear = 2026);
 public sealed record RemoteInstallPlan(string ToolId, string Version, string Sha256, long SizeBytes, bool RestartRequired, string RiskLevel, string? Signature = null);
 public sealed record ConnectorInfo(string Version, int MinMaxYear, int MaxMaxYear, string Sha256, long SizeBytes, string? Signature = null);
 public sealed record AgentReleaseInfo(

@@ -73,6 +73,8 @@ public class AgentLocalServiceTests(ServerFixture fixture) : IClassFixture<Serve
             Assert.Equal("Scene Batch Renamer", Decode(fields[2]));
             Assert.Equal("重命名", Decode(fields[3]));
             Assert.Contains("批量重命名", Decode(fields[4]));
+            Assert.Equal("2019", fields[5]);
+            Assert.Equal("2026", fields[6]);
 
             // 安装为异步任务：返回 job|{id}，轮询状态直到终态
             static async Task<string> InstallAndWaitAsync(HttpClient panel, string query)
@@ -106,6 +108,16 @@ public class AgentLocalServiceTests(ServerFixture fixture) : IClassFixture<Serve
             await File.WriteAllTextAsync(ledgerPath, ledgerJson);
             var installed = await panel.GetStringAsync("/max/installed?maxYear=2024");
             Assert.Contains("com.company.scene-batch-renamer|1.4.0|Scene Batch Renamer", installed);
+
+            var installedV2 = await panel.GetStringAsync("/max/installed-v2?maxYear=2024");
+            var installedFields = installedV2.Split('|');
+            Assert.Equal("com.company.scene-batch-renamer", installedFields[0]);
+            Assert.Equal("1.4.0", installedFields[1]);
+            Assert.Equal("Scene Batch Renamer", Decode(installedFields[2]));
+            Assert.Equal("重命名", Decode(installedFields[3]));
+            Assert.Contains("批量重命名", Decode(installedFields[4]));
+            Assert.Equal("2019", installedFields[5]);
+            Assert.Equal("2026", installedFields[6]);
 
             // 运行入口：返回脚本类型与绝对路径
             var runInfo = await panel.GetStringAsync("/max/run-info?artifactId=com.company.scene-batch-renamer&maxYear=2024");
@@ -203,6 +215,17 @@ public class AgentLocalServiceTests(ServerFixture fixture) : IClassFixture<Serve
 
             updates = await panel.GetStringAsync("/max/updates?maxYear=2024");
             Assert.Contains("com.company.scene-batch-renamer|1.0.0|1.1.0", updates);
+
+            var updatesV2 = await panel.GetStringAsync("/max/updates-v2?maxYear=2024");
+            var updateFields = updatesV2.Split('|');
+            Assert.Equal("com.company.scene-batch-renamer", updateFields[0]);
+            Assert.Equal("1.0.0", updateFields[1]);
+            Assert.Equal("1.1.0", updateFields[2]);
+            Assert.Equal("Scene Batch Renamer", Decode(updateFields[3]));
+            Assert.Equal("重命名", Decode(updateFields[4]));
+            Assert.Contains("批量重命名", Decode(updateFields[5]));
+            Assert.Equal("2019", updateFields[6]);
+            Assert.Equal("2026", updateFields[7]);
 
             // 回滚：当前是 1.0.0（首次安装无上一版），回滚等价于卸载
             var rollback = await panel.PostAsync("/max/rollback?artifactId=com.company.scene-batch-renamer&maxYear=2024", null);

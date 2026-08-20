@@ -240,6 +240,8 @@ app.MapGet("/api/v1/tools", (int maxVersion) =>
         category = ToolCategoryClassifier.Classify(r.Manifest.Name, r.Manifest.Description, r.Manifest.Id),
         latestVersion = r.Manifest.Version,
         channel = r.Channel,
+        minMaxYear = r.Manifest.Compatibility.MinVersion,
+        maxMaxYear = r.Manifest.Compatibility.MaxVersion,
         compatibility = r.Manifest.Compatibility,
     });
     return Results.Ok(items);

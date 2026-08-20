@@ -61,7 +61,9 @@ public static class AgentLocalServer
                     t.LatestVersion,
                     Base64(t.Name),
                     Base64(t.Category),
-                    Base64(t.Description ?? "暂无说明。")));
+                    Base64(t.Description ?? "暂无说明。"),
+                    t.MinMaxYear,
+                    t.MaxMaxYear));
                 return Results.Text(string.Join("\n", lines));
             }
             catch (Exception ex)
@@ -90,6 +92,35 @@ public static class AgentLocalServer
             }
             var lines = entries.Select(e =>
                 $"{e.ArtifactId}|{e.Version}|{names.GetValueOrDefault(e.ArtifactId) ?? "未命名工具"}");
+            return Results.Text(string.Join("\n", lines));
+        });
+
+        app.MapGet("/max/installed-v2", async (int maxYear) =>
+        {
+            var entries = ledger.Load().Entries
+                .Where(e => e.MaxVersion == maxYear && e.Active && e.ArtifactType == "tool")
+                .ToList();
+            ToolIndexItem[] tools = [];
+            try { tools = await hub.GetToolsAsync(maxYear); }
+            catch { /* 离线时使用本地账本兜底 */ }
+            var market = tools.ToDictionary(t => t.ToolId, t => t, StringComparer.Ordinal);
+            var lines = entries.Select(entry =>
+            {
+                market.TryGetValue(entry.ArtifactId, out var tool);
+                var name = tool?.Name ?? entry.DisplayName ?? "未命名工具";
+                var category = tool?.Category ?? "其他";
+                var description = tool?.Description ?? "暂无说明。";
+                var minYear = tool?.MinMaxYear ?? entry.MaxVersion;
+                var maxYear = tool?.MaxMaxYear ?? entry.MaxVersion;
+                return string.Join("|",
+                    entry.ArtifactId,
+                    entry.Version,
+                    Base64(name),
+                    Base64(category),
+                    Base64(description),
+                    minYear,
+                    maxYear);
+            });
             return Results.Text(string.Join("\n", lines));
         });
 
@@ -124,6 +155,36 @@ public static class AgentLocalServer
                     .Where(e => e.MaxVersion == maxYear && e.Active && e.ArtifactType == "tool")
                     .Where(e => latest.TryGetValue(e.ArtifactId, out var t) && t.LatestVersion != e.Version)
                     .Select(e => $"{e.ArtifactId}|{e.Version}|{latest[e.ArtifactId].LatestVersion}|{latest[e.ArtifactId].Name}");
+                return Results.Text(string.Join("\n", lines));
+            }
+            catch (Exception ex)
+            {
+                return Results.Text($"error {ex.Message}", statusCode: 502);
+            }
+        });
+
+        app.MapGet("/max/updates-v2", async (int maxYear) =>
+        {
+            try
+            {
+                var tools = await hub.GetToolsAsync(maxYear);
+                var latest = tools.ToDictionary(t => t.ToolId, t => t, StringComparer.Ordinal);
+                var lines = ledger.Load().Entries
+                    .Where(e => e.MaxVersion == maxYear && e.Active && e.ArtifactType == "tool")
+                    .Where(e => latest.TryGetValue(e.ArtifactId, out var tool) && tool.LatestVersion != e.Version)
+                    .Select(e =>
+                    {
+                        var tool = latest[e.ArtifactId];
+                        return string.Join("|",
+                            e.ArtifactId,
+                            e.Version,
+                            tool.LatestVersion,
+                            Base64(tool.Name),
+                            Base64(tool.Category),
+                            Base64(tool.Description ?? "暂无说明。"),
+                            tool.MinMaxYear,
+                            tool.MaxMaxYear);
+                    });
                 return Results.Text(string.Join("\n", lines));
             }
             catch (Exception ex)

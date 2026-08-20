@@ -67,7 +67,7 @@ global MaxHubConnector
         label lblStatus "正在连接 MaxHub Agent…" pos:[12,46] width:520 align:#left
         label lblDiscoverTitle "可用工具（按分类排列）" pos:[12,64] width:524 align:#left
         listbox lstTools pos:[12,84] width:524 height:12
-        groupBox grpToolDescription "工具说明" pos:[12,278] width:524 height:98
+        groupBox grpToolDescription "工具详情" pos:[12,278] width:524 height:98
         editText txtToolDescription "" pos:[20,298] width:508 height:70 readOnly:true text:"请选择一个工具查看说明。"
         progressBar pbInstall "" pos:[12,382] width:524 height:8 value:0 visible:false color:(color 76 159 224)
         button btnRefresh "刷新列表" pos:[12,398] width:110 height:28 align:#left
@@ -112,11 +112,13 @@ global MaxHubConnector
         -- 数据缓存
         local toolIds = #()
         local toolVersions = #()
-        local toolDescriptions = #()
+        local toolDetails = #()
         local installedIds = #()
         local installedVersions = #()
+        local installedDetails = #()
         local updateIds = #()
         local updateVersions = #()
+        local updateDetails = #()
         local queuedUpdateIds = #()
         local queuedUpdateVersions = #()
         local installedReadable = false
@@ -146,8 +148,8 @@ global MaxHubConnector
             lblStatus.visible = showDiscover
             lblDiscoverTitle.visible = showDiscover
             lstTools.visible = showDiscover
-            grpToolDescription.visible = showDiscover
-            txtToolDescription.visible = showDiscover
+            grpToolDescription.visible = (showDiscover or showInstalled or showUpdates)
+            txtToolDescription.visible = (showDiscover or showInstalled or showUpdates)
             pbInstall.visible = (showDiscover and currentJobId != undefined)
             btnRefresh.visible = showDiscover
             btnInstall.visible = showDiscover
@@ -212,18 +214,18 @@ global MaxHubConnector
             if detailHeight > 140 then detailHeight = 140
             local detailY = progressY - 8 - detailHeight
             local discoverListHeight = detailY - 8 - 84
-            local plainListHeight = btnY - 8 - 66
+            local categorizedListHeight = detailY - 8 - 66
             if discoverListHeight < 80 then discoverListHeight = 80
-            if plainListHeight < 120 then plainListHeight = 120
+            if categorizedListHeight < 98 then categorizedListHeight = 98
             lblDiscoverTitle.pos = [margin, 64]; lblDiscoverTitle.width = contentW
             lstTools.pos = [margin, 84]; lstTools.width = contentW; lstTools.height = discoverListHeight
             grpToolDescription.pos = [margin, detailY]; grpToolDescription.width = contentW; grpToolDescription.height = detailHeight
             txtToolDescription.pos = [margin + 8, detailY + 20]
             txtToolDescription.width = contentW - 16; txtToolDescription.height = detailHeight - 28
             lblInstalledTitle.pos = [margin, 46]; lblInstalledTitle.width = contentW
-            lstInstalled.pos = [margin, 66]; lstInstalled.width = contentW; lstInstalled.height = plainListHeight
+            lstInstalled.pos = [margin, 66]; lstInstalled.width = contentW; lstInstalled.height = categorizedListHeight
             lblUpdatesTitle.pos = [margin, 46]; lblUpdatesTitle.width = contentW
-            lstUpdates.pos = [margin, 66]; lstUpdates.width = contentW; lstUpdates.height = plainListHeight
+            lstUpdates.pos = [margin, 66]; lstUpdates.width = contentW; lstUpdates.height = categorizedListHeight
             lblStatus.pos = [margin, 46]; lblStatus.width = contentW
             pbInstall.pos = [margin, progressY]; pbInstall.width = contentW
             btnRefresh.pos = [margin, btnY]
@@ -248,7 +250,7 @@ global MaxHubConnector
 
         fn refreshDiscover =
         (
-            toolIds = #(); toolVersions = #(); toolDescriptions = #()
+            toolIds = #(); toolVersions = #(); toolDetails = #()
             txtToolDescription.text = "请选择一个工具查看说明。"
             if isAgentOnline() then (
                 local year = currentMaxYear()
@@ -264,10 +266,13 @@ global MaxHubConnector
                             local toolName = if useV2 then (decodeBase64 parts[3]) else parts[3]
                             local category = if useV2 then (decodeBase64 parts[4]) else "其他"
                             local description = if useV2 then (decodeBase64 parts[5]) else "暂无说明。"
+                            local minYear = if useV2 and parts.count >= 7 then parts[6] else (year as string)
+                            local maxYear = if useV2 and parts.count >= 7 then parts[7] else (year as string)
+                            local rangeText = "Max " + minYear + "–" + maxYear
                             append toolIds parts[1]
                             append toolVersions parts[2]
-                            append toolDescriptions description
-                            append items ("[" + category + "]  " + toolName + "  v" + parts[2])
+                            append toolDetails ("适用 3ds Max：" + minYear + "–" + maxYear + "\r\n\r\n" + description)
+                            append items ("[" + category + "]  " + toolName + "  v" + parts[2] + "  [" + rangeText + "]")
                         )
                     )
                 )
@@ -283,22 +288,30 @@ global MaxHubConnector
 
         fn refreshInstalled =
         (
-            installedIds = #(); installedVersions = #()
+            installedIds = #(); installedVersions = #(); installedDetails = #()
             installedReadable = false
+            txtToolDescription.text = "请选择一个已安装工具查看说明。"
             local items = #()
             if isAgentOnline() then (
-                local body = httpGet (agentBaseUrl + "/max/installed?maxYear=" + (currentMaxYear() as string)) timeoutMs:10000
+                local year = currentMaxYear()
+                local body = httpGet (agentBaseUrl + "/max/installed-v2?maxYear=" + (year as string)) timeoutMs:10000
+                local useV2 = (body != undefined)
+                if not useV2 then body = httpGet (agentBaseUrl + "/max/installed?maxYear=" + (year as string)) timeoutMs:10000
                 if body != undefined then (
                     installedReadable = true
                     if body != "" then (
                         for line in (filterString body "\n") do (
                             local parts = filterString line "|"
-                            if parts.count >= 2 then (
+                            if (useV2 and parts.count >= 7) or ((not useV2) and parts.count >= 2) then (
                                 append installedIds parts[1]
                                 append installedVersions parts[2]
-                                -- 第 3 段为展示名（旧账本没有时回退 id）
-                                local displayName = if parts.count >= 3 then parts[3] else parts[1]
-                                append items (displayName + "  v" + parts[2])
+                                local displayName = if useV2 then (decodeBase64 parts[3]) else (if parts.count >= 3 then parts[3] else "未命名工具")
+                                local category = if useV2 then (decodeBase64 parts[4]) else "其他"
+                                local description = if useV2 then (decodeBase64 parts[5]) else "暂无说明。"
+                                local minYear = if useV2 then parts[6] else (year as string)
+                                local maxYear = if useV2 then parts[7] else (year as string)
+                                append installedDetails ("适用 3ds Max：" + minYear + "–" + maxYear + "\r\n\r\n" + description)
+                                append items ("[" + category + "]  " + displayName + "  v" + parts[2] + "  [Max " + minYear + "–" + maxYear + "]")
                             )
                         )
                     )
@@ -312,20 +325,30 @@ global MaxHubConnector
 
         fn refreshUpdates =
         (
-            updateIds = #(); updateVersions = #()
+            updateIds = #(); updateVersions = #(); updateDetails = #()
             updatesReadable = false
+            txtToolDescription.text = "请选择一个可更新工具查看说明。"
             local items = #()
             if isAgentOnline() then (
-                local body = httpGet (agentBaseUrl + "/max/updates?maxYear=" + (currentMaxYear() as string)) timeoutMs:10000
+                local year = currentMaxYear()
+                local body = httpGet (agentBaseUrl + "/max/updates-v2?maxYear=" + (year as string)) timeoutMs:10000
+                local useV2 = (body != undefined)
+                if not useV2 then body = httpGet (agentBaseUrl + "/max/updates?maxYear=" + (year as string)) timeoutMs:10000
                 if body != undefined then (
                     updatesReadable = true
                     if body != "" then (
                         for line in (filterString body "\n") do (
                             local parts = filterString line "|"
-                            if parts.count >= 4 then (
+                            if (useV2 and parts.count >= 8) or ((not useV2) and parts.count >= 4) then (
                                 append updateIds parts[1]
                                 append updateVersions parts[3]
-                                append items (parts[4] + "  " + parts[2] + " → v" + parts[3])
+                                local displayName = if useV2 then (decodeBase64 parts[4]) else parts[4]
+                                local category = if useV2 then (decodeBase64 parts[5]) else "其他"
+                                local description = if useV2 then (decodeBase64 parts[6]) else "暂无说明。"
+                                local minYear = if useV2 then parts[7] else (year as string)
+                                local maxYear = if useV2 then parts[8] else (year as string)
+                                append updateDetails ("适用 3ds Max：" + minYear + "–" + maxYear + "\r\n\r\n" + description)
+                                append items ("[" + category + "]  " + displayName + "  " + parts[2] + " → v" + parts[3] + "  [Max " + minYear + "–" + maxYear + "]")
                             )
                         )
                     )
@@ -564,10 +587,24 @@ global MaxHubConnector
         on tabDiagnostics changed state do showPage 5
         on lstTools selected sel do
         (
-            if sel > 0 and sel <= toolDescriptions.count then
-                txtToolDescription.text = toolDescriptions[sel]
+            if sel > 0 and sel <= toolDetails.count then
+                txtToolDescription.text = toolDetails[sel]
             else
                 txtToolDescription.text = "请选择一个工具查看说明。"
+        )
+        on lstInstalled selected sel do
+        (
+            if sel > 0 and sel <= installedDetails.count then
+                txtToolDescription.text = installedDetails[sel]
+            else
+                txtToolDescription.text = "请选择一个已安装工具查看说明。"
+        )
+        on lstUpdates selected sel do
+        (
+            if sel > 0 and sel <= updateDetails.count then
+                txtToolDescription.text = updateDetails[sel]
+            else
+                txtToolDescription.text = "请选择一个可更新工具查看说明。"
         )
         on btnRefresh pressed do refreshDiscover()
         on btnInstall pressed do installSelected()
