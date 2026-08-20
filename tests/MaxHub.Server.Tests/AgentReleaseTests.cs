@@ -42,6 +42,12 @@ public class AgentReleaseTests(ServerFixture fixture) : IClassFixture<ServerFixt
             var response = await fixture.CreateClient().GetAsync($"/downloads/agent/{version}/{fileName}");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal([1, 2, 3, 4], await response.Content.ReadAsByteArrayAsync());
+
+            using var headRequest = new HttpRequestMessage(HttpMethod.Head, $"/downloads/agent/{version}/{fileName}");
+            var head = await fixture.CreateClient().SendAsync(headRequest);
+            Assert.Equal(HttpStatusCode.OK, head.StatusCode);
+            Assert.Equal(4, head.Content.Headers.ContentLength);
+            Assert.Empty(await head.Content.ReadAsByteArrayAsync());
         }
         finally
         {

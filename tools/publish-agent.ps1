@@ -30,7 +30,9 @@ if (Test-Path $serverRoot) {
     try {
         $mirrorDir = Join-Path $serverRoot "data\agent"
         New-Item $mirrorDir -ItemType Directory -Force | Out-Null
-        Copy-Item $distPath (Join-Path $mirrorDir (Split-Path $distPath -Leaf)) -Force
+        $mirrorPath = Join-Path $mirrorDir (Split-Path $distPath -Leaf)
+        Copy-Item $distPath $mirrorPath -Force
+        [System.IO.File]::WriteAllText($mirrorPath + ".sha256", $sha256)
         Write-Host "Mirror:    $mirrorDir"
     }
     catch {

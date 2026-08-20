@@ -90,12 +90,19 @@ bool IsPublisher(HttpContext ctx) => roleService.IsIn(CurrentRoles(ctx), Roles.P
 
 string AgentFileName(string version) => $"MaxHubAgent-{version}-win-x64.exe";
 string AgentMirrorUrl(string version) => $"/downloads/agent/{version}/{AgentFileName(version)}";
+string AgentSha256(string version, string declaredSha256)
+{
+    if (!string.IsNullOrWhiteSpace(declaredSha256))
+        return declaredSha256;
+    var sidecar = Path.Combine(dataDir, "agent", AgentFileName(version) + ".sha256");
+    return File.Exists(sidecar) ? File.ReadAllText(sidecar).Trim() : "";
+}
 IResult AgentReleaseResult(string version, string fallbackDownloadUrl, string sha256) => Results.Ok(new
 {
     version,
     downloadUrl = AgentMirrorUrl(version),
     fallbackDownloadUrl,
-    sha256,
+    sha256 = AgentSha256(version, sha256),
 });
 
 // ---- 认证：飞书扫码会话 ----
@@ -189,7 +196,7 @@ app.MapGet("/api/v1/agent/latest", async () =>
 });
 
 // 局域网 Agent 镜像：存在则本机直传；缺失时透明重定向到对应 GitHub Release
-app.MapGet("/downloads/agent/{version}/{fileName}", (string version, string fileName) =>
+app.MapMethods("/downloads/agent/{version}/{fileName}", ["GET", "HEAD"], (string version, string fileName) =>
 {
     if (!Version.TryParse(version, out _) || fileName != AgentFileName(version))
         return Results.NotFound();
