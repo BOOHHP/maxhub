@@ -22,24 +22,7 @@
 
 <main>
   <h1 class="title">工具市场</h1>
-    document.getElementById('agent-download').onclick = async () => {
-      const button = document.getElementById('agent-download');
-      button.disabled = true;
-      button.textContent = '正在连接服务器…';
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 5000);
-      try {
-        const check = await fetch(info.downloadUrl, { method: 'HEAD', signal: controller.signal });
-        if (!check.ok) throw new Error('mirror unavailable');
-        location.href = info.downloadUrl;
-      } catch {
-        location.href = info.fallbackDownloadUrl || info.downloadUrl;
-      } finally {
-        clearTimeout(timer);
-        button.disabled = false;
-        button.textContent = '下载最新版';
-      }
-    };
+  <p class="subtitle">公司内部 3ds Max 脚本与插件分发平台 · 安装与管理请使用 MaxHub Agent</p>
 
   <div class="download-banner">
     <div class="icon">⬇️</div>
@@ -87,7 +70,11 @@ async function fetchLatestFromGitHub() {
   const release = await res.json();
   const asset = (release.assets || []).find(a => a.name.endsWith('.exe'));
   if (!asset) throw new Error('no exe asset');
-  return { version: release.tag_name.replace(/^v/i, ''), downloadUrl: asset.browser_download_url };
+  return {
+    version: release.tag_name.replace(/^v/i, ''),
+    downloadUrl: asset.browser_download_url,
+    fallbackDownloadUrl: asset.browser_download_url,
+  };
 }
 
 async function loadAgentInfo() {
@@ -99,7 +86,24 @@ async function loadAgentInfo() {
   if (!info) try { info = await fetchLatestFromGitHub(); } catch { /* ignore */ }
   if (info) {
     document.getElementById('agent-version').textContent = `v${info.version}`;
-    document.getElementById('agent-download').onclick = () => { location.href = info.downloadUrl; };
+    document.getElementById('agent-download').onclick = async () => {
+      const button = document.getElementById('agent-download');
+      button.disabled = true;
+      button.textContent = '正在连接服务器…';
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        const check = await fetch(info.downloadUrl, { method: 'HEAD', signal: controller.signal });
+        if (!check.ok) throw new Error('mirror unavailable');
+        location.href = info.downloadUrl;
+      } catch {
+        location.href = info.fallbackDownloadUrl || info.downloadUrl;
+      } finally {
+        clearTimeout(timer);
+        button.disabled = false;
+        button.textContent = '下载最新版';
+      }
+    };
   } else {
     document.getElementById('agent-version').textContent = '版本信息暂不可用';
   }

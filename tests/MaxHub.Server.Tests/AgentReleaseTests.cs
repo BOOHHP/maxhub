@@ -30,6 +30,21 @@ public class AgentReleaseTests(ServerFixture fixture) : IClassFixture<ServerFixt
     }
 
     [Fact]
+    public async Task Market_page_keeps_download_handler_inside_script_block()
+    {
+        var html = await fixture.CreateClient().GetStringAsync("/index.html");
+        var scriptStart = html.IndexOf("<script>", StringComparison.Ordinal);
+        var handler = html.IndexOf("document.getElementById('agent-download').onclick", StringComparison.Ordinal);
+
+        Assert.True(scriptStart > 0);
+        Assert.True(handler > scriptStart);
+        Assert.DoesNotContain(
+            "<h1 class=\"title\">工具市场</h1>\n    document.getElementById",
+            html);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(html, "id=\"tools\"").Cast<System.Text.RegularExpressions.Match>());
+    }
+
+    [Fact]
     public async Task Agent_mirror_serves_local_file_when_present()
     {
         const string version = "8.8.8";
