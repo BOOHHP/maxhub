@@ -127,7 +127,7 @@
                             Margin="0,8,0,0" Command="{Binding UpdateCommand}"
                             Visibility="{Binding HasAvailableUpdate, Converter={StaticResource BoolToVis}}"/>
                         <ProgressBar Width="240" Height="5" Minimum="0" Maximum="100" Margin="0,10,0,0"
-                                 Value="{Binding UpdateProgress}" Background="{StaticResource Bg.Card}"
+                                     Value="{Binding UpdateProgress, Mode=OneWay}" Background="{StaticResource Bg.Card}"
                                  Foreground="{StaticResource Accent.Primary}" BorderThickness="0"
                                  Visibility="{Binding IsDownloadingUpdate, Converter={StaticResource BoolToVis}}"/>
                         <TextBlock Text="{Binding UpdateStatus}" FontSize="12" HorizontalAlignment="Center"
