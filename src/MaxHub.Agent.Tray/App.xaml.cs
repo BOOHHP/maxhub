@@ -17,10 +17,21 @@ public partial class App : Application
     private MainWindow? _mainWindow;
     private bool _iconLoggedIn;
     private bool _iconHasUpdate;
+    private Mutex? _singleInstanceMutex;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // 单实例：已有 Agent 运行时直接退出，避免托盘/本地服务/自更新互相冲突
+        _singleInstanceMutex = new Mutex(initiallyOwned: true, @"Local\MaxHubAgent.SingleInstance", out var createdNew);
+        if (!createdNew)
+        {
+            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex = null;
+            Shutdown();
+            return;
+        }
 
         if (SelfUpdater.TryNormalizeVersionedExecutableName(CurrentVersion))
         {
@@ -150,6 +161,12 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _trayIcon?.Dispose();
+        if (_singleInstanceMutex is not null)
+        {
+            _singleInstanceMutex.ReleaseMutex();
+            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex = null;
+        }
         base.OnExit(e);
     }
 
