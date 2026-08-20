@@ -224,6 +224,19 @@ function editFromStats(toolId, version) {
   }
 }
 
+function statsToolInfo(s) {
+  let toolId = s.toolId;
+  let version = s.version;
+  if (!toolId && s.subject) {
+    const at = s.subject.lastIndexOf('@');
+    toolId = at > 0 ? s.subject.slice(0, at) : s.subject;
+    version = at > 0 ? s.subject.slice(at + 1) : '';
+  }
+  const rel = releasesCache.find(r => r.toolId === toolId && r.version === version)
+    ?? releasesCache.find(r => r.toolId === toolId);
+  return { toolId, version, name: s.name || rel?.name || '未知工具' };
+}
+
 async function refresh() {
   const releases = await loadReleases();
   if (!releases) return;
@@ -315,10 +328,12 @@ async function refresh() {
     document.getElementById('stat-users').textContent = stats.activeUsers;
     document.getElementById('stat-downloads').textContent = totalDownloads;
     document.getElementById('stat-installs').textContent = totalInstalls;
-    document.querySelector('#stats-table tbody').innerHTML = stats.subjects.map(s => `
-      <tr><td>${s.name}${s.version ? ` <span style="color:var(--text-3)">v${s.version}</span>` : ''}</td>
+    document.querySelector('#stats-table tbody').innerHTML = stats.subjects.map(s => {
+      const info = statsToolInfo(s);
+      return `<tr><td>${info.name}${info.version ? ` <span style="color:var(--text-3)">v${info.version}</span>` : ''}</td>
       <td>${s.downloads}</td><td>${s.installs}</td>
-      <td><button class="btn-outline" onclick="editFromStats('${s.toolId}', '${s.version}')">编辑工具信息</button></td></tr>`).join('')
+      <td><button class="btn-outline" onclick="editFromStats('${info.toolId}', '${info.version}')">编辑工具信息</button></td></tr>`;
+    }).join('')
       || '<tr><td colspan="4" class="empty">暂无数据</td></tr>';
   }
 }
