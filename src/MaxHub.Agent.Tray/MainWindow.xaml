@@ -194,6 +194,7 @@
                                                 <ColumnDefinition Width="110"/>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="140"/>
+                                                <ColumnDefinition Width="80"/>
                                                 <ColumnDefinition Width="88"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="14"/>
@@ -244,7 +245,11 @@
                                                     </TextBlock.Style>
                                                 </TextBlock>
                                             </Border>
-                                            <Button Grid.Column="3" Content="{Binding ActionText}" Width="80"
+                                            <Button Grid.Column="3" Content="打开 Max" Width="72"
+                                                    Style="{StaticResource OutlineButton}"
+                                                    ToolTip="启动此版本的 3ds Max"
+                                                    Command="{Binding OpenCommand}"/>
+                                            <Button Grid.Column="4" Content="{Binding ActionText}" Width="80"
                                                     Command="{Binding ActionCommand}">
                                                 <Button.Style>
                                                     <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">

@@ -289,6 +289,7 @@ public sealed class ConnectorRowViewModel : ViewModelBase
     {
         _owner = owner;
         Installation = installation;
+        OpenCommand = new RelayCommand(OpenMax);
         ActionCommand = new RelayCommand(RunActionAsync, () => Status != ConnectorStatus.Installing);
     }
 
@@ -317,7 +318,26 @@ public sealed class ConnectorRowViewModel : ViewModelBase
         _ => "",
     };
 
+    public RelayCommand OpenCommand { get; }
     public RelayCommand ActionCommand { get; }
+
+    private void OpenMax()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = Installation.ExePath,
+                WorkingDirectory = Installation.InstallDir,
+                UseShellExecute = false,
+            })?.Dispose();
+            ErrorMessage = "";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"⚠ 无法启动 {DisplayName}（{AccountViewModel.Brief(ex)}）";
+        }
+    }
 
     private Task RunActionAsync() => Status == ConnectorStatus.Installed
         ? _owner.UninstallAsync(this)
