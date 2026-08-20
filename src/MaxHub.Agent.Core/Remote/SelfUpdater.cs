@@ -17,6 +17,28 @@ public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
 
     private readonly HttpClient _github = githubHttp ?? CreateGitHubClient();
 
+    /// <summary>兼容旧更新器：内容已更新但文件名仍是旧版本时，退出后改成新版本文件名。</summary>
+    public static bool TryNormalizeVersionedExecutableName(string currentVersion)
+    {
+        if (Environment.ProcessPath is not { } currentExe)
+            return false;
+        var targetExe = GetTargetExePath(currentExe, currentVersion);
+        if (string.Equals(currentExe, targetExe, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var scriptPath = Path.Combine(Path.GetDirectoryName(currentExe)!, "maxhub-normalize.cmd");
+        File.WriteAllText(
+            scriptPath,
+            BuildRestartScript(currentExe, currentExe, targetExe, currentVersion));
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = scriptPath,
+            WindowStyle = ProcessWindowStyle.Hidden,
+            UseShellExecute = true,
+        });
+        return true;
+    }
+
     private static HttpClient CreateGitHubClient()
     {
         var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
@@ -85,6 +107,7 @@ public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
 
         var dir = Path.GetDirectoryName(currentExe)!;
         var tempPath = Path.Combine(dir, $"MaxHubAgent.new-{release.Version}.exe");
+        var targetExe = GetTargetExePath(currentExe, release.Version);
         try
         {
             try
@@ -112,7 +135,9 @@ public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
 
             // 准备重启脚本：等待当前进程退出后替换 exe 再启动
             var scriptPath = Path.Combine(dir, "maxhub-update.cmd");
-            await File.WriteAllTextAsync(scriptPath, BuildRestartScript(currentExe, tempPath, release.Version));
+            await File.WriteAllTextAsync(
+                scriptPath,
+                BuildRestartScript(currentExe, tempPath, targetExe, release.Version));
             Process.Start(new ProcessStartInfo
             {
                 FileName = scriptPath,
@@ -144,25 +169,53 @@ public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
         return Version.TryParse(core, out var parsed) ? parsed : null;
     }
 
-    private static string BuildRestartScript(string currentExe, string newExe, string version)
+    private static string GetTargetExePath(string currentExe, string version)
     {
-        // 循环等待旧进程退出释放文件锁（最多 30 次），move 成功才启动新版本
-        return string.Join("\r\n", new[]
+        var fileName = Path.GetFileName(currentExe);
+        var usesVersionedName = fileName.StartsWith("MaxHubAgent-", StringComparison.OrdinalIgnoreCase) &&
+            fileName.EndsWith("-win-x64.exe", StringComparison.OrdinalIgnoreCase);
+        return usesVersionedName
+            ? Path.Combine(Path.GetDirectoryName(currentExe)!, $"MaxHubAgent-{version}-win-x64.exe")
+            : currentExe;
+    }
+
+    private static string BuildRestartScript(
+        string currentExe,
+        string newExe,
+        string targetExe,
+        string version)
+    {
+        var lines = new List<string>
         {
             "@echo off",
             "set /a tries=0",
             ":retry",
             "timeout /t 1 /nobreak > nul",
-            $"move /y \"{newExe}\" \"{currentExe}\" > nul 2>&1",
+            $"move /y \"{newExe}\" \"{targetExe}\" > nul 2>&1",
             "if errorlevel 1 (",
             "  set /a tries+=1",
             "  if %tries% lss 30 goto retry",
             "  del \"%~f0\"",
             "  exit /b 1",
             ")",
-            $"start \"\" \"{currentExe}\" --after-update \"{version}\"",
-            "del \"%~f0\"",
-        });
+        };
+
+        if (!string.Equals(currentExe, targetExe, StringComparison.OrdinalIgnoreCase))
+        {
+            lines.AddRange([
+                "set /a tries=0",
+                ":delete_old",
+                $"del /f /q \"{currentExe}\" > nul 2>&1",
+                $"if exist \"{currentExe}\" (",
+                "  set /a tries+=1",
+                "  if %tries% lss 30 (timeout /t 1 /nobreak > nul & goto delete_old)",
+                ")",
+            ]);
+        }
+
+        lines.Add($"start \"\" \"{targetExe}\" --after-update \"{version}\"");
+        lines.Add("del \"%~f0\"");
+        return string.Join("\r\n", lines);
     }
 
     private static async Task<string> ComputeSha256Async(string path)

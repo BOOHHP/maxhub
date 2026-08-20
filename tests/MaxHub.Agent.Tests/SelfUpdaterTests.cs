@@ -175,7 +175,7 @@ public class SelfUpdaterTests
     }
 
     [Fact]
-    public void Restart_script_passes_updated_version_to_new_process()
+    public void Restart_script_renames_versioned_exe_and_deletes_old_application()
     {
         var method = typeof(SelfUpdater).GetMethod(
             "BuildRestartScript",
@@ -183,9 +183,45 @@ public class SelfUpdaterTests
 
         var script = Assert.IsType<string>(method!.Invoke(
             null,
-            [@"C:\MaxHub\MaxHubAgent.exe", @"C:\MaxHub\MaxHubAgent.new.exe", "1.0.14"]));
+            [
+                @"C:\MaxHub\MaxHubAgent-1.0.14-win-x64.exe",
+                @"C:\MaxHub\MaxHubAgent.new.exe",
+                @"C:\MaxHub\MaxHubAgent-1.0.15-win-x64.exe",
+                "1.0.15",
+            ]));
 
-        Assert.Contains("--after-update \"1.0.14\"", script);
-        Assert.Contains("start \"\" \"C:\\MaxHub\\MaxHubAgent.exe\"", script);
+        Assert.Contains("--after-update \"1.0.15\"", script);
+        Assert.Contains("start \"\" \"C:\\MaxHub\\MaxHubAgent-1.0.15-win-x64.exe\"", script);
+        Assert.Contains("del /f /q \"C:\\MaxHub\\MaxHubAgent-1.0.14-win-x64.exe\"", script);
+    }
+
+    [Fact]
+    public void Restart_script_overwrites_fixed_name_without_deleting_target()
+    {
+        var method = typeof(SelfUpdater).GetMethod(
+            "BuildRestartScript",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        var script = Assert.IsType<string>(method!.Invoke(
+            null,
+            [@"C:\MaxHub\MaxHubAgent.exe", @"C:\MaxHub\MaxHubAgent.new.exe", @"C:\MaxHub\MaxHubAgent.exe", "1.0.15"]));
+
+        Assert.Contains("start \"\" \"C:\\MaxHub\\MaxHubAgent.exe\" --after-update \"1.0.15\"", script);
+        Assert.DoesNotContain("del /f /q \"C:\\MaxHub\\MaxHubAgent.exe\"", script);
+    }
+
+    [Theory]
+    [InlineData(@"C:\MaxHub\MaxHubAgent-1.0.14-win-x64.exe", "1.0.15", @"C:\MaxHub\MaxHubAgent-1.0.15-win-x64.exe")]
+    [InlineData(@"C:\MaxHub\MaxHubAgent.exe", "1.0.15", @"C:\MaxHub\MaxHubAgent.exe")]
+    public void Target_exe_path_normalizes_only_versioned_file_names(
+        string currentExe,
+        string version,
+        string expected)
+    {
+        var method = typeof(SelfUpdater).GetMethod(
+            "GetTargetExePath",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.Equal(expected, method!.Invoke(null, [currentExe, version]));
     }
 }

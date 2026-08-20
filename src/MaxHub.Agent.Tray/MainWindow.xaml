@@ -1,8 +1,9 @@
 <Window x:Class="MaxHub.Agent.Tray.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MaxHub Agent" Width="720" Height="480"
-        MinWidth="640" MinHeight="420"
+        xmlns:local="clr-namespace:MaxHub.Agent.Tray"
+        Title="MaxHub Agent" Width="900" Height="600"
+        MinWidth="760" MinHeight="520"
         Icon="Assets/maxhub.ico"
         WindowStyle="None" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
@@ -55,8 +56,9 @@
             <Border Grid.Column="0" Background="{StaticResource Bg.Sidebar}">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Bottom" Margin="0,0,0,6">
-                        <Button Style="{StaticResource NavIconButton}" Content="📝" Click="ReleaseNotes_Click"
-                                ToolTip="更新日志" AutomationProperties.Name="更新日志"/>
+                        <RadioButton x:Name="NavReleaseNotes" Style="{StaticResource NavButton}" Content="📝"
+                                     GroupName="Nav" Checked="NavReleaseNotes_Checked"
+                                     ToolTip="更新日志" AutomationProperties.Name="更新日志"/>
                         <TextBlock x:Name="VersionText" Text="v?" FontSize="10"
                                    Foreground="{StaticResource Text.Disabled}"
                                    HorizontalAlignment="Center" Margin="0,2,0,0"/>
@@ -448,6 +450,8 @@
                     </TabItem>
                 </TabControl>
             </Grid>
+
+            <local:ReleaseNotesPage Grid.Column="1" x:Name="ReleaseNotesPage" Visibility="Collapsed"/>
         </Grid>
     </Grid>
 </Window>

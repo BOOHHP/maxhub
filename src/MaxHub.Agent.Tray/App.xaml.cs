@@ -5,7 +5,6 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Threading;
 using Hardcodet.Wpf.TaskbarNotification;
 using MaxHub.Agent.Core.Remote;
 
@@ -16,7 +15,6 @@ public partial class App : Application
     private TaskbarIcon? _trayIcon;
     private AppServices? _services;
     private MainWindow? _mainWindow;
-    private ReleaseNotesWindow? _releaseNotesWindow;
     private bool _iconLoggedIn;
     private bool _iconHasUpdate;
 
@@ -24,11 +22,31 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        if (SelfUpdater.TryNormalizeVersionedExecutableName(CurrentVersion))
+        {
+            Shutdown();
+            return;
+        }
+
         _services = new AppServices();
         var account = new AccountViewModel(_services);
         var connectors = new ConnectorsViewModel(_services, account);
         var tools = new ToolsViewModel(_services, account);
-        _mainWindow = new MainWindow(account, connectors, tools);
+        var currentVersion = CurrentVersion;
+        var updatedVersion = GetAfterUpdateVersion(e.Args, currentVersion);
+        var statePath = Path.Combine(_services.AgentRoot, "release-notes-state.json");
+        var existingInstallation = Directory.Exists(_services.AgentRoot) &&
+            Directory.EnumerateFileSystemEntries(_services.AgentRoot)
+                .Any(path => !string.Equals(path, statePath, StringComparison.OrdinalIgnoreCase));
+        var releaseNotesState = new ReleaseNotesStateStore(statePath);
+        var shouldAutoShow = releaseNotesState.ShouldAutoShow(
+            currentVersion,
+            launchedAfterUpdate: updatedVersion is not null,
+            existingInstallation);
+        var releaseNotes = new ReleaseNotesViewModel(
+            currentVersion,
+            shouldAutoShow ? currentVersion : null);
+        _mainWindow = new MainWindow(account, connectors, tools, releaseNotes, shouldAutoShow);
 
         if (account.IsLoggedIn)
             _services.StartLocalServer();
@@ -77,21 +95,6 @@ public partial class App : Application
         UpdateLoginStatus();
 
         _mainWindow.ShowFromTray();
-        var currentVersion = CurrentVersion;
-        var updatedVersion = GetAfterUpdateVersion(e.Args, currentVersion);
-        var statePath = Path.Combine(_services.AgentRoot, "release-notes-state.json");
-        var existingInstallation = Directory.Exists(_services.AgentRoot) &&
-            Directory.EnumerateFileSystemEntries(_services.AgentRoot)
-                .Any(path => !string.Equals(path, statePath, StringComparison.OrdinalIgnoreCase));
-        var releaseNotesState = new ReleaseNotesStateStore(statePath);
-        var shouldAutoShow = releaseNotesState.ShouldAutoShow(
-            currentVersion,
-            launchedAfterUpdate: updatedVersion is not null,
-            existingInstallation);
-        if (shouldAutoShow)
-            Dispatcher.BeginInvoke(
-                () => ShowReleaseNotes(currentVersion),
-                DispatcherPriority.ApplicationIdle);
     }
 
     private static string CurrentVersion =>
@@ -105,29 +108,9 @@ public partial class App : Application
         return null;
     }
 
-    public void ShowReleaseNotes(string? justUpdatedVersion = null)
-    {
-        if (_releaseNotesWindow is { IsVisible: true })
-        {
-            _releaseNotesWindow.Activate();
-            return;
-        }
-
-        _releaseNotesWindow = new ReleaseNotesWindow(CurrentVersion, justUpdatedVersion)
-        {
-            Owner = _mainWindow,
-        };
-        _releaseNotesWindow.Closed += (_, _) => _releaseNotesWindow = null;
-        _releaseNotesWindow.Show();
-        _releaseNotesWindow.Activate();
-    }
-
-    public void CloseReleaseNotes() => _releaseNotesWindow?.Close();
-
     /// <summary>释放托盘与本地服务后退出；自更新替换前也走这里释放 exe 文件锁。</summary>
     public async Task ExitCleanlyAsync()
     {
-        CloseReleaseNotes();
         _trayIcon?.Dispose();
         if (_services is not null)
             await _services.StopLocalServerAsync();

@@ -11,7 +11,12 @@ public partial class MainWindow : Window
     private readonly ToolsViewModel _tools;
     private bool _balloonShown;
 
-    public MainWindow(AccountViewModel account, ConnectorsViewModel connectors, ToolsViewModel tools)
+    public MainWindow(
+        AccountViewModel account,
+        ConnectorsViewModel connectors,
+        ToolsViewModel tools,
+        ReleaseNotesViewModel releaseNotes,
+        bool openReleaseNotes)
     {
         InitializeComponent();
         // 无边框窗口最大化默认盖住任务栏；+12 补偿 WindowChrome 6px 边框外扩
@@ -25,6 +30,7 @@ public partial class MainWindow : Window
         AccountPage.DataContext = account;
         ConnectorsPage.DataContext = connectors;
         ToolsPage.DataContext = tools;
+        ReleaseNotesPage.DataContext = releaseNotes;
         account.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(AccountViewModel.StateName))
@@ -32,8 +38,10 @@ public partial class MainWindow : Window
         };
         UpdateAccountPanels();
 
-        // 默认落地页：已登录 → Connector 管理；未登录 → 账号
-        if (account.IsLoggedIn)
+        // 更新后直接落在日志页；普通启动保持账号/Connector 原有逻辑
+        if (openReleaseNotes)
+            NavReleaseNotes.IsChecked = true;
+        else if (account.IsLoggedIn)
             NavConnectors.IsChecked = true;
         else
             NavAccount.IsChecked = true;
@@ -50,6 +58,7 @@ public partial class MainWindow : Window
     {
         ConnectorsPage.Visibility = Visibility.Collapsed;
         ToolsPage.Visibility = Visibility.Collapsed;
+        ReleaseNotesPage.Visibility = Visibility.Collapsed;
         ShowPageWithFade(AccountPage);
     }
 
@@ -57,6 +66,7 @@ public partial class MainWindow : Window
     {
         AccountPage.Visibility = Visibility.Collapsed;
         ToolsPage.Visibility = Visibility.Collapsed;
+        ReleaseNotesPage.Visibility = Visibility.Collapsed;
         ShowPageWithFade(ConnectorsPage);
         _ = _connectors.RefreshAsync();
     }
@@ -65,8 +75,17 @@ public partial class MainWindow : Window
     {
         AccountPage.Visibility = Visibility.Collapsed;
         ConnectorsPage.Visibility = Visibility.Collapsed;
+        ReleaseNotesPage.Visibility = Visibility.Collapsed;
         ShowPageWithFade(ToolsPage);
         _ = _tools.RefreshAsync();
+    }
+
+    private void NavReleaseNotes_Checked(object sender, RoutedEventArgs e)
+    {
+        AccountPage.Visibility = Visibility.Collapsed;
+        ConnectorsPage.Visibility = Visibility.Collapsed;
+        ToolsPage.Visibility = Visibility.Collapsed;
+        ShowPageWithFade(ReleaseNotesPage);
     }
 
     private static void ShowPageWithFade(UIElement page)
@@ -91,14 +110,10 @@ public partial class MainWindow : Window
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
-    private void ReleaseNotes_Click(object sender, RoutedEventArgs e) =>
-        ((App)Application.Current).ShowReleaseNotes();
-
     /// <summary>关闭 = 隐藏到托盘，进程常驻（本地服务 47810 供 Max 面板使用）。</summary>
     protected override void OnClosing(CancelEventArgs e)
     {
         e.Cancel = true;
-        ((App)Application.Current).CloseReleaseNotes();
         Hide();
         if (!_balloonShown)
         {
