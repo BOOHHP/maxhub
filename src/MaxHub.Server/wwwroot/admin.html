@@ -99,7 +99,7 @@
           <div class="stat-card"><div class="num" id="stat-installs">—</div><div class="label">总安装次数</div></div>
         </div>
         <table id="stats-table">
-          <thead><tr><th>工具@版本</th><th>下载</th><th>安装</th></tr></thead>
+          <thead><tr><th>工具@版本</th><th>下载</th><th>安装</th><th>操作</th></tr></thead>
           <tbody></tbody>
         </table>
       </section>
@@ -209,10 +209,28 @@ async function uploadConnector() {
 }
 
 const fmt = (t) => new Date(t).toLocaleString('zh-CN', { hour12: false });
+let releasesCache = [];
+
+// 从使用统计跳到版本管理并展开对应版本的编辑表单
+function editFromStats(subject) {
+  const at = subject.lastIndexOf('@');
+  const toolId = subject.slice(0, at);
+  const version = subject.slice(at + 1);
+  const rel = releasesCache.find(r => r.toolId === toolId && r.version === version)
+    ?? releasesCache.find(r => r.toolId === toolId);
+  if (!rel) { toast('未找到对应的版本记录（可能已删除）', false); return; }
+  showSection('releases');
+  const row = document.getElementById(`edit-${rel.releaseId}`);
+  if (row) {
+    row.hidden = false;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
 
 async function refresh() {
   const releases = await loadReleases();
   if (!releases) return;
+  releasesCache = releases;
 
   const pending = releases.filter(r => r.status === 'PendingReview');
   document.getElementById('pending-count').textContent = pending.length;
@@ -301,8 +319,9 @@ async function refresh() {
     document.getElementById('stat-downloads').textContent = totalDownloads;
     document.getElementById('stat-installs').textContent = totalInstalls;
     document.querySelector('#stats-table tbody').innerHTML = stats.subjects.map(s => `
-      <tr><td>${s.subject}</td><td>${s.downloads}</td><td>${s.installs}</td></tr>`).join('')
-      || '<tr><td colspan="3" class="empty">暂无数据</td></tr>';
+      <tr><td>${s.subject}</td><td>${s.downloads}</td><td>${s.installs}</td>
+      <td><button class="btn-outline" onclick="editFromStats('${s.subject}')">编辑工具信息</button></td></tr>`).join('')
+      || '<tr><td colspan="4" class="empty">暂无数据</td></tr>';
   }
 }
 
