@@ -405,6 +405,7 @@ app.MapGet("/api/v1/admin/releases", (HttpContext ctx) =>
         releaseId = r.ReleaseId,
         toolId = r.Manifest.Id,
         name = r.Manifest.Name,
+        description = r.Manifest.Description,
         version = r.Manifest.Version,
         status = r.Status.ToString(),
         channel = r.Channel,
@@ -413,6 +414,18 @@ app.MapGet("/api/v1/admin/releases", (HttpContext ctx) =>
         submittedAtUtc = r.SubmittedAtUtc,
         signed = r.SignatureBase64 != null,
     }));
+});
+
+// 规范化编辑：修改展示元数据（名称/描述/频道），不动包文件与签名
+app.MapPatch("/api/v1/admin/releases/{releaseId}/metadata", (HttpContext ctx, string releaseId, UpdateReleaseMetadataRequest request) =>
+{
+    if (CurrentUser(ctx) is null) return Results.Unauthorized();
+    if (!IsReviewer(ctx) && !IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    if (request.Channel is { Length: > 0 } ch && ch is not ("internal" or "beta" or "stable"))
+        return Results.BadRequest(new { errors = new[] { "非法频道。" } });
+    return registry.UpdateReleaseMetadata(releaseId, request.Name, request.Description, request.Channel)
+        ? Results.Ok()
+        : Results.NotFound();
 });
 
 // 紧急撤回：下架已发布版本
@@ -519,6 +532,7 @@ internal sealed record SetRolesRequest(string[] Roles);
 internal sealed record AnalyzeScriptRequest(string FileName, string Content);
 internal sealed record PublishScriptRequest(string FileName, string Content, string Name, string? Description, string Version, int MinMaxYear, int MaxMaxYear);
 internal sealed record SetAgentReleaseRequest(string Version, string DownloadUrl, string? Sha256);
+internal sealed record UpdateReleaseMetadataRequest(string? Name, string? Description, string? Channel);
 
 public partial class Program;
 

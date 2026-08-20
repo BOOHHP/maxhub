@@ -171,6 +171,23 @@ async function withdraw(releaseId) {
   if (res.ok) refresh();
 }
 
+function toggleEdit(releaseId) {
+  const row = document.getElementById(`edit-${releaseId}`);
+  row.hidden = !row.hidden;
+}
+
+async function saveMetadata(releaseId) {
+  const name = document.getElementById(`edit-name-${releaseId}`).value.trim();
+  const description = document.getElementById(`edit-desc-${releaseId}`).value.trim();
+  const channel = document.getElementById(`edit-ch-${releaseId}`).value;
+  if (!name) { toast('名称不能为空', false); return; }
+  const res = await api(`/api/v1/admin/releases/${releaseId}/metadata`, {
+    method: 'PATCH', body: JSON.stringify({ name, description, channel }),
+  });
+  toast(res.ok ? '已保存' : (res.status === 403 ? '需要审核者/管理员角色' : '保存失败'), res.ok);
+  if (res.ok) refresh();
+}
+
 async function uploadConnector() {
   const file = document.getElementById('conn-file').files[0];
   const version = document.getElementById('conn-version').value.trim();
@@ -223,7 +240,28 @@ async function refresh() {
       <td>${r.submittedBy}</td>
       <td>${r.reviewedBy ?? '—'}</td>
       <td>${fmt(r.submittedAtUtc)}</td>
-      <td>${r.status === 'Published' ? `<button class="btn-danger" onclick="withdraw('${r.releaseId}')">撤回</button>` : ''}</td>
+      <td><div style="display:flex;gap:6px">
+        <button class="btn-outline" onclick="toggleEdit('${r.releaseId}')">编辑</button>
+        ${r.status === 'Published' ? `<button class="btn-danger" onclick="withdraw('${r.releaseId}')">撤回</button>` : ''}
+      </div></td>
+    </tr>
+    <tr id="edit-${r.releaseId}" hidden>
+      <td colspan="9" style="background:var(--bg-2);padding:14px 16px">
+        <div style="display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;max-width:640px">
+          <label>名称</label><input id="edit-name-${r.releaseId}" value="${(r.name ?? '').replace(/"/g, '&quot;')}">
+          <label>描述</label><textarea id="edit-desc-${r.releaseId}" rows="2">${r.description ?? ''}</textarea>
+          <label>频道</label>
+          <select id="edit-ch-${r.releaseId}">
+            ${['stable', 'beta', 'internal'].map(c => `<option ${c === r.channel ? 'selected' : ''}>${c}</option>`).join('')}
+          </select>
+          <span></span>
+          <div style="display:flex;gap:8px">
+            <button class="btn-primary" onclick="saveMetadata('${r.releaseId}')">保存</button>
+            <button class="btn-outline" onclick="toggleEdit('${r.releaseId}')">取消</button>
+            <span style="color:var(--text-3);font-size:11px;align-self:center">分类由名称/描述关键词自动归类；修改不影响已签名的安装包</span>
+          </div>
+        </div>
+      </td>
     </tr>`).join('');
 
   const connRes = await api('/api/v1/admin/connectors');

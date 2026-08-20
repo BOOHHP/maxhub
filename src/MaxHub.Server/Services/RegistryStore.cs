@@ -137,6 +137,45 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
             .ToList();
     }
 
+    /// <summary>规范化编辑：只改 DB 中的展示元数据（名称/描述/频道），不动包文件，哈希与签名保持不变。</summary>
+    public bool UpdateReleaseMetadata(string releaseId, string? name, string? description, string? channel)
+    {
+        lock (_writeLock)
+        {
+            using var db = dbFactory.CreateDbContext();
+            var row = db.Releases.Find(releaseId);
+            if (row is null)
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(name) || description is not null)
+            {
+                var manifest = JsonSerializer.Deserialize<ToolManifest>(row.ManifestJson, ManifestJson.Options)!;
+                var updated = new ToolManifest
+                {
+                    SchemaVersion = manifest.SchemaVersion,
+                    Id = manifest.Id,
+                    Name = string.IsNullOrWhiteSpace(name) ? manifest.Name : name.Trim(),
+                    Version = manifest.Version,
+                    HostType = manifest.HostType,
+                    Description = description is null ? manifest.Description : description.Trim(),
+                    Compatibility = manifest.Compatibility,
+                    Install = manifest.Install,
+                    EntryPoints = manifest.EntryPoints,
+                    Dependencies = manifest.Dependencies,
+                    Permissions = manifest.Permissions,
+                    Integrity = manifest.Integrity,
+                };
+                row.ManifestJson = JsonSerializer.Serialize(updated, ManifestJson.Options);
+            }
+
+            if (!string.IsNullOrWhiteSpace(channel))
+                row.Channel = channel;
+
+            db.SaveChanges();
+            return true;
+        }
+    }
+
     public void RegisterConnector(ConnectorRelease release)
     {
         using var db = dbFactory.CreateDbContext();
