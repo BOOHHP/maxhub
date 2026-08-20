@@ -41,6 +41,14 @@ public class SingleInstanceTests
     }
 
     [Fact]
+    public void Broadcast_uses_nonblocking_PostMessage_so_second_instance_always_exits()
+    {
+        // 广播 SendMessage 会被锁屏等不响应窗口阻塞，第二实例将挂起无法退出
+        Assert.Contains("PostMessage(HWND_BROADCAST", AppSource);
+        Assert.DoesNotContain("SendMessage(HWND_BROADCAST", AppSource);
+    }
+
+    [Fact]
     public void Mutex_is_released_on_exit()
     {
         var source = AppSource;

@@ -176,15 +176,16 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    /// <summary>向已有实例广播自定义消息，由其主窗口 Show+Activate 到前台。</summary>
+    /// <summary>向已有实例广播自定义消息，由其主窗口 Show+Activate 到前台。
+    /// 必须用 PostMessage：广播 SendMessage 会被锁屏等不响应窗口阻塞，导致第二实例挂起无法退出。</summary>
     private static void BringExistingInstanceToFront() =>
-        SendMessage(HWND_BROADCAST, ShowMainWindowMessage, UIntPtr.Zero, UIntPtr.Zero);
+        PostMessage(HWND_BROADCAST, ShowMainWindowMessage, UIntPtr.Zero, UIntPtr.Zero);
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern uint RegisterWindowMessage(string messageName);
 
     [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool SendMessage(IntPtr hWnd, uint msg, UIntPtr wParam, UIntPtr lParam);
+    private static extern bool PostMessage(IntPtr hWnd, uint msg, UIntPtr wParam, UIntPtr lParam);
 
     private static readonly IntPtr HWND_BROADCAST = new(0xFFFF);
 
