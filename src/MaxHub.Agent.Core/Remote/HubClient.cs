@@ -9,7 +9,8 @@ public sealed record ToolIndexItem(
     string ToolId, string Name, string? Description, string LatestVersion, string Channel, string Category = "其他");
 public sealed record RemoteInstallPlan(string ToolId, string Version, string Sha256, long SizeBytes, bool RestartRequired, string RiskLevel, string? Signature = null);
 public sealed record ConnectorInfo(string Version, int MinMaxYear, int MaxMaxYear, string Sha256, long SizeBytes, string? Signature = null);
-public sealed record AgentReleaseInfo(string Version, string DownloadUrl, string Sha256);
+public sealed record AgentReleaseInfo(
+    string Version, string DownloadUrl, string Sha256, string? FallbackDownloadUrl = null);
 
 /// <summary>Agent 侧的 Hub API 客户端。所有请求携带 MaxHub 会话令牌。</summary>
 public sealed class HubClient(HttpClient http)
@@ -78,7 +79,8 @@ public sealed class HubClient(HttpClient http)
         return new AgentReleaseInfo(
             json.GetProperty("version").GetString()!,
             json.GetProperty("downloadUrl").GetString() ?? "",
-            json.GetProperty("sha256").GetString() ?? "");
+            json.GetProperty("sha256").GetString() ?? "",
+            json.TryGetProperty("fallbackDownloadUrl", out var fallback) ? fallback.GetString() : null);
     }
 
     public async Task DownloadToolAsync(string toolId, string version, string targetPath, IProgress<double>? progress = null)
@@ -91,21 +93,25 @@ public sealed class HubClient(HttpClient http)
         await DownloadAsync($"/downloads/connectors/{maxYear}/{version}/package.zip", targetPath, progress);
     }
 
-    /// <summary>从任意 URL 下载文件（用于 Agent 自更新，走 GitHub Release）。</summary>
-    public async Task DownloadAgentAsync(string url, string targetPath, IProgress<double>? progress = null)
+    /// <summary>从任意 URL 下载 Agent，服务器镜像可指定较短超时以便切换 GitHub。</summary>
+    public async Task DownloadAgentAsync(
+        string url, string targetPath, IProgress<double>? progress = null, TimeSpan? timeout = null)
     {
-        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        using var timeoutCts = timeout is { } duration ? new CancellationTokenSource(duration) : null;
+        var cancellationToken = timeoutCts?.Token ?? CancellationToken.None;
+        using var response = await http.GetAsync(
+            url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(targetPath))!);
         var totalBytes = response.Content.Headers.ContentLength;
         await using var file = File.Create(targetPath);
-        await using var stream = await response.Content.ReadAsStreamAsync();
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         var buffer = new byte[81920];
         long readTotal = 0;
         int read;
-        while ((read = await stream.ReadAsync(buffer)) > 0)
+        while ((read = await stream.ReadAsync(buffer, cancellationToken)) > 0)
         {
-            await file.WriteAsync(buffer.AsMemory(0, read));
+            await file.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
             readTotal += read;
             if (totalBytes > 0)
                 progress?.Report(readTotal * 100.0 / totalBytes.Value);

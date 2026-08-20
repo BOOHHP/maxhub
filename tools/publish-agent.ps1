@@ -23,6 +23,20 @@ Copy-Item $exe $distPath -Force
 
 $exeSizeMb = [Math]::Round((Get-Item $exe).Length / 1MB, 1)
 $sha256 = (Get-FileHash -Algorithm SHA256 -Path $distPath).Hash.ToLowerInvariant()
+
+# Best-effort LAN mirror. The server serves data/agent first and redirects to GitHub when absent.
+$serverRoot = "\\10.2.13.8\Server\maxhub"
+if (Test-Path $serverRoot) {
+    try {
+        $mirrorDir = Join-Path $serverRoot "data\agent"
+        New-Item $mirrorDir -ItemType Directory -Force | Out-Null
+        Copy-Item $distPath (Join-Path $mirrorDir (Split-Path $distPath -Leaf)) -Force
+        Write-Host "Mirror:    $mirrorDir"
+    }
+    catch {
+        Write-Warning "LAN mirror failed; GitHub release remains available: $($_.Exception.Message)"
+    }
+}
 Write-Host "Published: $exe ($exeSizeMb MB)"
 Write-Host "Dist:      $distPath"
 Write-Host "SHA256:    $sha256"

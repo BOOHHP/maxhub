@@ -68,7 +68,8 @@ var roleService = app.Services.GetRequiredService<RoleService>();
 
 // GitHub Releases 自动同步 Agent 版本（配置 Agent:GitHubRepo 后启用，如 "BOOHHP/maxhub"）
 GitHubReleaseService? githubReleases = null;
-if (builder.Configuration["Agent:GitHubRepo"] is { Length: > 0 } githubRepo)
+var githubRepo = builder.Configuration["Agent:GitHubRepo"];
+if (!string.IsNullOrWhiteSpace(githubRepo))
 {
     // AllowAutoRedirect=false：api.github.com 不可达时靠 releases/latest 的 302 Location 解析版本
     var githubHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
@@ -86,6 +87,16 @@ string[] CurrentRoles(HttpContext ctx) =>
 bool IsAdmin(HttpContext ctx) => roleService.IsIn(CurrentRoles(ctx), Roles.Admin);
 bool IsReviewer(HttpContext ctx) => roleService.IsIn(CurrentRoles(ctx), Roles.Reviewer);
 bool IsPublisher(HttpContext ctx) => roleService.IsIn(CurrentRoles(ctx), Roles.Publisher);
+
+string AgentFileName(string version) => $"MaxHubAgent-{version}-win-x64.exe";
+string AgentMirrorUrl(string version) => $"/downloads/agent/{version}/{AgentFileName(version)}";
+IResult AgentReleaseResult(string version, string fallbackDownloadUrl, string sha256) => Results.Ok(new
+{
+    version,
+    downloadUrl = AgentMirrorUrl(version),
+    fallbackDownloadUrl,
+    sha256,
+});
 
 // ---- 认证：飞书扫码会话 ----
 app.MapPost("/api/v1/auth/feishu/qr-sessions", (HttpContext ctx) =>
@@ -160,23 +171,43 @@ app.MapGet("/api/v1/agent/latest", async () =>
 {
     // 1. GitHub 最新 Release（发版后自动跟随，无需人工登记）
     if (githubReleases is not null && await githubReleases.GetLatestAsync() is { } gh)
-        return Results.Ok(new { version = gh.Version, downloadUrl = gh.DownloadUrl, sha256 = gh.Sha256 });
+        return AgentReleaseResult(gh.Version, gh.DownloadUrl, gh.Sha256);
 
     // 2. 数据库手动登记（GitHub 不可达时的兜底/覆盖）
     var dbRelease = registry.GetAgentRelease();
     if (dbRelease is not null)
-        return Results.Ok(new { version = dbRelease.Version, downloadUrl = dbRelease.DownloadUrl, sha256 = dbRelease.Sha256 });
+        return AgentReleaseResult(dbRelease.Version, dbRelease.DownloadUrl, dbRelease.Sha256);
 
     // 3. 配置文件（初始化兜底）
     var latestVersion = builder.Configuration["Agent:LatestVersion"];
     if (string.IsNullOrWhiteSpace(latestVersion))
         return Results.NotFound();
-    return Results.Ok(new
-    {
-        version = latestVersion,
-        downloadUrl = builder.Configuration["Agent:DownloadUrl"] ?? "",
-        sha256 = builder.Configuration["Agent:Sha256"] ?? "",
-    });
+    return AgentReleaseResult(
+        latestVersion,
+        builder.Configuration["Agent:DownloadUrl"] ?? "",
+        builder.Configuration["Agent:Sha256"] ?? "");
+});
+
+// 局域网 Agent 镜像：存在则本机直传；缺失时透明重定向到对应 GitHub Release
+app.MapGet("/downloads/agent/{version}/{fileName}", (string version, string fileName) =>
+{
+    if (!Version.TryParse(version, out _) || fileName != AgentFileName(version))
+        return Results.NotFound();
+
+    var mirrorPath = Path.Combine(dataDir, "agent", fileName);
+    if (File.Exists(mirrorPath))
+        return Results.File(mirrorPath, "application/octet-stream", fileName, enableRangeProcessing: true);
+
+    string? fallback = null;
+    var dbRelease = registry.GetAgentRelease();
+    if (dbRelease?.Version == version)
+        fallback = dbRelease.DownloadUrl;
+    if (string.IsNullOrWhiteSpace(fallback) && builder.Configuration["Agent:LatestVersion"] == version)
+        fallback = builder.Configuration["Agent:DownloadUrl"];
+    if (string.IsNullOrWhiteSpace(fallback) && !string.IsNullOrWhiteSpace(githubRepo))
+        fallback = $"https://github.com/{githubRepo}/releases/download/v{version}/{fileName}";
+
+    return string.IsNullOrWhiteSpace(fallback) ? Results.NotFound() : Results.Redirect(fallback);
 });
 
 // 后台更新 Agent 版本元数据（仅 admin，DB 存储后立即生效，无需重启）

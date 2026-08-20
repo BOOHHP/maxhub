@@ -82,18 +82,16 @@ public class SelfUpdaterTests
     }
 
     [Fact]
-    public async Task GitHub_release_takes_priority_over_server()
+    public async Task Server_release_takes_priority_over_GitHub()
     {
-        var hub = HubFor(_ => Json(new { version = "1.0.2", downloadUrl = "https://server/old.exe", sha256 = "old" }));
-        var github = GitHubFor(_ => Json(new
+        var hub = HubFor(_ => Json(new
         {
-            tag_name = "v2.0.0",
-            assets = new[] { new {
-                name = "MaxHubAgent-2.0.0-win-x64.exe",
-                browser_download_url = "https://github.com/o/r/releases/download/v2.0.0/MaxHubAgent-2.0.0-win-x64.exe",
-                digest = "sha256:feedbeef",
-            } },
+            version = "2.0.0",
+            downloadUrl = "/downloads/agent/2.0.0/MaxHubAgent-2.0.0-win-x64.exe",
+            fallbackDownloadUrl = "https://github.com/o/r/releases/download/v2.0.0/MaxHubAgent-2.0.0-win-x64.exe",
+            sha256 = "feedbeef",
         }));
+        var github = GitHubFor(_ => throw new InvalidOperationException("GitHub should not be queried"));
         var updater = new SelfUpdater(hub, github) { CurrentVersion = "1.0.1" };
 
         var release = await updater.CheckForUpdateAsync();
@@ -101,20 +99,58 @@ public class SelfUpdaterTests
         Assert.NotNull(release);
         Assert.Equal("2.0.0", release!.Version);
         Assert.Equal("feedbeef", release.Sha256);
-        Assert.EndsWith("MaxHubAgent-2.0.0-win-x64.exe", release.DownloadUrl);
+        Assert.StartsWith("/downloads/agent/", release.DownloadUrl);
+        Assert.StartsWith("https://github.com/", release.FallbackDownloadUrl);
     }
 
     [Fact]
-    public async Task Falls_back_to_server_when_github_has_no_exe_asset()
+    public async Task Falls_back_to_GitHub_when_server_unreachable()
     {
-        var hub = HubFor(_ => Json(new { version = "1.5.0", downloadUrl = "https://server/agent.exe", sha256 = "srv" }));
-        var github = GitHubFor(_ => Json(new { tag_name = "v9.9.9", assets = Array.Empty<object>() }));
+        var hub = HubFor(_ => throw new HttpRequestException("server down"));
+        var github = GitHubFor(_ => Json(new
+        {
+            tag_name = "v1.5.0",
+            assets = new[] { new {
+                name = "MaxHubAgent-1.5.0-win-x64.exe",
+                browser_download_url = "https://github.com/o/r/releases/download/v1.5.0/MaxHubAgent-1.5.0-win-x64.exe",
+                digest = "sha256:srv",
+            } },
+        }));
         var updater = new SelfUpdater(hub, github) { CurrentVersion = "1.0.1" };
 
         var release = await updater.CheckForUpdateAsync();
 
         Assert.NotNull(release);
         Assert.Equal("1.5.0", release!.Version);
+        Assert.StartsWith("https://github.com/", release.DownloadUrl);
+    }
+
+    [Fact]
+    public async Task Download_falls_back_to_GitHub_when_server_mirror_fails()
+    {
+        var requested = new List<string>();
+        var hub = HubFor(request =>
+        {
+            requested.Add(request.RequestUri!.ToString());
+            if (request.RequestUri.AbsolutePath.StartsWith("/downloads/agent/"))
+                return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent([1, 2, 3]),
+            };
+        });
+        var updater = new SelfUpdater(hub, GitHubDown()) { CurrentVersion = "1.0.1" };
+        var release = new AgentReleaseInfo(
+            "2.0.0",
+            "/downloads/agent/2.0.0/MaxHubAgent-2.0.0-win-x64.exe",
+            new string('0', 64),
+            "https://github.com/o/r/releases/download/v2.0.0/MaxHubAgent-2.0.0-win-x64.exe");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => updater.DownloadAndInstallAsync(release));
+
+        Assert.Equal(2, requested.Count);
+        Assert.StartsWith("http://server/downloads/agent/", requested[0]);
+        Assert.StartsWith("https://github.com/", requested[1]);
     }
 
     [Fact]

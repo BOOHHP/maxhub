@@ -25,10 +25,10 @@ public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
         return http;
     }
 
-    /// <summary>检查是否有更新：GitHub 优先，回退服务器。无更新或都不可达返回 null。</summary>
+    /// <summary>检查是否有更新：服务器优先，回退 GitHub。无更新或都不可达返回 null。</summary>
     public async Task<AgentReleaseInfo?> CheckForUpdateAsync()
     {
-        var release = await GetLatestFromGitHubAsync() ?? await GetLatestFromServerAsync();
+        var release = await GetLatestFromServerAsync() ?? await GetLatestFromGitHubAsync();
         if (release is null || string.IsNullOrWhiteSpace(release.DownloadUrl))
             return null;
         return IsNewer(release.Version) ? release : null;
@@ -87,7 +87,20 @@ public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
         var tempPath = Path.Combine(dir, $"MaxHubAgent.new-{release.Version}.exe");
         try
         {
-            await hub.DownloadAgentAsync(release.DownloadUrl, tempPath, progress);
+            try
+            {
+                TimeSpan? serverTimeout = string.IsNullOrWhiteSpace(release.FallbackDownloadUrl)
+                    ? null
+                    : TimeSpan.FromSeconds(15);
+                await hub.DownloadAgentAsync(release.DownloadUrl, tempPath, progress, serverTimeout);
+            }
+            catch when (!string.IsNullOrWhiteSpace(release.FallbackDownloadUrl) &&
+                        !string.Equals(release.DownloadUrl, release.FallbackDownloadUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(tempPath);
+                progress?.Report(0);
+                await hub.DownloadAgentAsync(release.FallbackDownloadUrl!, tempPath, progress);
+            }
 
             // 校验 SHA256（服务器配置了 hash 时）
             if (!string.IsNullOrWhiteSpace(release.Sha256))

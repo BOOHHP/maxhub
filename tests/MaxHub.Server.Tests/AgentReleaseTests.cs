@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace MaxHub.Server.Tests;
 
@@ -15,7 +16,9 @@ public class AgentReleaseTests(ServerFixture fixture) : IClassFixture<ServerFixt
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
         // 配置兜底或 DB 更新后都应有非空版本
         Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("version").GetString()));
+        Assert.StartsWith("/downloads/agent/", body.GetProperty("downloadUrl").GetString());
         Assert.Contains("MaxHubAgent-", body.GetProperty("downloadUrl").GetString());
+        Assert.StartsWith("https://", body.GetProperty("fallbackDownloadUrl").GetString());
     }
 
     [Fact]
@@ -24,6 +27,37 @@ public class AgentReleaseTests(ServerFixture fixture) : IClassFixture<ServerFixt
         // 无需登录即可访问（index.html 横幅使用）
         var res = await fixture.CreateClient().GetAsync("/api/v1/agent/latest");
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+    }
+
+    [Fact]
+    public async Task Agent_mirror_serves_local_file_when_present()
+    {
+        const string version = "8.8.8";
+        var fileName = $"MaxHubAgent-{version}-win-x64.exe";
+        var mirrorDir = Directory.CreateDirectory(Path.Combine(fixture.DataDir, "agent"));
+        var mirrorPath = Path.Combine(mirrorDir.FullName, fileName);
+        await File.WriteAllBytesAsync(mirrorPath, [1, 2, 3, 4]);
+        try
+        {
+            var response = await fixture.CreateClient().GetAsync($"/downloads/agent/{version}/{fileName}");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal([1, 2, 3, 4], await response.Content.ReadAsByteArrayAsync());
+        }
+        finally
+        {
+            File.Delete(mirrorPath);
+        }
+    }
+
+    [Fact]
+    public async Task Agent_mirror_redirects_to_github_when_file_missing()
+    {
+        var client = fixture.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var response = await client.GetAsync("/downloads/agent/2.0.0/MaxHubAgent-2.0.0-win-x64.exe");
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(
+            "https://github.com/example/maxhub/releases/download/v2.0.0/MaxHubAgent-2.0.0-win-x64.zip",
+            response.Headers.Location?.ToString());
     }
 
     [Fact]
