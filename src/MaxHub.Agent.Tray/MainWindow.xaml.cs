@@ -91,10 +91,14 @@ public partial class MainWindow : Window
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
+    private void ReleaseNotes_Click(object sender, RoutedEventArgs e) =>
+        ((App)Application.Current).ShowReleaseNotes();
+
     /// <summary>关闭 = 隐藏到托盘，进程常驻（本地服务 47810 供 Max 面板使用）。</summary>
     protected override void OnClosing(CancelEventArgs e)
     {
         e.Cancel = true;
+        ((App)Application.Current).CloseReleaseNotes();
         Hide();
         if (!_balloonShown)
         {

@@ -54,9 +54,13 @@
             <!-- 左侧导航 -->
             <Border Grid.Column="0" Background="{StaticResource Bg.Sidebar}">
                 <DockPanel>
-                    <TextBlock x:Name="VersionText" DockPanel.Dock="Bottom" Text="v?" FontSize="10"
-                               Foreground="{StaticResource Text.Disabled}"
-                               HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,0,0,6">
+                        <Button Style="{StaticResource NavIconButton}" Content="📝" Click="ReleaseNotes_Click"
+                                ToolTip="更新日志" AutomationProperties.Name="更新日志"/>
+                        <TextBlock x:Name="VersionText" Text="v?" FontSize="10"
+                                   Foreground="{StaticResource Text.Disabled}"
+                                   HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                    </StackPanel>
                     <StackPanel>
                         <RadioButton x:Name="NavAccount" Style="{StaticResource NavButton}" Content="👤"
                                      GroupName="Nav" Checked="NavAccount_Checked" ToolTip="账号"/>

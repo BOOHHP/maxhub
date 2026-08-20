@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using System.Text.Json;
 using MaxHub.Agent.Core.Remote;
 
@@ -171,5 +172,20 @@ public class SelfUpdaterTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => updater.DownloadAndInstallAsync(release));
         // 校验失败后临时文件被清理
         Assert.False(File.Exists(tmp));
+    }
+
+    [Fact]
+    public void Restart_script_passes_updated_version_to_new_process()
+    {
+        var method = typeof(SelfUpdater).GetMethod(
+            "BuildRestartScript",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        var script = Assert.IsType<string>(method!.Invoke(
+            null,
+            [@"C:\MaxHub\MaxHubAgent.exe", @"C:\MaxHub\MaxHubAgent.new.exe", "1.0.14"]));
+
+        Assert.Contains("--after-update \"1.0.14\"", script);
+        Assert.Contains("start \"\" \"C:\\MaxHub\\MaxHubAgent.exe\"", script);
     }
 }

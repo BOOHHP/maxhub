@@ -112,7 +112,7 @@ public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
 
             // 准备重启脚本：等待当前进程退出后替换 exe 再启动
             var scriptPath = Path.Combine(dir, "maxhub-update.cmd");
-            await File.WriteAllTextAsync(scriptPath, BuildRestartScript(currentExe, tempPath));
+            await File.WriteAllTextAsync(scriptPath, BuildRestartScript(currentExe, tempPath, release.Version));
             Process.Start(new ProcessStartInfo
             {
                 FileName = scriptPath,
@@ -144,7 +144,7 @@ public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
         return Version.TryParse(core, out var parsed) ? parsed : null;
     }
 
-    private static string BuildRestartScript(string currentExe, string newExe)
+    private static string BuildRestartScript(string currentExe, string newExe, string version)
     {
         // 循环等待旧进程退出释放文件锁（最多 30 次），move 成功才启动新版本
         return string.Join("\r\n", new[]
@@ -160,7 +160,7 @@ public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
             "  del \"%~f0\"",
             "  exit /b 1",
             ")",
-            $"start \"\" \"{currentExe}\"",
+            $"start \"\" \"{currentExe}\" --after-update \"{version}\"",
             "del \"%~f0\"",
         });
     }
