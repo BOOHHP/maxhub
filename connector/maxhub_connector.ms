@@ -271,8 +271,8 @@ global MaxHubConnector
                             local rangeText = "Max " + minYear + "–" + maxYear
                             append toolIds parts[1]
                             append toolVersions parts[2]
-                            append toolDetails ("适用 3ds Max：" + minYear + "–" + maxYear + "\r\n\r\n" + description)
-                            append items ("[" + category + "]  " + toolName + "  v" + parts[2] + "  [" + rangeText + "]")
+                            append toolDetails ("工具名称：" + toolName + "\r\n分类：" + category + "    版本：v" + parts[2] + "    适用：" + rangeText + "\r\n\r\n" + description)
+                            append items ("[" + category + "]  " + toolName + "  v" + parts[2] + "  [" + minYear + "–" + maxYear + "]")
                         )
                     )
                 )
@@ -310,8 +310,8 @@ global MaxHubConnector
                                 local description = if useV2 then (decodeBase64 parts[5]) else "暂无说明。"
                                 local minYear = if useV2 then parts[6] else (year as string)
                                 local maxYear = if useV2 then parts[7] else (year as string)
-                                append installedDetails ("适用 3ds Max：" + minYear + "–" + maxYear + "\r\n\r\n" + description)
-                                append items ("[" + category + "]  " + displayName + "  v" + parts[2] + "  [Max " + minYear + "–" + maxYear + "]")
+                                append installedDetails ("工具名称：" + displayName + "\r\n分类：" + category + "    已安装：v" + parts[2] + "    适用：Max " + minYear + "–" + maxYear + "\r\n\r\n" + description)
+                                append items ("[" + category + "]  " + displayName + "  v" + parts[2] + "  [" + minYear + "–" + maxYear + "]")
                             )
                         )
                     )
@@ -347,8 +347,8 @@ global MaxHubConnector
                                 local description = if useV2 then (decodeBase64 parts[6]) else "暂无说明。"
                                 local minYear = if useV2 then parts[7] else (year as string)
                                 local maxYear = if useV2 then parts[8] else (year as string)
-                                append updateDetails ("适用 3ds Max：" + minYear + "–" + maxYear + "\r\n\r\n" + description)
-                                append items ("[" + category + "]  " + displayName + "  " + parts[2] + " → v" + parts[3] + "  [Max " + minYear + "–" + maxYear + "]")
+                                append updateDetails ("工具名称：" + displayName + "\r\n分类：" + category + "    更新：v" + parts[2] + " → v" + parts[3] + "    适用：Max " + minYear + "–" + maxYear + "\r\n\r\n" + description)
+                                append items ("[" + category + "]  " + displayName + "  " + parts[2] + " → " + parts[3] + "  [" + minYear + "–" + maxYear + "]")
                             )
                         )
                     )
