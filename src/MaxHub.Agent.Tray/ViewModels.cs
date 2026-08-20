@@ -81,6 +81,8 @@ public sealed class AccountViewModel : ViewModelBase
     private string _username = "";
     private string _employeeId = "";
     private string _notice = "";
+    private string _updateStatus = "";
+    private bool _checkingUpdate;
     private bool _confirmingLogout;
     private CancellationTokenSource? _loginCts;
 
@@ -94,6 +96,7 @@ public sealed class AccountViewModel : ViewModelBase
         LogoutCommand = new RelayCommand(() => ConfirmingLogout = true);
         ConfirmLogoutCommand = new RelayCommand(Logout);
         CancelLogoutCommand = new RelayCommand(() => ConfirmingLogout = false);
+        CheckUpdateCommand = new RelayCommand(CheckUpdateAsync, () => !_checkingUpdate);
         if (services.TryRestoreSession())
         {
             var user = services.SessionStore.ReadUser();
@@ -117,6 +120,42 @@ public sealed class AccountViewModel : ViewModelBase
     public RelayCommand LogoutCommand { get; }
     public RelayCommand ConfirmLogoutCommand { get; }
     public RelayCommand CancelLogoutCommand { get; }
+    public RelayCommand CheckUpdateCommand { get; }
+
+    public string UpdateStatus { get => _updateStatus; private set { Set(ref _updateStatus, value); Raise(nameof(HasUpdateStatus)); } }
+    public bool HasUpdateStatus => !string.IsNullOrEmpty(UpdateStatus);
+
+    /// <summary>手动检查更新：GitHub 直连优先；有新版则下载并退出交给替换脚本重启。</summary>
+    private async Task CheckUpdateAsync()
+    {
+        _checkingUpdate = true;
+        CheckUpdateCommand.RaiseCanExecuteChanged();
+        try
+        {
+            var current = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
+            UpdateStatus = "◌ 正在检查更新…";
+            var updater = new SelfUpdater(_services.Hub) { CurrentVersion = current };
+            var release = await updater.CheckForUpdateAsync();
+            if (release is null)
+            {
+                UpdateStatus = $"✓ 当前已是最新版本（v{current}）";
+                return;
+            }
+            UpdateStatus = $"◌ 发现 v{release.Version}，正在下载…";
+            await updater.DownloadAndInstallAsync(release);
+            UpdateStatus = "✓ 下载完成，即将自动重启更新…";
+            await ((App)System.Windows.Application.Current).ExitCleanlyAsync();
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus = $"✗ 检查失败（{Brief(ex)}）";
+        }
+        finally
+        {
+            _checkingUpdate = false;
+            CheckUpdateCommand.RaiseCanExecuteChanged();
+        }
+    }
 
     private async Task LoginAsync()
     {

@@ -118,6 +118,15 @@
                                     Command="{Binding CancelLogoutCommand}"/>
                         </StackPanel>
                     </StackPanel>
+
+                    <!-- 检查更新：不依赖登录态（GitHub 直连 + 服务器兜底） -->
+                    <StackPanel Margin="0,28,0,0" HorizontalAlignment="Center">
+                        <Button Content="⟳ 检查更新" Style="{StaticResource OutlineButton}" Width="140" Height="30"
+                                Command="{Binding CheckUpdateCommand}"/>
+                        <TextBlock Text="{Binding UpdateStatus}" FontSize="12" HorizontalAlignment="Center"
+                                   Foreground="{StaticResource Text.Secondary}" Margin="0,8,0,0"
+                                   Visibility="{Binding HasUpdateStatus, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
 

@@ -69,6 +69,24 @@
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
 
+        <!-- 深色 ToolTip：默认白底配全局白字不可读 -->
+        <Style TargetType="ToolTip">
+            <Setter Property="Background" Value="{StaticResource Bg.Card}"/>
+            <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+            <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToolTip">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="8,5"
+                                BorderBrush="{StaticResource Border.Default}" BorderThickness="1">
+                            <ContentPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- 深色托盘右键菜单 -->
         <Style TargetType="ContextMenu">
             <Setter Property="Background" Value="{StaticResource Bg.Card}"/>

@@ -54,13 +54,7 @@ public partial class App : Application
         var autoStartItem = new MenuItem { Header = "开机自启", IsCheckable = true, IsChecked = IsAutoStartEnabled() };
         autoStartItem.Click += (_, _) => SetAutoStart(autoStartItem.IsChecked);
         var exitItem = new MenuItem { Header = "退出程序" };
-        exitItem.Click += async (_, _) =>
-        {
-            _trayIcon?.Dispose();
-            if (_services is not null)
-                await _services.StopLocalServerAsync();
-            Shutdown();
-        };
+        exitItem.Click += async (_, _) => await ExitCleanlyAsync();
 
         var menu = new ContextMenu();
         menu.Items.Add(openItem);
@@ -83,6 +77,15 @@ public partial class App : Application
         CheckForAgentUpdate();
     }
 
+    /// <summary>释放托盘与本地服务后退出；自更新替换前也走这里释放 exe 文件锁。</summary>
+    public async Task ExitCleanlyAsync()
+    {
+        _trayIcon?.Dispose();
+        if (_services is not null)
+            await _services.StopLocalServerAsync();
+        Shutdown();
+    }
+
     /// <summary>启动后静默检查 Agent 新版本；下载完成后必须退出当前进程，释放 exe 文件锁让替换脚本接管。</summary>
     private async void CheckForAgentUpdate()
     {
@@ -96,9 +99,7 @@ public partial class App : Application
             ShowBalloon("发现新版本", $"MaxHub Agent v{release.Version} 已可用，正在后台下载并自动更新…");
             await updater.DownloadAndInstallAsync(release);
             // 退出当前进程：替换脚本等待文件锁释放后 move 新 exe 并重新拉起
-            _trayIcon?.Dispose();
-            await _services.StopLocalServerAsync();
-            Shutdown();
+            await ExitCleanlyAsync();
         }
         catch (Exception ex)
         {
