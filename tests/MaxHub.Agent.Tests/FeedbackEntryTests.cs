@@ -55,6 +55,9 @@ public class FeedbackEntryTests
         Assert.Contains("local installedNames = #()", connector);
         Assert.Contains("local updateNames = #()", connector);
         Assert.DoesNotContain("findString line \" | \"", connector);
+        Assert.Contains("local openMaxHubFeedback", connector);
+        Assert.DoesNotContain("isValid maxHubFeedbackRollout", connector);
+        Assert.Contains("try ( destroyDialog maxHubFeedbackRollout ) catch ()", connector);
         Assert.Contains("/max/feedback?toolId=", connector);
     }
 }

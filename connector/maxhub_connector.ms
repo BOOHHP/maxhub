@@ -5,6 +5,8 @@
 global MaxHubConnector
 (
     local agentBaseUrl = "http://127.0.0.1:47810" -- Agent 本地接口，仅回环
+    -- 主 rollout 的按钮事件会引用后面定义的反馈弹窗入口，必须先声明作用域变量
+    local openMaxHubFeedback
 
     -- 通过 dotNet 桥使用随 Max 自带的 .NET Framework 网络类，无需 Autodesk SDK
     fn httpGet url timeoutMs:2000 =
@@ -725,10 +727,10 @@ global MaxHubConnector
     fn openMaxHubFeedback toolId toolName =
     (
         maxHubFeedbackToolId = toolId
-        if (isValid maxHubFeedbackRollout) == false then (
-            createDialog maxHubFeedbackRollout width:380 height:216 \
-                style:#(#style_titlebar, #style_border, #style_sysmenu)
-        )
+        -- rollout 没有稳定的通用 isValid 判断；旧弹窗存在则关闭，不存在时忽略异常
+        try ( destroyDialog maxHubFeedbackRollout ) catch ()
+        createDialog maxHubFeedbackRollout width:380 height:216 \
+            style:#(#style_titlebar, #style_border, #style_sysmenu)
         maxHubFeedbackRollout.lblFeedbackTarget.text = "对象：" + toolName
         maxHubFeedbackRollout.txtFeedback.text = ""
         maxHubFeedbackRollout.lblFeedbackStatus.text = ""
