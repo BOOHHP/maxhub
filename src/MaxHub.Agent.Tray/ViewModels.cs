@@ -53,6 +53,11 @@ public sealed class AppServices
             SessionStore.Clear();
             return false;
         }
+        catch (Exception)
+        {
+            // 服务器不可达等网络异常：保留凭据、以未登录态进入，绝不崩溃
+            return false;
+        }
     }
 
     public void StartLocalServer()
