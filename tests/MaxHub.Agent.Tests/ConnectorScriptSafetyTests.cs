@@ -28,6 +28,16 @@ public class ConnectorScriptSafetyTests
     }
 
     [Fact]
+    public void Feedback_payload_avoids_MaxScript_character_literal_json_escaping()
+    {
+        var source = File.ReadAllText(Path.Combine(RepoRoot, "connector", "maxhub_connector.ms"));
+
+        Assert.Contains("fn encodeBase64", source);
+        Assert.Contains("messageBase64", source);
+        Assert.DoesNotContain("fn jsonEscape", source);
+    }
+
+    [Fact]
     public void ProgressBar_runtime_width_is_guarded_for_unsupported_max_versions()
     {
         var source = File.ReadAllText(Path.Combine(RepoRoot, "connector", "maxhub_connector.ms"));

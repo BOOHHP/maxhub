@@ -48,7 +48,9 @@ public class FeedbackEntryTests
         Assert.Contains("button btnFeedback", connector);
         Assert.Contains("rollout maxHubFeedbackRollout", connector);
         Assert.Contains("fn httpPostJson", connector);
-        Assert.Contains("fn jsonEscape", connector);
+        Assert.Contains("fn encodeBase64", connector);
+        Assert.Contains("messageBase64", connector);
+        Assert.DoesNotContain("fn jsonEscape", connector);
         Assert.Contains("/max/feedback?toolId=", connector);
     }
 }

@@ -4,8 +4,8 @@
 >
 > - 项目周期：2026-08-18 至今
 > - 文档更新：2026-08-21
-> - 当前 Agent：1.0.22
-> - 当前 Connector：1.5.8
+> - 当前 Agent：1.0.23
+> - 当前 Connector：1.5.9
 > - 生产地址：http://10.2.13.8:5100
 > - 代码仓库：https://github.com/BOOHHP/maxhub
 
@@ -547,11 +547,11 @@ dotnet test MaxHub.sln --no-restore
 | 项目 | 测试数 |
 | --- | ---: |
 | MaxHub.Core.Tests | 57 |
-| MaxHub.Agent.Tests | 48 |
-| MaxHub.Server.Tests | 58 |
-| **合计** | **163** |
+| MaxHub.Agent.Tests | 51 |
+| MaxHub.Server.Tests | 59 |
+| **合计** | **167** |
 
-当前完整测试为 163/163 通过。
+当前完整测试为 167/167 通过。
 
 ### 10.3 发布 Agent
 
@@ -622,8 +622,9 @@ GitHub Release 使用版本标签 `v{version}`，资产名必须与 Server 镜�
 | 1.0.18–1.0.20 | 单实例、重复启动唤起已有窗口、非阻塞广播修复 |
 | 1.0.21 | 平台反馈页、托盘反馈入口、本地反馈转发 |
 | 1.0.22 | 服务器不可达时启动不崩溃，保留凭据 |
+| 1.0.23 | 本地反馈接口支持 Base64 正文，兼容 MaxScript 安全传输 |
 
-当前生产版本：**1.0.22**。
+当前生产版本：**1.0.23**。
 
 ### 12.2 Connector
 
@@ -638,8 +639,9 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 | 1.5.6 | 修复关闭后重开时 ProgressBar width 属性异常 |
 | 1.5.7 | 三页共用“💬 反馈”按钮与反馈弹窗，经 Agent 转发投飞书 |
 | 1.5.8 | 修复 `case … of` 左括号换行导致脚本加载即编译失败、工具中心无法打开 |
+| 1.5.9 | 移除不兼容的字符字面量转义，反馈正文改用 Base64；经真实 Max 2025 解析验证为 OK |
 
-当前生产版本：**1.5.8**，兼容 Max 2019–2026。
+当前生产版本：**1.5.9**，兼容 Max 2019–2026。
 
 ## 13. 当前生产状态
 
@@ -650,7 +652,7 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 - Agent 1.0.22 SHA-256：`f6dd4c381d877b93d70bd680446fbeb58e10bf32dcc7c6ff2e53a640aaa03275`。
 - Connector 1.5.7 已注册；2026-08-21 的 CLI 同步记录显示本机 Max 2025 已从 1.5.6 更新到 1.5.7，重启 Max 后生效。
 - 用户反馈管道已端到端验证：直调飞书投递成功、生产反馈状态 `delivered`、后台列表与补发可用。
-- 完整测试 163/163 通过。
+- 完整测试 167/167 通过。
 - Agent 单实例在 2026-08-20 做过真实双开冒烟：以 `Win32_Process Name LIKE 'MaxHubAgent%.exe'` 统计版本化进程，第二实例退出，本地 `/health` 返回 `ok`；1.0.22 另在服务器停机状态做过“启动不崩溃”冒烟
 - Agent 单实例在 2026-08-20 做过真实双开冒烟：以 `Win32_Process Name LIKE 'MaxHubAgent%.exe'` 统计版本化进程，第二实例退出，本地 `/health` 返回 `ok`。
 
@@ -720,7 +722,7 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 5. 阅读 `MaxHub.Agent.Core/Install`，理解账本与回滚边界。
 6. 阅读 `MaxHub.Server/Program.cs`，了解当前 API。
 7. 阅读 `connector/maxhub_connector.ms`，注意 MaxScript 兼容性注释。
-8. 运行 `dotnet test MaxHub.sln --no-restore`，确保 163 项基线通过。
+8. 运行 `dotnet test MaxHub.sln --no-restore`，确保 167 项基线通过。
 9. 修改功能时先增加能复现问题的测试，再做最小实现。
 10. 发布前核对 GitHub 资产、局域网镜像、sidecar 和生产 latest 的版本与 SHA-256。
 

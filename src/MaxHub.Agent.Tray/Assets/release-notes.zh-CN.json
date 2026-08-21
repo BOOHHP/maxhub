@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.0.23",
+    "date": "2026-08-21",
+    "summary": "工具反馈正文改用 Base64 转发，兼容 MaxScript 脚本解析。",
+    "sections": [
+      { "title": "修复", "items": ["本地反馈接口支持 Base64 正文，避免 MaxScript 手写 JSON 字符转义导致工具中心加载失败。", "继续兼容旧 Connector 的明文反馈格式。"] }
+    ]
+  },
+  {
     "version": "1.0.22",
     "date": "2026-08-21",
     "summary": "服务器不可达时不再崩溃，保留凭据以未登录态进入。",

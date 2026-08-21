@@ -294,7 +294,11 @@ public static class AgentLocalServer
             try
             {
                 using var json = System.Text.Json.JsonDocument.Parse(body);
-                message = json.RootElement.TryGetProperty("message", out var m) ? m.GetString() ?? "" : "";
+                if (json.RootElement.TryGetProperty("messageBase64", out var encoded) &&
+                    encoded.GetString() is { Length: > 0 } base64)
+                    message = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
+                else if (json.RootElement.TryGetProperty("message", out var plain))
+                    message = plain.GetString() ?? ""; // 兼容旧 Connector
             }
             catch
             {

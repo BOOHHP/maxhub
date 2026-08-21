@@ -35,22 +35,12 @@ global MaxHubConnector
         ) catch ( undefined )
     )
 
-    fn jsonEscape s =
+    fn encodeBase64 value =
     (
-        local sb = ""
-        for c in s do
-        (
-            -- case 的左括号必须与 of 同行，否则脚本加载即编译失败
-            case c of (
-                #"\\" : sb += "\\\\"
-                #"\"" : sb += "\\\""
-                #"\n" : sb += "\\n"
-                #"\r" : sb += "\\r"
-                #"\t" : sb += "\\t"
-                default : sb += (c as string)
-            )
-        )
-        sb
+        try (
+            local bytes = (dotNetClass "System.Text.Encoding").UTF8.GetBytes value
+            (dotNetClass "System.Convert").ToBase64String bytes
+        ) catch ( "" )
     )
 
     fn httpPostJson url body timeoutMs:10000 =
@@ -715,7 +705,8 @@ global MaxHubConnector
             if message == "" then ( lblFeedbackStatus.text = "请先填写反馈内容。" )
             else (
                 lblFeedbackStatus.text = "◌ 提交中…"
-                local body = "{\"message\":\"" + (jsonEscape message) + "\"}"
+                -- Base64 避免在 MaxScript 中手写 JSON 字符转义（字符字面量跨版本兼容性差）
+                local body = "{\"messageBase64\":\"" + (encodeBase64 message) + "\"}"
                 local result = httpPostJson (agentBaseUrl + "/max/feedback?toolId=" + maxHubFeedbackToolId + "&maxYear=" + (currentMaxYear() as string)) body
                 local parts = if result != undefined then (filterString result "|") else #()
                 if parts.count >= 1 and parts[1] == "ok" then (
