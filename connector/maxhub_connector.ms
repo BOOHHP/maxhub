@@ -140,12 +140,15 @@ global MaxHubConnector
 
         -- 数据缓存
         local toolIds = #()
+        local toolNames = #()
         local toolVersions = #()
         local toolDetails = #()
         local installedIds = #()
+        local installedNames = #()
         local installedVersions = #()
         local installedDetails = #()
         local updateIds = #()
+        local updateNames = #()
         local updateVersions = #()
         local updateDetails = #()
         local queuedUpdateIds = #()
@@ -283,7 +286,7 @@ global MaxHubConnector
 
         fn refreshDiscover =
         (
-            toolIds = #(); toolVersions = #(); toolDetails = #()
+            toolIds = #(); toolNames = #(); toolVersions = #(); toolDetails = #()
             txtToolDescription.text = "请选择一个工具查看说明。"
             if isAgentOnline() then (
                 local year = currentMaxYear()
@@ -303,6 +306,7 @@ global MaxHubConnector
                             local maxYear = if useV2 and parts.count >= 7 then parts[7] else (year as string)
                             local rangeText = "Max " + minYear + "–" + maxYear
                             append toolIds parts[1]
+                            append toolNames toolName
                             append toolVersions parts[2]
                             append toolDetails ("工具名称：" + toolName + "\r\n分类：" + category + "    版本：v" + parts[2] + "    适用：" + rangeText + "\r\n\r\n" + description)
                             append items ("[" + category + "]  " + toolName + "  v" + parts[2] + "  [" + minYear + "–" + maxYear + "]")
@@ -321,7 +325,7 @@ global MaxHubConnector
 
         fn refreshInstalled =
         (
-            installedIds = #(); installedVersions = #(); installedDetails = #()
+            installedIds = #(); installedNames = #(); installedVersions = #(); installedDetails = #()
             installedReadable = false
             txtToolDescription.text = "请选择一个已安装工具查看说明。"
             local items = #()
@@ -339,6 +343,7 @@ global MaxHubConnector
                                 append installedIds parts[1]
                                 append installedVersions parts[2]
                                 local displayName = if useV2 then (decodeBase64 parts[3]) else (if parts.count >= 3 then parts[3] else "未命名工具")
+                                append installedNames displayName
                                 local category = if useV2 then (decodeBase64 parts[4]) else "其他"
                                 local description = if useV2 then (decodeBase64 parts[5]) else "暂无说明。"
                                 local minYear = if useV2 then parts[6] else (year as string)
@@ -358,7 +363,7 @@ global MaxHubConnector
 
         fn refreshUpdates =
         (
-            updateIds = #(); updateVersions = #(); updateDetails = #()
+            updateIds = #(); updateNames = #(); updateVersions = #(); updateDetails = #()
             updatesReadable = false
             txtToolDescription.text = "请选择一个可更新工具查看说明。"
             local items = #()
@@ -376,6 +381,7 @@ global MaxHubConnector
                                 append updateIds parts[1]
                                 append updateVersions parts[3]
                                 local displayName = if useV2 then (decodeBase64 parts[4]) else parts[4]
+                                append updateNames displayName
                                 local category = if useV2 then (decodeBase64 parts[5]) else "其他"
                                 local description = if useV2 then (decodeBase64 parts[6]) else "暂无说明。"
                                 local minYear = if useV2 then parts[7] else (year as string)
@@ -649,25 +655,19 @@ global MaxHubConnector
                 1: (
                     if lstTools.selection > 0 and lstTools.selection <= toolIds.count then (
                         toolId = toolIds[lstTools.selection]
-                        local line = lstTools.items[lstTools.selection]
-                        local sep = findString line " | "
-                        toolName = if sep != undefined then (substring line 1 (sep - 1)) else line
+                        toolName = toolNames[lstTools.selection]
                     )
                 )
                 2: (
                     if lstInstalled.selection > 0 and lstInstalled.selection <= installedIds.count then (
                         toolId = installedIds[lstInstalled.selection]
-                        local line = lstInstalled.items[lstInstalled.selection]
-                        local sep = findString line " | "
-                        toolName = if sep != undefined then (substring line 1 (sep - 1)) else line
+                        toolName = installedNames[lstInstalled.selection]
                     )
                 )
                 3: (
                     if lstUpdates.selection > 0 and lstUpdates.selection <= updateIds.count then (
                         toolId = updateIds[lstUpdates.selection]
-                        local line = lstUpdates.items[lstUpdates.selection]
-                        local sep = findString line " | "
-                        toolName = if sep != undefined then (substring line 1 (sep - 1)) else line
+                        toolName = updateNames[lstUpdates.selection]
                     )
                 )
                 default: ()

@@ -51,6 +51,10 @@ public class FeedbackEntryTests
         Assert.Contains("fn encodeBase64", connector);
         Assert.Contains("messageBase64", connector);
         Assert.DoesNotContain("fn jsonEscape", connector);
+        Assert.Contains("local toolNames = #()", connector);
+        Assert.Contains("local installedNames = #()", connector);
+        Assert.Contains("local updateNames = #()", connector);
+        Assert.DoesNotContain("findString line \" | \"", connector);
         Assert.Contains("/max/feedback?toolId=", connector);
     }
 }
