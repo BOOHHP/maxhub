@@ -603,6 +603,7 @@ GitHub Release 使用版本标签 `v{version}`，资产名必须与 Server 镜�
 | Agent 服务器不可达时启动闪退 | `TryRestoreSession` 只捕获 `InvalidOperationException` | 通用异常保留凭据、未登录态进入（1.0.22） |
 | 开通 contact 权限后管理员失权 | 员工号优先取 `user_id`，权限变化导致身份漂移 | 员工号固定 open_id，`user_id` 仅作投递备用 |
 | 飞书反馈发送被拒 | 应用未启用机器人能力；发送请求缺 Authorization 头 | 启用机器人能力 + `im:message`；请求补 Bearer 头 |
+| 后台页渲染出 JS 文本且反馈列表空白 | `esc` 转义函数被误放到 `<script>` 标签外 | 移回主 script 块，并新增脚本边界回归测试 |
 
 ## 12. 版本演进摘要
 
