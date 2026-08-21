@@ -122,12 +122,11 @@ public sealed class FeedbackService(
     public async Task<(string Status, string? Error)> DeliverAsync(FeedbackRow row)
     {
         var text = BuildText(row);
-        var names = users.GetNames(row.ToEmployeeIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         string? firstError = null;
         var delivered = 0;
         foreach (var employeeId in row.ToEmployeeIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
-            var identity = new EmployeeIdentity(employeeId, names.GetValueOrDefault(employeeId) ?? employeeId);
+            var identity = users.ResolveIdentity(employeeId);
             try
             {
                 await sender.SendTextAsync(identity, text);

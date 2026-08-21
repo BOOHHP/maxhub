@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>后台管理 · MaxHub</title>
-<link rel="stylesheet" href="css/site.css">
+<link rel="stylesheet" href="css/site.css?v=20260821.1">
 <style>
   .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
   .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
@@ -119,8 +119,8 @@
 
 <div id="msg"></div>
 
-<script src="js/api.js"></script>
-<script src="js/auth.js"></script>
+<script src="js/api.js?v=20260821.1"></script>
+<script src="js/auth.js?v=20260821.1"></script>
 <script>
 const api = window.Api.api;
 const toast = window.Api.toast;
@@ -307,23 +307,38 @@ async function refresh() {
       </td>
     </tr>`).join('');
 
-  const connRes = await api('/api/v1/admin/connectors');
-  if (connRes.ok) {
+  const me = window.MaxHubAuth?.user;
+  const isAdmin = me ? window.Api.hasRole(me.roles, 'admin') : false;
+
+  // 这些面板互不依赖；并行请求避免后台首屏累计 4-5 次网络往返。
+  const panelResults = await Promise.allSettled([
+    api('/api/v1/admin/connectors'),
+    isAdmin ? api('/api/v1/admin/users') : Promise.resolve(null),
+    api('/api/v1/admin/feedbacks'),
+    api('/api/v1/admin/stats'),
+  ]);
+  if (panelResults.some(r => r.status === 'rejected' && r.reason instanceof window.Api.UnauthorizedError)) {
+    window.Api.logout();
+    return;
+  }
+  const [connRes, membersRes, feedbackRes, statsRes] = panelResults.map(r =>
+    r.status === 'fulfilled' ? r.value : null);
+
+  if (connRes?.ok) {
     const connectors = await connRes.json();
     document.querySelector('#connector-table tbody').innerHTML = connectors.map(c => `
       <tr><td>v${c.version}</td><td>${c.minMaxYear} - ${c.maxMaxYear}</td>
       <td>${(c.sizeBytes / 1024).toFixed(1)} KB</td><td>${c.signed ? '✓ 已签名' : '—'}</td></tr>`).join('')
       || '<tr><td colspan="4" class="empty">暂无制品</td></tr>';
-  } else if (connRes.status === 403) {
+  } else if (connRes?.status === 403) {
     document.querySelector('#connector-table tbody').innerHTML =
       '<tr><td colspan="4" class="empty">需要管理员角色</td></tr>';
+  } else {
+    document.querySelector('#connector-table tbody').innerHTML =
+      '<tr><td colspan="4" class="empty">加载失败，请稍后刷新</td></tr>';
   }
 
-  const me = window.MaxHubAuth?.user;
-  const isAdmin = me ? window.Api.hasRole(me.roles, 'admin') : false;
-  if (isAdmin) {
-    const membersRes = await api('/api/v1/admin/users');
-    if (membersRes.ok) {
+  if (isAdmin && membersRes?.ok) {
       const members = await membersRes.json();
       document.querySelector('#member-table tbody').innerHTML = members.map(u => {
         const self = me.employeeId === u.employeeId;
@@ -332,13 +347,19 @@ async function refresh() {
         return `<tr><td>${u.username}<div style="color:var(--text-3);font-size:11px">${self ? '（我）' : ''}${u.employeeId}</div></td>
           <td>${chk('admin', '管理员')}</td><td>${chk('reviewer', '审核者')}</td><td>${chk('publisher', '发布者')}</td></tr>`;
       }).join('') || '<tr><td colspan="4" class="empty">暂无成员</td></tr>';
-    }
   }
 
-  await loadFeedbacks();
+  if (feedbackRes?.status === 403) {
+    document.querySelector('#feedback-table tbody').innerHTML =
+      '<tr><td colspan="8" class="empty">需要审核者或管理员角色</td></tr>';
+  } else if (feedbackRes?.ok) {
+    renderFeedbacks(await feedbackRes.json());
+  } else {
+    document.querySelector('#feedback-table tbody').innerHTML =
+      '<tr><td colspan="8" class="empty">加载失败，请稍后刷新</td></tr>';
+  }
 
-  const statsRes = await api('/api/v1/admin/stats');
-  if (statsRes.ok) {
+  if (statsRes?.ok) {
     const stats = await statsRes.json();
     const totalDownloads = stats.subjects.reduce((s, x) => s + x.downloads, 0);
     const totalInstalls = stats.subjects.reduce((s, x) => s + x.installs, 0);
@@ -352,6 +373,9 @@ async function refresh() {
       <td><button class="btn-outline" onclick="editFromStats('${info.toolId}', '${info.version}')">编辑工具信息</button></td></tr>`;
     }).join('')
       || '<tr><td colspan="4" class="empty">暂无数据</td></tr>';
+  } else {
+    document.querySelector('#stats-table tbody').innerHTML =
+      '<tr><td colspan="4" class="empty">加载失败，请稍后刷新</td></tr>';
   }
 }
 
@@ -403,7 +427,10 @@ async function loadFeedbacks() {
     return;
   }
   if (!res.ok) return;
-  const items = await res.json();
+  renderFeedbacks(await res.json());
+}
+
+function renderFeedbacks(items) {
   document.getElementById('nav-feedbacks').textContent = items.length > 0 ? items.length : '';
   const statusText = { delivered: '✓ 已送达', partial: '◐ 部分送达', failed: '✕ 失败', skipped: '— 未配置', pending: '◌ 待发' };
   document.querySelector('#feedback-table tbody').innerHTML = items.map(f => `

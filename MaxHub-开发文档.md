@@ -341,6 +341,15 @@ Connector 1.5.6 修复关闭后再打开工具中心时的异常：部分 Max �
 - Connector 1.5.7 注册并同步到本机 Max 2025（重启 Max 后生效）。
 - Agent 1.0.22 已发布 GitHub 与局域网镜像；生产 latest 返回 1.0.22。
 
+### Web Portal 加载性能优化
+
+测量发现单个后台接口响应约 20–23ms，数据库不是瓶颈；后台页面在 releases 后串行等待 connectors、users、feedbacks、stats，累计约 105ms 网络往返。优化后：
+
+- 审核/版本主数据先渲染，其余四个独立面板用 `Promise.allSettled` 并行加载，等待上限约等于最慢单个请求（约 23ms），且单个面板失败不阻塞其他面板。
+- HTML 使用 `no-cache`；CSS/JS 使用统一版本参数和 `public,max-age=300`，跨页面导航复用资源，部署时必须同步更新版本参数避免新旧资源混用。
+- Server 启用 gzip/Brotli 响应压缩。浏览器实测本地首屏 `DOMContentLoaded` 约 229ms、完整加载约 364ms；CSS/JS 压缩传输合计约 5.6KB。
+- 新增 `WebPerformanceTests`，约束缓存头、版本化资源、并行加载与 gzip。
+
 ## 5. 关键架构决策
 
 ### 5.1 使用 MaxScript Connector，而非 Autodesk SDK 插件
@@ -548,10 +557,10 @@ dotnet test MaxHub.sln --no-restore
 | --- | ---: |
 | MaxHub.Core.Tests | 57 |
 | MaxHub.Agent.Tests | 51 |
-| MaxHub.Server.Tests | 59 |
-| **合计** | **167** |
+| MaxHub.Server.Tests | 61 |
+| **合计** | **169** |
 
-当前完整测试为 167/167 通过。
+当前完整测试为 169/169 通过。
 
 ### 10.3 发布 Agent
 
@@ -604,6 +613,7 @@ GitHub Release 使用版本标签 `v{version}`，资产名必须与 Server 镜�
 | 开通 contact 权限后管理员失权 | 员工号优先取 `user_id`，权限变化导致身份漂移 | 员工号固定 open_id，`user_id` 仅作投递备用 |
 | 飞书反馈发送被拒 | 应用未启用机器人能力；发送请求缺 Authorization 头 | 启用机器人能力 + `im:message`；请求补 Bearer 头 |
 | 后台页渲染出 JS 文本且反馈列表空白 | `esc` 转义函数被误放到 `<script>` 标签外 | 移回主 script 块，并新增脚本边界回归测试 |
+| 后台首屏加载存在网络瀑布 | releases 后串行加载 connectors/users/feedbacks/stats，累计多次往返 | 主数据先渲染，其余面板 `Promise.allSettled` 并行且失败隔离；静态资源版本化缓存并启用 gzip |
 | 工具中心打开报“show 位于 undefined” | MaxScript 的 `case … of` 左括号换行，脚本加载即编译失败 | 左括号与 `of` 同行（1.5.8），并新增全文件 case 语法回归测试 |
 | 点击工具反馈报 undefined 类型错误 | 从列表显示文本查找不存在的 `" | "` 分隔符，`findString` 返回 undefined | 三类列表分别缓存工具名称，反馈按选择索引直接读取（1.5.10） |
 | 点击反馈报“调用需要函数或类，得到 undefined” | 主 rollout 编译时尚未声明后置的 `openMaxHubFeedback` 函数 | 在主 rollout 前前向声明入口，移除 rollout `isValid` 调用；真实 Max 主动调用反馈弹窗验证为 OK（1.5.11） |
@@ -726,7 +736,7 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 5. 阅读 `MaxHub.Agent.Core/Install`，理解账本与回滚边界。
 6. 阅读 `MaxHub.Server/Program.cs`，了解当前 API。
 7. 阅读 `connector/maxhub_connector.ms`，注意 MaxScript 兼容性注释。
-8. 运行 `dotnet test MaxHub.sln --no-restore`，确保 167 项基线通过。
+8. 运行 `dotnet test MaxHub.sln --no-restore`，确保 169 项基线通过。
 9. 修改功能时先增加能复现问题的测试，再做最小实现。
 10. 发布前核对 GitHub 资产、局域网镜像、sidecar 和生产 latest 的版本与 SHA-256。
 

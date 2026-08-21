@@ -7,6 +7,7 @@ using MaxHub.Server.Storage;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddResponseCompression();
 
 // 真实飞书凭据放在 git 忽略的本地文件；测试环境不加载，保证用例确定性
 if (!builder.Environment.IsEnvironment("Testing"))
@@ -51,6 +52,7 @@ builder.Services.AddSingleton(sp => new FeedbackService(
     sp.GetRequiredService<IFeishuMessageSender>()));
 
 var app = builder.Build();
+app.UseResponseCompression();
 
 using (var db = app.Services.GetRequiredService<IDbContextFactory<MaxHubDb>>().CreateDbContext())
 {
@@ -61,6 +63,8 @@ using (var db = app.Services.GetRequiredService<IDbContextFactory<MaxHubDb>>().C
         "ALTER TABLE Releases ADD COLUMN SignatureBase64 TEXT",
         "ALTER TABLE Connectors ADD COLUMN SignatureBase64 TEXT",
         "ALTER TABLE Users ADD COLUMN Roles TEXT DEFAULT ''",
+        "ALTER TABLE Users ADD COLUMN FeishuOpenId TEXT",
+        "ALTER TABLE Users ADD COLUMN FeishuUserId TEXT",
         """CREATE TABLE IF NOT EXISTS "Users" ("EmployeeId" TEXT NOT NULL CONSTRAINT "PK_Users" PRIMARY KEY, "Username" TEXT NOT NULL)""",
         """CREATE TABLE IF NOT EXISTS "AgentReleases" ("Id" INTEGER NOT NULL CONSTRAINT "PK_AgentReleases" PRIMARY KEY AUTOINCREMENT, "Version" TEXT NOT NULL, "DownloadUrl" TEXT NOT NULL, "Sha256" TEXT NOT NULL, "UpdatedAtUtc" TEXT NOT NULL)""",
         """CREATE TABLE IF NOT EXISTS "Feedbacks" ("Id" INTEGER NOT NULL CONSTRAINT "PK_Feedbacks" PRIMARY KEY AUTOINCREMENT, "Scope" TEXT NOT NULL, "ToolId" TEXT, "ToolName" TEXT, "FromEmployeeId" TEXT NOT NULL, "FromUsername" TEXT NOT NULL, "ToEmployeeIds" TEXT NOT NULL, "Message" TEXT NOT NULL, "Client" TEXT NOT NULL, "ClientVersion" TEXT, "MaxYear" INTEGER, "DeliveryStatus" TEXT NOT NULL, "DeliveryError" TEXT, "AtUtc" TEXT NOT NULL)""",
@@ -446,8 +450,19 @@ app.MapGet("/api/v1/signing/public-key", () =>
     return Results.Ok(new { publicKey = signer.PublicKeyBase64, algorithm = "ECDSA_P256_SHA256" });
 });
 
-// ---- 管理后台 ----
-app.UseStaticFiles();
+// ---- Web Portal 静态资源 ----
+// HTML 不缓存以确保部署后立即更新；CSS/JS 短时缓存，跨页面导航不重复下载。
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        var extension = Path.GetExtension(context.File.Name);
+        if (extension is ".css" or ".js")
+            context.Context.Response.Headers.CacheControl = "public,max-age=300";
+        else if (extension is ".html")
+            context.Context.Response.Headers.CacheControl = "no-cache";
+    },
+});
 app.MapGet("/admin", () => Results.Redirect("/admin.html"));
 
 app.MapGet("/api/v1/admin/releases", (HttpContext ctx) =>

@@ -15,11 +15,11 @@ namespace MaxHub.Server.Tests;
 /// <summary>记录投递目标与文本的假飞书发送器，用于验证接收人解析与送达状态。</summary>
 public sealed class RecordingFeishuSender : IFeishuMessageSender
 {
-    public List<(string EmployeeId, string Text)> Sent { get; } = [];
+    public List<(string EmployeeId, string? OpenId, string? UserId, string Text)> Sent { get; } = [];
 
     public Task SendTextAsync(EmployeeIdentity target, string text, CancellationToken cancellationToken = default)
     {
-        lock (Sent) Sent.Add((target.EmployeeId, text));
+        lock (Sent) Sent.Add((target.EmployeeId, target.OpenId, target.UserId, text));
         return Task.CompletedTask;
     }
 }

@@ -90,6 +90,8 @@ public sealed class UserRow
 {
     public required string EmployeeId { get; set; }
     public required string Username { get; set; }
+    public string? FeishuOpenId { get; set; }
+    public string? FeishuUserId { get; set; }
     /// <summary>逗号分隔的角色（admin/reviewer/publisher）。旧库加列后存量行为 NULL，读取时按空串处理。</summary>
     public string? Roles { get; set; }
 }
@@ -131,6 +133,7 @@ public interface IUserDirectory
 {
     void Upsert(EmployeeIdentity user);
     IReadOnlyDictionary<string, string> GetNames(IEnumerable<string> employeeIds);
+    EmployeeIdentity ResolveIdentity(string employeeId);
     string[] GetRoles(string employeeId);
     void SetRoles(string employeeId, string[] roles);
     IReadOnlyList<UserRow> GetAllUsers();
@@ -143,9 +146,19 @@ public sealed class SqliteUserDirectory(IDbContextFactory<MaxHubDb> dbFactory) :
         using var db = dbFactory.CreateDbContext();
         var row = db.Users.Find(user.EmployeeId);
         if (row is null)
-            db.Users.Add(new UserRow { EmployeeId = user.EmployeeId, Username = user.Username });
+            db.Users.Add(new UserRow
+            {
+                EmployeeId = user.EmployeeId,
+                Username = user.Username,
+                FeishuOpenId = user.OpenId,
+                FeishuUserId = user.UserId,
+            });
         else
+        {
             row.Username = user.Username;
+            row.FeishuOpenId = user.OpenId ?? row.FeishuOpenId;
+            row.FeishuUserId = user.UserId ?? row.FeishuUserId;
+        }
         db.SaveChanges();
     }
 
@@ -155,6 +168,15 @@ public sealed class SqliteUserDirectory(IDbContextFactory<MaxHubDb> dbFactory) :
         using var db = dbFactory.CreateDbContext();
         return db.Users.Where(u => ids.Contains(u.EmployeeId))
             .ToDictionary(u => u.EmployeeId, u => u.Username);
+    }
+
+    public EmployeeIdentity ResolveIdentity(string employeeId)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var row = db.Users.Find(employeeId);
+        return row is null
+            ? new EmployeeIdentity(employeeId, employeeId)
+            : new EmployeeIdentity(row.EmployeeId, row.Username, row.FeishuOpenId, row.FeishuUserId);
     }
 
     public string[] GetRoles(string employeeId)
