@@ -15,6 +15,19 @@ public class ConnectorScriptSafetyTests
     }
 
     [Fact]
+    public void Case_statements_keep_open_paren_on_the_of_line()
+    {
+        // MaxScript 要求 case ... of 的左括号与 of 同行；换行会导致脚本加载即编译失败（1.5.7 踩过）
+        var lines = File.ReadAllLines(Path.Combine(RepoRoot, "connector", "maxhub_connector.ms"));
+        var offenders = lines
+            .Select((line, index) => (line, index))
+            .Where(x => System.Text.RegularExpressions.Regex.IsMatch(x.line.TrimEnd(), @"case\s+.+\bof\s*$"))
+            .ToList();
+        Assert.True(offenders.Count == 0,
+            "存在 of 行尾缺少左括号的 case 语句：" + string.Join("; ", offenders.Select(x => $"第 {x.index + 1} 行")));
+    }
+
+    [Fact]
     public void ProgressBar_runtime_width_is_guarded_for_unsupported_max_versions()
     {
         var source = File.ReadAllText(Path.Combine(RepoRoot, "connector", "maxhub_connector.ms"));

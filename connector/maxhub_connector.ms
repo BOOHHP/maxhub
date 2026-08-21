@@ -40,8 +40,8 @@ global MaxHubConnector
         local sb = ""
         for c in s do
         (
-            case c of
-            (
+            -- case 的左括号必须与 of 同行，否则脚本加载即编译失败
+            case c of (
                 #"\\" : sb += "\\\\"
                 #"\"" : sb += "\\\""
                 #"\n" : sb += "\\n"
@@ -654,8 +654,8 @@ global MaxHubConnector
         on btnFeedback pressed do
         (
             local toolId = ""; local toolName = ""
-            case currentPage of
-            (
+            -- case 的左括号必须与 of 同行，否则脚本加载即编译失败
+            case currentPage of (
                 1: (
                     if lstTools.selection > 0 and lstTools.selection <= toolIds.count then (
                         toolId = toolIds[lstTools.selection]
