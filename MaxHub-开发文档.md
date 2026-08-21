@@ -4,8 +4,8 @@
 >
 > - 项目周期：2026-08-18 至今
 > - 文档更新：2026-08-21
-> - 当前 Agent：1.0.20
-> - 当前 Connector：1.5.6
+> - 当前 Agent：1.0.22
+> - 当前 Connector：1.5.7
 > - 生产地址：http://10.2.13.8:5100
 > - 代码仓库：https://github.com/BOOHHP/maxhub
 
@@ -301,6 +301,46 @@ Connector 1.5.6 修复关闭后再打开工具中心时的异常：部分 Max �
 
 最终行为：同一 Windows 会话只存在一个 Agent；重复启动会退出第二实例，并在可交互桌面中显示已有主窗口。
 
+## 4.4 2026-08-21：用户反馈管道与身份稳定化
+
+### 反馈功能（Agent 1.0.21 / Connector 1.5.7）
+
+按用户需求新增两个反馈入口，统一走服务端管道：
+
+- **工具中心反馈**：Connector 在发现/已安装/更新三页增加“💬 反馈”按钮；选中工具后弹出对话框，内容经 Agent 本地 `/max/feedback`（新增带请求体的 `httpPostJson`）转发服务器。
+- **平台反馈**：Agent 主窗口新增“反馈”页，托盘右键菜单同步加入口；内容直发服务器。
+
+管道规则：
+
+- `POST /api/v1/feedback` 需登录；身份由服务端从会话推导，客户端不可冒充。
+- 先落库 `Feedbacks` 表再投飞书；投递失败不丢内容，状态记为 failed/partial，管理员可在后台补发。
+- 接收人：工具反馈发给最新已发布版本上传者并抄送全部管理员；平台反馈发给配置的平台负责人（`Feedback:PlatformRecipients`，生产配置为平台负责人 open_id）。
+- 限流：`Feedback:MaxPerHour`（生产为 10），防止骚扰接收人。
+- 管理后台新增“用户反馈”分区（reviewer/admin 可见、admin 可补发），内容转义渲染防 XSS。
+
+### Agent 1.0.22：服务器不可达时启动不崩溃
+
+1.0.21 停机冒烟时发现：生产服务器不可达时，`TryRestoreSession` 只捕获 `InvalidOperationException`，网络异常（连接被拒绝）未被捕获，导致 Agent 启动即崩溃。修复：通用异常保留凭据、以未登录态进入，绝不崩溃；服务器恢复后会话可自动续期。
+
+### 身份稳定化：员工号固定为 open_id
+
+开通 `contact:user.employee_id:readonly` 权限后，飞书 userinfo 开始返回 `user_id`，而登录代码原先优先取 `user_id` 作为员工号，导致身份从历史 `ou_...`（open_id）漂移到短编号，与 bootstrap 管理员配置不匹配而失去权限（注册 Connector 返回 403）。修复：员工号优先 open_id（不随权限范围变化），`user_id` 仅保留为消息投递备用标识。
+
+### 飞书投递前置条件与端到端验证
+
+前置条件（均人工配置）：
+
+- 应用必须启用**机器人能力**，否则发送报 230006。
+- 需要 `im:message` 与 `contact:user.employee_id:readonly` 权限。
+- 发送使用 tenant_access_token，AppSecret 仅存服务端。
+
+验证结果：
+
+- 直调飞书 API 投递成功（code 0），确认机器人能力与权限生效。
+- 生产管道提交反馈状态为 `delivered`，管理后台列表可读取记录并补发。
+- Connector 1.5.7 注册并同步到本机 Max 2025（重启 Max 后生效）。
+- Agent 1.0.22 已发布 GitHub 与局域网镜像；生产 latest 返回 1.0.22。
+
 ## 5. 关键架构决策
 
 ### 5.1 使用 MaxScript Connector，而非 Autodesk SDK 插件
@@ -407,6 +447,13 @@ Server 重启会使内存 access token 失效；Agent 收到 401 后使用 refre
 
 统计事件中的用户身份由 Server 从会话推导，不信任客户端提交的用户 ID。
 
+### 6.4 用户反馈治理
+
+- 反馈为纯文本（5–2000 字），不采集场景内容与用户文件路径。
+- 反馈仅接收人与管理员可见；后台渲染转义防 XSS。
+- 员工号固定为 open_id，保证角色、账本与统计身份的长期稳定。
+- 生产配置 `Feedback:PlatformRecipients` 固定平台反馈接收人；`Feedback:MaxPerHour` 限制提交频率。
+
 ## 7. 包、编号与兼容协议
 
 ### 7.1 工具包
@@ -446,6 +493,7 @@ Connector 优先请求 v2，失败时回退旧协议。
 ## 8. 当前主要 API
 
 | 类别 | 主要接口 |
+| 反馈 | `POST /api/v1/feedback`（登录）、`GET /api/v1/admin/feedbacks`（reviewer/admin）、`POST /api/v1/admin/feedbacks/{id}/redeliver`（admin） |
 | --- | --- |
 | 身份 | QR Session 创建/查询/完成、会话刷新、退出、`/auth/me` |
 | 市场 | 工具索引、工具详情、我的工具、安装计划 |
@@ -499,11 +547,11 @@ dotnet test MaxHub.sln --no-restore
 | 项目 | 测试数 |
 | --- | ---: |
 | MaxHub.Core.Tests | 57 |
-| MaxHub.Agent.Tests | 45 |
-| MaxHub.Server.Tests | 52 |
-| **合计** | **154** |
+| MaxHub.Agent.Tests | 48 |
+| MaxHub.Server.Tests | 58 |
+| **合计** | **163** |
 
-当前完整测试为 154/154 通过。
+当前完整测试为 163/163 通过。
 
 ### 10.3 发布 Agent
 
@@ -552,6 +600,9 @@ GitHub Release 使用版本标签 `v{version}`，资产名必须与 Server 镜�
 | Max 启动时 Connector 未加载 | 前面的第三方 Startup 脚本异常中断队列 | loader 使用 `0_` 前缀优先执行 |
 | 中文 Max 用户目录找错 | 写死 `ENU` | 按最近 `3dsMax.ini` 选择语言目录 |
 | PowerShell 5.1 中文脚本解析异常 | UTF-8 无 BOM 与旧解析器兼容性 | 发布脚本保持 ASCII，路径和参数谨慎处理 |
+| Agent 服务器不可达时启动闪退 | `TryRestoreSession` 只捕获 `InvalidOperationException` | 通用异常保留凭据、未登录态进入（1.0.22） |
+| 开通 contact 权限后管理员失权 | 员工号优先取 `user_id`，权限变化导致身份漂移 | 员工号固定 open_id，`user_id` 仅作投递备用 |
+| 飞书反馈发送被拒 | 应用未启用机器人能力；发送请求缺 Authorization 头 | 启用机器人能力 + `im:message`；请求补 Bearer 头 |
 
 ## 12. 版本演进摘要
 
@@ -567,8 +618,10 @@ GitHub Release 使用版本标签 `v{version}`，资产名必须与 Server 镜�
 | 1.0.14–1.0.16 | 中文更新日志、内置日志页、滚动条、Connector 详情协议 |
 | 1.0.17 | 从 Agent 直接启动扫描到的 Max |
 | 1.0.18–1.0.20 | 单实例、重复启动唤起已有窗口、非阻塞广播修复 |
+| 1.0.21 | 平台反馈页、托盘反馈入口、本地反馈转发 |
+| 1.0.22 | 服务器不可达时启动不崩溃，保留凭据 |
 
-当前生产版本：**1.0.20**。
+当前生产版本：**1.0.22**。
 
 ### 12.2 Connector
 
@@ -581,19 +634,21 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 | 1.4.x | 生产注册与稳定化 |
 | 1.5.0–1.5.5 | 可调整布局、正确名称、脚本运行、分类、详情与 Max 范围 |
 | 1.5.6 | 修复关闭后重开时 ProgressBar width 属性异常 |
+| 1.5.7 | 三页共用“💬 反馈”按钮与反馈弹窗，经 Agent 转发投飞书 |
 
-当前生产版本：**1.5.6**，兼容 Max 2019–2026。
+当前生产版本：**1.5.7**，兼容 Max 2019–2026。
 
 ## 13. 当前生产状态
 
 截至 2026-08-21：
 
-- Server 正常运行于 `http://10.2.13.8:5100`。
-- `/api/v1/agent/latest` 已返回 Agent 1.0.20。
+- Server 正常运行于 `http://10.2.13.8:5100`。2。
 - Agent 局域网镜像和 GitHub Release 均可用。
-- Agent 1.0.20 SHA-256：`78352db52fa6713a83fa54d7004938e1459b7d6d574ce6ac8b8ca8a46d0e9b89`。
-- Connector 1.5.6 已注册；2026-08-20 的 CLI 同步记录显示本机 Max 2025 已从 1.5.5 更新到 1.5.6，重启 Max 后生效。
-- 完整测试 154/154 通过。
+- Agent 1.0.22 SHA-256：`f6dd4c381d877b93d70bd680446fbeb58e10bf32dcc7c6ff2e53a640aaa03275`。
+- Connector 1.5.7 已注册；2026-08-21 的 CLI 同步记录显示本机 Max 2025 已从 1.5.6 更新到 1.5.7，重启 Max 后生效。
+- 用户反馈管道已端到端验证：直调飞书投递成功、生产反馈状态 `delivered`、后台列表与补发可用。
+- 完整测试 163/163 通过。
+- Agent 单实例在 2026-08-20 做过真实双开冒烟：以 `Win32_Process Name LIKE 'MaxHubAgent%.exe'` 统计版本化进程，第二实例退出，本地 `/health` 返回 `ok`；1.0.22 另在服务器停机状态做过“启动不崩溃”冒烟
 - Agent 单实例在 2026-08-20 做过真实双开冒烟：以 `Win32_Process Name LIKE 'MaxHubAgent%.exe'` 统计版本化进程，第二实例退出，本地 `/health` 返回 `ok`。
 
 ## 14. 已完成范围
@@ -662,7 +717,7 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 5. 阅读 `MaxHub.Agent.Core/Install`，理解账本与回滚边界。
 6. 阅读 `MaxHub.Server/Program.cs`，了解当前 API。
 7. 阅读 `connector/maxhub_connector.ms`，注意 MaxScript 兼容性注释。
-8. 运行 `dotnet test MaxHub.sln --no-restore`，确保 154 项基线通过。
+8. 运行 `dotnet test MaxHub.sln --no-restore`，确保 163 项基线通过。
 9. 修改功能时先增加能复现问题的测试，再做最小实现。
 10. 发布前核对 GitHub 资产、局域网镜像、sidecar 和生产 latest 的版本与 SHA-256。
 
@@ -706,6 +761,10 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 | `fb71c1e` | Agent 工具管理页 |
 | `8b22cc2` | 局域网 Agent 镜像 |
 | `0d9038f` | 中文内置更新日志 |
+| `b824de1` | 用户反馈管道（工具+平台入口、后台列表与补发） |
+| `3df6609` | Agent 服务器不可达启动容错 |
+| `857c61c` | 飞书发送请求补 Bearer 头 |
+| `9066635` | 员工号固定 open_id 防身份漂移 |
 | `eada295` | Connector 说明与 Max 兼容范围 |
 | `5be952f` | Agent 打开对应 Max |
 | `e8e1ab9` | Connector 重开异常修复 |
