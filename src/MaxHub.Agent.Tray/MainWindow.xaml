@@ -70,6 +70,9 @@
                                      GroupName="Nav" Checked="NavConnectors_Checked" ToolTip="Connector 管理"/>
                         <RadioButton x:Name="NavTools" Style="{StaticResource NavButton}" Content="🧰"
                                      GroupName="Nav" Checked="NavTools_Checked" ToolTip="工具管理"/>
+                        <RadioButton x:Name="NavFeedback" Style="{StaticResource NavButton}" Content="💬"
+                                     GroupName="Nav" Checked="NavFeedback_Checked" ToolTip="反馈"
+                                     AutomationProperties.Name="反馈"/>
                     </StackPanel>
                 </DockPanel>
             </Border>
@@ -454,6 +457,25 @@
                         </Grid>
                     </TabItem>
                 </TabControl>
+            </Grid>
+
+            <!-- 反馈页 -->
+            <Grid Grid.Column="1" x:Name="FeedbackPage" Visibility="Collapsed" Margin="20">
+                <StackPanel MaxWidth="560" VerticalAlignment="Center">
+                    <TextBlock Text="💬 平台反馈" FontSize="16" FontWeight="SemiBold"/>
+                    <TextBlock Text="对 MaxHub 工具有任何建议或问题？写下来，会通过飞书直接送达平台负责人。"
+                               Foreground="{StaticResource Text.Secondary}" FontSize="12" Margin="0,6,0,14"/>
+                    <TextBox Text="{Binding Message, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                             TextWrapping="Wrap" Height="140" VerticalScrollBarVisibility="Auto"
+                             MaxLength="2000"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="提交反馈" Style="{StaticResource PrimaryButton}" Width="110" Height="32"
+                                Command="{Binding SubmitCommand}"/>
+                        <TextBlock Text="{Binding Status}" FontSize="12" VerticalAlignment="Center"
+                                   Foreground="{StaticResource Text.Secondary}" Margin="12,0,0,0"
+                                   TextWrapping="Wrap" MaxWidth="380"/>
+                    </StackPanel>
+                </StackPanel>
             </Grid>
 
             <local:ReleaseNotesPage Grid.Column="1" x:Name="ReleaseNotesPage" Visibility="Collapsed"/>

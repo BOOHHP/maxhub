@@ -134,7 +134,7 @@ public sealed class AccountViewModel : ViewModelBase
     public double UpdateProgress { get => _updateProgress; private set => Set(ref _updateProgress, value); }
     public string UpdateButtonText => _pendingUpdate is null ? "立即更新" : $"更新到 v{_pendingUpdate.Version}";
 
-    /// <summary>手动检查更新：GitHub 直连优先；有新版则下载并退出交给替换脚本重启。</summary>
+    /// <summary>手动检查更新：服务器 latest 优先，GitHub 直连回退；有新版则下载并退出交给替换脚本重启。</summary>
     private async Task CheckUpdateAsync()
     {
         _checkingUpdate = true;
@@ -893,6 +893,61 @@ public sealed class ToolsViewModel : ViewModelBase
         {
             _uploadBusy = false;
             SubmitUploadCommand.RaiseCanExecuteChanged();
+        }
+    }
+}
+
+/// <summary>平台反馈页：内容由服务端路由给平台负责人并抄送管理员。</summary>
+public sealed class FeedbackViewModel : ViewModelBase
+{
+    private readonly AppServices _services;
+    private readonly AccountViewModel _account;
+    private string _message = "";
+    private string _status = "";
+    private bool _busy;
+
+    public FeedbackViewModel(AppServices services, AccountViewModel account)
+    {
+        _services = services;
+        _account = account;
+        SubmitCommand = new RelayCommand(SubmitAsync, () => !_busy && _account.IsLoggedIn);
+    }
+
+    public string Message { get => _message; set { Set(ref _message, value); SubmitCommand.RaiseCanExecuteChanged(); } }
+    public string Status { get => _status; private set => Set(ref _status, value); }
+    public RelayCommand SubmitCommand { get; }
+
+    private async Task SubmitAsync()
+    {
+        var text = Message.Trim();
+        if (text.Length < 5)
+        {
+            Status = "✗ 反馈内容至少 5 个字。";
+            return;
+        }
+        _busy = true;
+        SubmitCommand.RaiseCanExecuteChanged();
+        Status = "◌ 提交中…";
+        try
+        {
+            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
+            var outcome = await _services.Hub.SubmitFeedbackAsync("platform", null, text, "agent", version, null);
+            Status = outcome.Success
+                ? outcome.DeliveryStatus == "delivered"
+                    ? "✓ 已提交并通过飞书送达，感谢反馈！"
+                    : $"✓ 已保存（飞书通知状态：{outcome.DeliveryStatus}），管理员可在后台查看。"
+                : $"✗ {outcome.Error}";
+            if (outcome.Success)
+                Message = "";
+        }
+        catch (Exception ex)
+        {
+            Status = $"✗ 提交失败（{AccountViewModel.Brief(ex)}）";
+        }
+        finally
+        {
+            _busy = false;
+            SubmitCommand.RaiseCanExecuteChanged();
         }
     }
 }

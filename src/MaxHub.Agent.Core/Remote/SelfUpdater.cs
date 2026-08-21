@@ -7,8 +7,8 @@ using System.Text.Json;
 namespace MaxHub.Agent.Core.Remote;
 
 /// <summary>
-/// Agent 自更新：优先直连 GitHub Releases（用户机器可出网，服务器不能），
-/// 失败回退服务器端点。下载 exe、校验 SHA256、替换并重启。
+/// Agent 自更新：优先请求服务器 latest（局域网镜像 + GitHub fallback），
+/// 服务器不可达时直连 GitHub Releases。下载 exe、校验 SHA256、替换并重启。
 /// </summary>
 public sealed class SelfUpdater(HubClient hub, HttpClient? githubHttp = null)
 {

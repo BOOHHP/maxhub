@@ -20,6 +20,7 @@ public partial class MainWindow : Window
         AccountViewModel account,
         ConnectorsViewModel connectors,
         ToolsViewModel tools,
+        FeedbackViewModel feedback,
         ReleaseNotesViewModel releaseNotes,
         bool openReleaseNotes)
     {
@@ -35,6 +36,7 @@ public partial class MainWindow : Window
         AccountPage.DataContext = account;
         ConnectorsPage.DataContext = connectors;
         ToolsPage.DataContext = tools;
+        FeedbackPage.DataContext = feedback;
         ReleaseNotesPage.DataContext = releaseNotes;
         account.PropertyChanged += (_, e) =>
         {
@@ -63,6 +65,7 @@ public partial class MainWindow : Window
     {
         ConnectorsPage.Visibility = Visibility.Collapsed;
         ToolsPage.Visibility = Visibility.Collapsed;
+        FeedbackPage.Visibility = Visibility.Collapsed;
         ReleaseNotesPage.Visibility = Visibility.Collapsed;
         ShowPageWithFade(AccountPage);
     }
@@ -71,6 +74,7 @@ public partial class MainWindow : Window
     {
         AccountPage.Visibility = Visibility.Collapsed;
         ToolsPage.Visibility = Visibility.Collapsed;
+        FeedbackPage.Visibility = Visibility.Collapsed;
         ReleaseNotesPage.Visibility = Visibility.Collapsed;
         ShowPageWithFade(ConnectorsPage);
         _ = _connectors.RefreshAsync();
@@ -80,9 +84,19 @@ public partial class MainWindow : Window
     {
         AccountPage.Visibility = Visibility.Collapsed;
         ConnectorsPage.Visibility = Visibility.Collapsed;
+        FeedbackPage.Visibility = Visibility.Collapsed;
         ReleaseNotesPage.Visibility = Visibility.Collapsed;
         ShowPageWithFade(ToolsPage);
         _ = _tools.RefreshAsync();
+    }
+
+    private void NavFeedback_Checked(object sender, RoutedEventArgs e)
+    {
+        AccountPage.Visibility = Visibility.Collapsed;
+        ConnectorsPage.Visibility = Visibility.Collapsed;
+        ToolsPage.Visibility = Visibility.Collapsed;
+        ReleaseNotesPage.Visibility = Visibility.Collapsed;
+        ShowPageWithFade(FeedbackPage);
     }
 
     private void NavReleaseNotes_Checked(object sender, RoutedEventArgs e)
@@ -90,6 +104,7 @@ public partial class MainWindow : Window
         AccountPage.Visibility = Visibility.Collapsed;
         ConnectorsPage.Visibility = Visibility.Collapsed;
         ToolsPage.Visibility = Visibility.Collapsed;
+        FeedbackPage.Visibility = Visibility.Collapsed;
         ShowPageWithFade(ReleaseNotesPage);
     }
 
@@ -132,6 +147,13 @@ public partial class MainWindow : Window
         Show();
         WindowState = WindowState.Normal;
         Activate();
+    }
+
+    /// <summary>托盘“反馈”入口：显示窗口并切到反馈页。</summary>
+    public void ShowFeedbackPage()
+    {
+        ShowFromTray();
+        NavFeedback.IsChecked = true;
     }
 
     protected override void OnSourceInitialized(EventArgs e)

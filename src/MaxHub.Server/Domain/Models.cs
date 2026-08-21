@@ -2,7 +2,8 @@ using MaxHub.Core.Manifests;
 
 namespace MaxHub.Server.Domain;
 
-public sealed record EmployeeIdentity(string EmployeeId, string Username);
+/// <summary>员工身份。OpenId/UserId 为飞书原始标识，用于应用消息投递；旧会话可为空。</summary>
+public sealed record EmployeeIdentity(string EmployeeId, string Username, string? OpenId = null, string? UserId = null);
 
 public enum QrStatus { Pending, Authorized, Consumed, Expired }
 

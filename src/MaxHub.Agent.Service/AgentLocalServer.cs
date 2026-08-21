@@ -284,6 +284,39 @@ public static class AgentLocalServer
             return Results.Text($"{job.State}|{job.Message}");
         });
 
+        // Connector 反馈入口：带 JSON 体调用，Agent 附加会话与客户端上下文后转发服务器
+        app.MapPost("/max/feedback", async (HttpRequest request, string toolId, int maxYear) =>
+        {
+            string body;
+            using (var reader = new StreamReader(request.Body, Encoding.UTF8))
+                body = await reader.ReadToEndAsync();
+            string message = "";
+            try
+            {
+                using var json = System.Text.Json.JsonDocument.Parse(body);
+                message = json.RootElement.TryGetProperty("message", out var m) ? m.GetString() ?? "" : "";
+            }
+            catch
+            {
+                return Results.Text("error|反馈内容格式错误", statusCode: 400);
+            }
+            if (string.IsNullOrWhiteSpace(message))
+                return Results.Text("error|反馈内容不能为空", statusCode: 400);
+
+            var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
+            try
+            {
+                var outcome = await hub.SubmitFeedbackAsync("tool", toolId, message, "connector", version, maxYear);
+                return outcome.Success
+                    ? Results.Text($"ok|{outcome.DeliveryStatus}")
+                    : Results.Text($"error|{outcome.Error}", statusCode: 502);
+            }
+            catch (Exception ex)
+            {
+                return Results.Text($"error|{ex.Message}", statusCode: 502);
+            }
+        });
+
         return app;
     }
 

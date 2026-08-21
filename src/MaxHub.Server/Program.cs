@@ -40,6 +40,15 @@ builder.Services.AddSingleton(sp => new RoleService(
     admins, reviewers, publishers));
 builder.Services.AddSingleton(new SigningKeyStore(dataDir));
 builder.Services.AddSingleton(sp => new RegistryStore(dataDir, sp.GetRequiredService<IDbContextFactory<MaxHubDb>>(), sp.GetRequiredService<SigningKeyStore>()));
+builder.Services.AddSingleton<IFeishuMessageSender>(sp =>
+    new FeishuMessageClient(new HttpClient { Timeout = TimeSpan.FromSeconds(10) }, feishuOptions));
+builder.Services.AddSingleton(new FeedbackRateLimiter(builder.Configuration.GetValue("Feedback:MaxPerHour", 10)));
+builder.Services.AddSingleton(sp => new FeedbackService(
+    sp.GetRequiredService<IDbContextFactory<MaxHubDb>>(),
+    sp.GetRequiredService<RegistryStore>(),
+    sp.GetRequiredService<RoleService>(),
+    sp.GetRequiredService<IUserDirectory>(),
+    sp.GetRequiredService<IFeishuMessageSender>()));
 
 var app = builder.Build();
 
@@ -54,6 +63,7 @@ using (var db = app.Services.GetRequiredService<IDbContextFactory<MaxHubDb>>().C
         "ALTER TABLE Users ADD COLUMN Roles TEXT DEFAULT ''",
         """CREATE TABLE IF NOT EXISTS "Users" ("EmployeeId" TEXT NOT NULL CONSTRAINT "PK_Users" PRIMARY KEY, "Username" TEXT NOT NULL)""",
         """CREATE TABLE IF NOT EXISTS "AgentReleases" ("Id" INTEGER NOT NULL CONSTRAINT "PK_AgentReleases" PRIMARY KEY AUTOINCREMENT, "Version" TEXT NOT NULL, "DownloadUrl" TEXT NOT NULL, "Sha256" TEXT NOT NULL, "UpdatedAtUtc" TEXT NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS "Feedbacks" ("Id" INTEGER NOT NULL CONSTRAINT "PK_Feedbacks" PRIMARY KEY AUTOINCREMENT, "Scope" TEXT NOT NULL, "ToolId" TEXT, "ToolName" TEXT, "FromEmployeeId" TEXT NOT NULL, "FromUsername" TEXT NOT NULL, "ToEmployeeIds" TEXT NOT NULL, "Message" TEXT NOT NULL, "Client" TEXT NOT NULL, "ClientVersion" TEXT, "MaxYear" INTEGER, "DeliveryStatus" TEXT NOT NULL, "DeliveryError" TEXT, "AtUtc" TEXT NOT NULL)""",
     })
     {
         try { db.Database.ExecuteSqlRaw(sql); }
@@ -65,6 +75,9 @@ app.Services.GetRequiredService<RegistryStore>().SignMissingSignatures();
 var auth = app.Services.GetRequiredService<AuthService>();
 var registry = app.Services.GetRequiredService<RegistryStore>();
 var roleService = app.Services.GetRequiredService<RoleService>();
+var feedback = app.Services.GetRequiredService<FeedbackService>();
+var feedbackLimiter = app.Services.GetRequiredService<FeedbackRateLimiter>();
+var feedbackPlatformRecipients = builder.Configuration.GetSection("Feedback:PlatformRecipients").Get<string[]>() ?? [];
 
 // GitHub Releases 自动同步 Agent 版本（配置 Agent:GitHubRepo 后启用，如 "BOOHHP/maxhub"）
 GitHubReleaseService? githubReleases = null;
@@ -552,6 +565,75 @@ app.MapPut("/api/v1/admin/users/{employeeId}/roles", (HttpContext ctx, string em
     return Results.Ok();
 });
 
+// ---- 用户反馈（登录即可提交；身份来自会话，客户端不可冒充） ----
+app.MapPost("/api/v1/feedback", async (HttpContext ctx, SubmitFeedbackRequest request) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    var scope = request.Scope == "tool" ? "tool" : request.Scope == "platform" ? "platform" : null;
+    if (scope is null)
+        return Results.BadRequest(new { errors = new[] { "scope 必须为 tool 或 platform。" } });
+    var message = request.Message?.Trim() ?? "";
+    if (message.Length is < 5 or > 2000)
+        return Results.BadRequest(new { errors = new[] { "反馈内容需 5-2000 字。" } });
+    string? toolId = null;
+    if (scope == "tool")
+    {
+        toolId = request.ToolId?.Trim();
+        if (string.IsNullOrWhiteSpace(toolId))
+            return Results.BadRequest(new { errors = new[] { "工具反馈必须指定 toolId。" } });
+    }
+    if (!feedbackLimiter.TryRegister($"{user.EmployeeId}:{scope}", DateTimeOffset.UtcNow))
+        return Results.StatusCode(429);
+    var (recipients, toolName) = feedback.ResolveRecipients(scope, toolId, feedbackPlatformRecipients);
+    if (recipients.Length == 0)
+        return Results.BadRequest(new { errors = new[] { "暂无可用接收人，请联系管理员。" } });
+    var row = feedback.Save(scope, toolId, toolName, user, recipients, message,
+        request.Client ?? "unknown", request.ClientVersion, request.MaxYear);
+    var (status, error) = await feedback.DeliverAsync(row);
+    return Results.Ok(new { feedbackId = row.Id, deliveryStatus = status, deliveryError = error });
+});
+
+// ---- 后台：用户反馈列表与补发 ----
+app.MapGet("/api/v1/admin/feedbacks", (HttpContext ctx) =>
+{
+    if (CurrentUser(ctx) is null) return Results.Unauthorized();
+    if (!IsReviewer(ctx) && !IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    var users = app.Services.GetRequiredService<IUserDirectory>();
+    return Results.Ok(feedback.List().Select(f =>
+    {
+        var toIds = f.ToEmployeeIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var names = users.GetNames(toIds);
+        return new
+        {
+            id = f.Id,
+            scope = f.Scope,
+            toolId = f.ToolId,
+            publicToolId = f.ToolId is null ? null : ToolId.PublicCode(f.ToolId),
+            toolName = f.ToolName,
+            fromEmployeeId = f.FromEmployeeId,
+            fromUsername = f.FromUsername,
+            toUsernames = string.Join("、", toIds.Select(id => names.GetValueOrDefault(id) ?? id)),
+            message = f.Message,
+            client = f.Client,
+            clientVersion = f.ClientVersion,
+            maxYear = f.MaxYear,
+            deliveryStatus = f.DeliveryStatus,
+            deliveryError = f.DeliveryError,
+            atUtc = f.AtUtc,
+        };
+    }));
+});
+
+app.MapPost("/api/v1/admin/feedbacks/{id:int}/redeliver", async (HttpContext ctx, int id) =>
+{
+    if (CurrentUser(ctx) is null) return Results.Unauthorized();
+    if (!IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
+    var row = feedback.Get(id);
+    if (row is null) return Results.NotFound();
+    var (status, error) = await feedback.DeliverAsync(row);
+    return Results.Ok(new { deliveryStatus = status, deliveryError = error });
+});
+
 // ---- 下载（服务端按认证主体记账） ----
 app.MapGet("/downloads/{toolId}/{version}/package.zip", (HttpContext ctx, string toolId, string version) =>
 {
@@ -597,6 +679,7 @@ internal sealed record AnalyzeScriptRequest(string FileName, string Content);
 internal sealed record PublishScriptRequest(string FileName, string Content, string Name, string? Description, string Version, int MinMaxYear, int MaxMaxYear);
 internal sealed record SetAgentReleaseRequest(string Version, string DownloadUrl, string? Sha256);
 internal sealed record UpdateReleaseMetadataRequest(string? Name, string? Description, string? Channel);
+internal sealed record SubmitFeedbackRequest(string Scope, string? ToolId, string Message, string? Client, string? ClientVersion, int? MaxYear);
 
 public partial class Program;
 

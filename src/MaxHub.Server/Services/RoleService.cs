@@ -30,4 +30,17 @@ public sealed class RoleService(IUserDirectory users, string[] bootstrapAdmins, 
     }
 
     public bool IsIn(string[] roles, string role) => roles.Contains(role);
+
+    /// <summary>全部管理员：引导配置 + 数据库中授予 admin 的用户，用于反馈抄送。</summary>
+    public string[] GetAdminEmployeeIds()
+    {
+        var ids = new HashSet<string>(bootstrapAdmins, StringComparer.Ordinal);
+        foreach (var user in users.GetAllUsers())
+            if (IsIn(SplitRoles(user.Roles), Roles.Admin))
+                ids.Add(user.EmployeeId);
+        return ids.OrderBy(id => id, StringComparer.Ordinal).ToArray();
+    }
+
+    private static string[] SplitRoles(string? roles) =>
+        string.IsNullOrWhiteSpace(roles) ? [] : roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }

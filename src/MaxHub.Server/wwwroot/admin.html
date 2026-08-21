@@ -35,6 +35,7 @@
       <button class="side-item admin-only" data-sec="members">成员角色</button>
       <button class="side-item admin-only" data-sec="agent">Agent 版本</button>
       <button class="side-item" data-sec="stats">使用统计</button>
+      <button class="side-item" data-sec="feedbacks">用户反馈<span class="count" id="nav-feedbacks"></span></button>
     </aside>
 
     <div class="side-content">
@@ -91,6 +92,15 @@
         <div class="hint" id="agent-current" style="margin-top:8px"></div>
       </section>
 
+      <section id="sec-feedbacks" hidden>
+        <h2>用户反馈</h2>
+        <p class="subtitle" style="margin-bottom:10px">工具反馈发给上传者并抄送管理员；平台反馈发给平台负责人。投递失败的记录可由管理员补发。</p>
+        <table id="feedback-table">
+          <thead><tr><th>时间</th><th>类型</th><th>对象</th><th>反馈人</th><th>接收人</th><th>内容</th><th>投递</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
       <section id="sec-stats" hidden>
         <h2>使用统计</h2>
         <div class="stat-cards">
@@ -107,6 +117,11 @@
   </div>
 </main>
 
+
+// 反馈内容来自用户输入，渲染前必须转义，防 XSS
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 <div id="msg"></div>
 
 <script src="js/api.js"></script>
@@ -320,6 +335,8 @@ async function refresh() {
     }
   }
 
+  await loadFeedbacks();
+
   const statsRes = await api('/api/v1/admin/stats');
   if (statsRes.ok) {
     const stats = await statsRes.json();
@@ -375,6 +392,38 @@ async function saveAgentRelease() {
   });
   toast(res.ok ? '已保存，立即生效' : (res.status === 403 ? '需要管理员角色' : '保存失败'), res.ok);
   if (res.ok) loadAgentRelease();
+}
+
+// ---- 用户反馈 ----
+async function loadFeedbacks() {
+  const res = await api('/api/v1/admin/feedbacks');
+  if (res.status === 403) {
+    document.querySelector('#feedback-table tbody').innerHTML =
+      '<tr><td colspan="8" class="empty">需要审核者或管理员角色</td></tr>';
+    return;
+  }
+  if (!res.ok) return;
+  const items = await res.json();
+  document.getElementById('nav-feedbacks').textContent = items.length > 0 ? items.length : '';
+  const statusText = { delivered: '✓ 已送达', partial: '◐ 部分送达', failed: '✕ 失败', skipped: '— 未配置', pending: '◌ 待发' };
+  document.querySelector('#feedback-table tbody').innerHTML = items.map(f => `
+    <tr>
+      <td style="white-space:nowrap">${fmt(f.atUtc)}</td>
+      <td>${f.scope === 'tool' ? '工具' : '平台'}</td>
+      <td>${f.scope === 'tool' ? `${esc(f.toolName || '未知工具')}<div style="color:var(--text-3);font-size:11px">${esc(f.publicToolId || '')}</div>` : 'MaxHub 平台'}</td>
+      <td>${esc(f.fromUsername)}</td>
+      <td>${esc(f.toUsernames)}</td>
+      <td style="max-width:340px;white-space:pre-wrap">${esc(f.message)}</td>
+      <td title="${esc(f.deliveryError || '')}">${statusText[f.deliveryStatus] ?? esc(f.deliveryStatus)}</td>
+      <td>${(f.deliveryStatus === 'failed' || f.deliveryStatus === 'partial') ? `<button class="btn-outline" onclick="redeliverFeedback(${f.id})">补发</button>` : ''}</td>
+    </tr>`).join('') || '<tr><td colspan="8" class="empty">暂无用户反馈</td></tr>';
+}
+
+async function redeliverFeedback(id) {
+  const res = await api(`/api/v1/admin/feedbacks/${id}/redeliver`, { method: 'POST' });
+  const body = res.ok ? await res.json() : null;
+  toast(res.ok && body?.deliveryStatus === 'delivered' ? '补发成功' : `补发结果：${body?.deliveryStatus ?? '失败'}`, res.ok && body?.deliveryStatus === 'delivered');
+  if (res.ok) loadFeedbacks();
 }
 
 document.getElementById('feishu-login')?.addEventListener('click', startLogin);

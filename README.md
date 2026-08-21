@@ -39,21 +39,26 @@ MaxHub 是一个面向公司内部 3ds Max 美术/TA 团队的脚本与插件分
 
 ### 服务器
 
-```bash
-cd src/MaxHub.Server
-dotnet run
+```powershell
+dotnet run --project src\MaxHub.Server --urls http://127.0.0.1:5100
 ```
 
-默认监听 `http://0.0.0.0:5100`。首次运行需在 `appsettings.Local.json` 配置飞书应用凭据（该文件已被 git 忽略）。
+以上命令显式使用本地开发地址 `http://127.0.0.1:5100`。不传 `--urls` 时，仓库的 launch profile 默认使用 `http://localhost:5239`。
+
+Development 环境在未配置真实飞书凭据时使用 Mock Provider；只有验证真实飞书 OAuth 时，才需要在 git 忽略的 `appsettings.Local.json` 中配置本地凭据。
 
 ### Agent
 
 ```powershell
+# 开发调试：Agent 默认连接生产环境，必须先指向本地 Server
+$env:MAXHUB_SERVER = 'http://127.0.0.1:5100'
+dotnet run --project src\MaxHub.Agent.Tray
+
 # 发布自包含单文件 exe
 .\tools\publish-agent.ps1
 ```
 
-产物位于 `artifacts/MaxHubAgent-{version}-win-x64.zip`。
+产物位于 `artifacts/MaxHubAgent-{version}-win-x64.exe`。发布脚本同时尽力同步公司局域网镜像，并输出 SHA-256。
 
 ### Connector
 
@@ -89,6 +94,10 @@ tools/                   发布脚本
 ```bash
 dotnet test MaxHub.sln
 ```
+
+## 开发历史
+
+项目从立项到当前版本的架构演进、开发时间线、关键问题与生产发布说明见 [MaxHub-开发文档.md](MaxHub-开发文档.md)。
 
 ## 许可
 

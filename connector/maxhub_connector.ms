@@ -35,6 +35,44 @@ global MaxHubConnector
         ) catch ( undefined )
     )
 
+    fn jsonEscape s =
+    (
+        local sb = ""
+        for c in s do
+        (
+            case c of
+            (
+                #"\\" : sb += "\\\\"
+                #"\"" : sb += "\\\""
+                #"\n" : sb += "\\n"
+                #"\r" : sb += "\\r"
+                #"\t" : sb += "\\t"
+                default : sb += (c as string)
+            )
+        )
+        sb
+    )
+
+    fn httpPostJson url body timeoutMs:10000 =
+    (
+        try (
+            local request = (dotNetClass "System.Net.WebRequest").Create url
+            request.Method = "POST"
+            request.ContentType = "application/json"
+            request.Timeout = timeoutMs
+            local bytes = (dotNetClass "System.Text.Encoding").UTF8.GetBytes body
+            request.ContentLength = bytes.Length
+            local stream = request.GetRequestStream()
+            stream.Write bytes 0 bytes.Length
+            stream.Close()
+            local response = request.GetResponse()
+            local reader = dotNetObject "System.IO.StreamReader" (response.GetResponseStream())
+            local result = reader.ReadToEnd()
+            reader.Close(); response.Close()
+            result
+        ) catch ( undefined )
+    )
+
     fn isAgentOnline =
     (
         (httpGet (agentBaseUrl + "/health")) != undefined
@@ -69,6 +107,7 @@ global MaxHubConnector
         listbox lstTools pos:[12,84] width:524 height:12
         groupBox grpToolDescription "工具详情" pos:[12,278] width:524 height:98
         editText txtToolDescription "" pos:[20,298] width:508 height:70 readOnly:true text:"请选择一个工具查看说明。"
+        button btnFeedback "💬 反馈" pos:[130,398] width:100 height:28 visible:false
         progressBar pbInstall "" pos:[12,382] width:524 height:8 value:0 visible:false color:(color 76 159 224)
         button btnRefresh "刷新列表" pos:[12,398] width:110 height:28 align:#left
         button btnInstall "安装选中" pos:[426,398] width:110 height:28 align:#right
@@ -153,6 +192,7 @@ global MaxHubConnector
             pbInstall.visible = (showDiscover and currentJobId != undefined)
             btnRefresh.visible = showDiscover
             btnInstall.visible = showDiscover
+            btnFeedback.visible = (showDiscover or showInstalled or showUpdates)
             lstInstalled.visible = showInstalled
             lblInstalledTitle.visible = showInstalled
             btnRun.visible = showInstalled
@@ -231,6 +271,7 @@ global MaxHubConnector
             -- 部分 Max 版本的 ProgressBar 运行时不支持 width，失败时保留声明宽度，避免重开面板抛异常
             try ( pbInstall.width = contentW ) catch ()
             btnRefresh.pos = [margin, btnY]
+            btnFeedback.pos = [margin + 118, btnY]
             btnInstall.pos = [w - margin - 110, btnY]
             btnRun.pos = [margin, btnY]
             btnUninstall.pos = [w - margin - 226, btnY]
@@ -610,6 +651,40 @@ global MaxHubConnector
         )
         on btnRefresh pressed do refreshDiscover()
         on btnInstall pressed do installSelected()
+        on btnFeedback pressed do
+        (
+            local toolId = ""; local toolName = ""
+            case currentPage of
+            (
+                1: (
+                    if lstTools.selection > 0 and lstTools.selection <= toolIds.count then (
+                        toolId = toolIds[lstTools.selection]
+                        local line = lstTools.items[lstTools.selection]
+                        local sep = findString line " | "
+                        toolName = if sep != undefined then (substring line 1 (sep - 1)) else line
+                    )
+                )
+                2: (
+                    if lstInstalled.selection > 0 and lstInstalled.selection <= installedIds.count then (
+                        toolId = installedIds[lstInstalled.selection]
+                        local line = lstInstalled.items[lstInstalled.selection]
+                        local sep = findString line " | "
+                        toolName = if sep != undefined then (substring line 1 (sep - 1)) else line
+                    )
+                )
+                3: (
+                    if lstUpdates.selection > 0 and lstUpdates.selection <= updateIds.count then (
+                        toolId = updateIds[lstUpdates.selection]
+                        local line = lstUpdates.items[lstUpdates.selection]
+                        local sep = findString line " | "
+                        toolName = if sep != undefined then (substring line 1 (sep - 1)) else line
+                    )
+                )
+                default: ()
+            )
+            if toolId == "" then ( messageBox "请先在列表中选择一个工具。" title:"MaxHub" )
+            else ( openMaxHubFeedback toolId toolName )
+        )
         on btnRun pressed do runSelected()
         on lstInstalled doubleClicked sel do runSelected()
         on btnUninstall pressed do uninstallSelected()
@@ -621,6 +696,51 @@ global MaxHubConnector
         on btnCopyDiagnostics pressed do copyDiagnostics()
         on maxHubRollout resized size do layoutControls size
         on maxHubRollout open do ( layoutControls [548, 440]; refreshDiscover(); showPage 1 )
+    )
+
+    -- ===== 反馈弹窗：针对当前选中工具，经 Agent 转发并由服务器投飞书 =====
+    global maxHubFeedbackToolId = ""
+
+    rollout maxHubFeedbackRollout "工具反馈"
+    (
+        label lblFeedbackTarget "对象：未选择工具" pos:[12,14] width:356 align:#left
+        editText txtFeedback "" pos:[12,40] width:356 height:96 text:""
+        label lblFeedbackStatus "" pos:[12,142] width:356 height:30 align:#left
+        button btnFeedbackSubmit "提交反馈" pos:[12,178] width:100 height:26
+        button btnFeedbackClose "关闭" pos:[268,178] width:100 height:26
+
+        on btnFeedbackSubmit pressed do
+        (
+            local message = txtFeedback.text
+            if message == "" then ( lblFeedbackStatus.text = "请先填写反馈内容。" )
+            else (
+                lblFeedbackStatus.text = "◌ 提交中…"
+                local body = "{\"message\":\"" + (jsonEscape message) + "\"}"
+                local result = httpPostJson (agentBaseUrl + "/max/feedback?toolId=" + maxHubFeedbackToolId + "&maxYear=" + (currentMaxYear() as string)) body
+                local parts = if result != undefined then (filterString result "|") else #()
+                if parts.count >= 1 and parts[1] == "ok" then (
+                    lblFeedbackStatus.text = "✓ 已提交，上传者会收到飞书消息。"
+                    txtFeedback.text = ""
+                ) else (
+                    lblFeedbackStatus.text = "✕ " + (if parts.count >= 2 then parts[2] else "Agent 无响应，请稍后重试。")
+                )
+            )
+        )
+
+        on btnFeedbackClose pressed do destroyDialog maxHubFeedbackRollout
+    )
+
+    -- 全局入口：主 rollout 的反馈按钮调用；弹窗已打开则只刷新对象
+    fn openMaxHubFeedback toolId toolName =
+    (
+        maxHubFeedbackToolId = toolId
+        if (isValid maxHubFeedbackRollout) == false then (
+            createDialog maxHubFeedbackRollout width:380 height:216 \
+                style:#(#style_titlebar, #style_border, #style_sysmenu)
+        )
+        maxHubFeedbackRollout.lblFeedbackTarget.text = "对象：" + toolName
+        maxHubFeedbackRollout.txtFeedback.text = ""
+        maxHubFeedbackRollout.lblFeedbackStatus.text = ""
     )
 
     struct MaxHubConnectorStruct

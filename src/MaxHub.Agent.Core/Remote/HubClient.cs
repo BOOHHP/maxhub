@@ -131,6 +131,27 @@ public sealed class HubClient(HttpClient http)
         response.EnsureSuccessStatusCode();
     }
 
+    public sealed record FeedbackOutcome(bool Success, string DeliveryStatus, string? Error);
+
+    /// <summary>提交用户反馈；身份由服务端会话推导，客户端只传内容与上下文。</summary>
+    public async Task<FeedbackOutcome> SubmitFeedbackAsync(
+        string scope, string? toolId, string message, string client, string? clientVersion, int? maxYear)
+    {
+        var response = await http.PostAsJsonAsync("/api/v1/feedback",
+            new { scope, toolId, message, client, clientVersion, maxYear });
+        if (!response.IsSuccessStatusCode)
+        {
+            var detail = response.StatusCode == (System.Net.HttpStatusCode)429
+                ? "反馈过于频繁，请稍后再试。"
+                : $"提交失败（{(int)response.StatusCode}）。";
+            return new FeedbackOutcome(false, "", detail);
+        }
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var status = json.TryGetProperty("deliveryStatus", out var s) ? s.GetString() ?? "" : "";
+        var error = json.TryGetProperty("deliveryError", out var e) ? e.GetString() : null;
+        return new FeedbackOutcome(true, status, error);
+    }
+
     public sealed record PublishOutcome(bool Success, string? ReleaseId, string[] Errors);
 
     public async Task<PublishOutcome> PublishAsync(string zipPath)

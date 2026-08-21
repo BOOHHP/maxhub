@@ -49,6 +49,7 @@ public partial class App : Application
         var account = new AccountViewModel(_services);
         var connectors = new ConnectorsViewModel(_services, account);
         var tools = new ToolsViewModel(_services, account);
+        var feedback = new FeedbackViewModel(_services, account);
         var currentVersion = CurrentVersion;
         var updatedVersion = GetAfterUpdateVersion(e.Args, currentVersion);
         var statePath = Path.Combine(_services.AgentRoot, "release-notes-state.json");
@@ -63,7 +64,7 @@ public partial class App : Application
         var releaseNotes = new ReleaseNotesViewModel(
             currentVersion,
             shouldAutoShow ? currentVersion : null);
-        _mainWindow = new MainWindow(account, connectors, tools, releaseNotes, shouldAutoShow);
+        _mainWindow = new MainWindow(account, connectors, tools, feedback, releaseNotes, shouldAutoShow);
 
         if (account.IsLoggedIn)
             _services.StartLocalServer();
@@ -89,6 +90,8 @@ public partial class App : Application
 
         var openItem = new MenuItem { Header = "打开 MaxHub Agent", FontWeight = FontWeights.Bold };
         openItem.Click += (_, _) => _mainWindow.ShowFromTray();
+        var feedbackItem = new MenuItem { Header = "反馈" };
+        feedbackItem.Click += (_, _) => _mainWindow.ShowFeedbackPage();
         var autoStartItem = new MenuItem { Header = "开机自启", IsCheckable = true, IsChecked = IsAutoStartEnabled() };
         autoStartItem.Click += (_, _) => SetAutoStart(autoStartItem.IsChecked);
         var exitItem = new MenuItem { Header = "退出程序" };
@@ -96,6 +99,7 @@ public partial class App : Application
 
         var menu = new ContextMenu();
         menu.Items.Add(openItem);
+        menu.Items.Add(feedbackItem);
         menu.Items.Add(new Separator());
         menu.Items.Add(loginStatus);
         menu.Items.Add(autoStartItem);

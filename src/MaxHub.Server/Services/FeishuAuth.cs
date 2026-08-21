@@ -66,7 +66,10 @@ public sealed class FeishuPassportClient(HttpClient http, FeishuAuthOptions opti
         var employeeId = FirstNonEmpty(userJson, "user_id", "open_id", "sub")
             ?? throw new FeishuAuthException($"飞书用户信息缺少可用 ID：{userJson.GetRawText()}");
         var username = FirstNonEmpty(userJson, "name", "en_name") ?? employeeId;
-        return new EmployeeIdentity(employeeId, username);
+        // 保留飞书原始标识，供应用消息投递（im/v1/messages）使用
+        var openId = FirstNonEmpty(userJson, "open_id");
+        var userId = FirstNonEmpty(userJson, "user_id");
+        return new EmployeeIdentity(employeeId, username, openId, userId);
     }
 
     private static async Task<JsonElement> ParseAsync(HttpResponseMessage response, string step, CancellationToken cancellationToken)
