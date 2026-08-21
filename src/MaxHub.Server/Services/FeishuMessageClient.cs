@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Text.Json;
 using MaxHub.Server.Domain;
 
@@ -68,10 +69,13 @@ public sealed class FeishuMessageClient(HttpClient http, FeishuAuthOptions optio
 
     private async Task PostAsync(string type, string receiveId, string text, string token, CancellationToken cancellationToken)
     {
-        using var response = await http.PostAsJsonAsync(
-            $"{BaseUrl}/open-apis/im/v1/messages?receive_id_type={type}",
-            new { receive_id = receiveId, msg_type = "text", content = JsonSerializer.Serialize(new { text }) },
-            cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            $"{BaseUrl}/open-apis/im/v1/messages?receive_id_type={type}")
+        {
+            Content = JsonContent.Create(new { receive_id = receiveId, msg_type = "text", content = JsonSerializer.Serialize(new { text }) }),
+        };
+        request.Headers.Authorization = new("Bearer", token);
+        using var response = await http.SendAsync(request, cancellationToken);
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
         using var json = JsonDocument.Parse(body);
         var code = json.RootElement.TryGetProperty("code", out var codeProp) ? codeProp.GetInt32() : -1;
