@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>MaxHub 使用说明</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121820;
+      --panel-2: #171f29;
+      --ink: #eef4f8;
+      --muted: #9aa9b8;
+      --line: #283442;
+      --accent: #49b9e8;
+      --accent-2: #8bd8f4;
+      --success: #61d095;
+      --warn: #f0b86e;
+      --danger: #ee7d7d;
+      --shadow: 0 18px 50px rgba(0,0,0,.28);
+      --radius: 12px;
+      --sidebar: 260px;
+    }
+    :root[data-theme="light"] {
+      --bg: #edf2f5;
+      --panel: #ffffff;
+      --panel-2: #f4f7f9;
+      --ink: #15202a;
+      --muted: #5e6d79;
+      --line: #d8e0e5;
+      --accent: #087fae;
+      --accent-2: #005f87;
+      --success: #167a4b;
+      --warn: #9a5d08;
+      --danger: #b73a3a;
+      --shadow: 0 16px 40px rgba(38,58,72,.12);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 28px; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 84% 4%, rgba(73,185,232,.09), transparent 28rem),
+        var(--bg);
+      font: 15px/1.7 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    }
+    button, input { font: inherit; }
+    a { color: var(--accent-2); }
+    .shell { display: grid; grid-template-columns: var(--sidebar) minmax(0,1fr); min-height: 100vh; }
+    aside {
+      position: sticky; top: 0; height: 100vh; overflow: auto;
+      padding: 26px 18px 22px; background: color-mix(in srgb, var(--panel) 94%, transparent);
+      border-right: 1px solid var(--line); z-index: 5;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 0 8px 20px; }
+    .brand-mark {
+      width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--accent);
+      color: var(--accent-2); font-weight: 800; letter-spacing: -.08em; border-radius: 9px;
+      background: linear-gradient(145deg, rgba(73,185,232,.14), transparent);
+    }
+    .brand strong { display:block; font-size: 18px; letter-spacing: .02em; }
+    .brand small { color: var(--muted); }
+    .nav-label { padding: 11px 10px 5px; color: var(--muted); font-size: 11px; letter-spacing: .12em; }
+    nav a {
+      display: block; padding: 8px 10px; margin: 2px 0; border-radius: 7px;
+      color: var(--muted); text-decoration: none; transition: .16s ease;
+    }
+    nav a:hover, nav a.active { color: var(--ink); background: var(--panel-2); }
+    nav a.active { box-shadow: inset 2px 0 var(--accent); }
+    .side-meta { border-top: 1px solid var(--line); margin-top: 18px; padding: 16px 10px 0; color: var(--muted); font-size: 12px; }
+    main { min-width: 0; }
+    .topbar {
+      display:flex; gap: 10px; justify-content:flex-end; align-items:center;
+      max-width: 1120px; margin:auto; padding: 20px 34px 0;
+    }
+    .search { position:relative; max-width: 320px; flex: 1; }
+    .search input {
+      width:100%; min-height: 42px; border:1px solid var(--line); border-radius: 9px;
+      padding: 9px 13px 9px 38px; color:var(--ink); background:var(--panel);
+    }
+    .search::before { content:"⌕"; position:absolute; left:13px; top:6px; color:var(--muted); font-size:21px; }
+    .action {
+      min-height: 42px; padding: 8px 13px; border:1px solid var(--line); border-radius:9px;
+      color:var(--ink); background:var(--panel); cursor:pointer;
+    }
+    .action:hover { border-color: var(--accent); }
+    .content { max-width: 1120px; margin:auto; padding: 22px 34px 80px; }
+    .hero {
+      position: relative; overflow:hidden; min-height: 360px; display:grid; align-items:end;
+      padding: 50px; border:1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow:var(--shadow);
+    }
+    .hero::after {
+      content:"MAX"; position:absolute; right:-25px; top:-85px; color:transparent;
+      -webkit-text-stroke: 1px color-mix(in srgb, var(--accent) 24%, transparent);
+      font-weight:900; font-size:250px; line-height:1; letter-spacing:-.08em; pointer-events:none;
+    }
+    .eyebrow { color:var(--accent-2); font-weight:700; letter-spacing:.12em; font-size:12px; }
+    h1 { margin: 10px 0 12px; font-size: clamp(42px, 7vw, 78px); line-height:.98; letter-spacing:-.055em; }
+    .hero p { max-width: 670px; color:var(--muted); font-size:18px; margin:0 0 26px; }
+    .hero-actions { display:flex; flex-wrap:wrap; gap:10px; }
+    .primary-link, .secondary-link {
+      display:inline-flex; align-items:center; min-height:44px; padding:9px 16px; border-radius:9px;
+      text-decoration:none; font-weight:700;
+    }
+    .primary-link { background:var(--accent); color:#061017; }
+    .secondary-link { border:1px solid var(--line); color:var(--ink); background:var(--panel-2); }
+    section { margin-top: 54px; }
+    .section-head { display:grid; grid-template-columns: 90px 1fr; gap: 18px; align-items:start; margin-bottom:22px; }
+    .section-no { color:var(--accent); font: 700 13px/1.2 ui-monospace, Consolas, monospace; padding-top: 8px; }
+    h2 { margin:0; font-size: clamp(27px, 4vw, 40px); line-height:1.15; letter-spacing:-.035em; }
+    h3 { margin:0 0 8px; font-size:18px; line-height:1.35; }
+    p { margin: 0 0 13px; }
+    .lede { color:var(--muted); margin-top:8px; max-width:760px; }
+    .route {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:1px; padding:1px; overflow:hidden;
+      border:1px solid var(--line); border-radius:var(--radius); background:var(--line);
+    }
+    .route article { min-height:190px; padding:24px; background:var(--panel); }
+    .route .tag, .pill {
+      display:inline-block; padding:3px 8px; color:var(--accent-2); border:1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+      border-radius:999px; font-size:11px; font-weight:700; letter-spacing:.05em;
+    }
+    .route p, .card p { color:var(--muted); }
+    .flow { display:flex; align-items:stretch; gap:10px; margin-top:14px; }
+    .flow .node { flex:1; padding:15px; background:var(--panel-2); border-radius:9px; text-align:center; }
+    .flow .arrow { display:grid; place-items:center; color:var(--accent); font-size:20px; }
+    .steps { counter-reset: step; display:grid; gap:12px; }
+    .step {
+      counter-increment:step; display:grid; grid-template-columns:54px 1fr auto; gap:17px; align-items:start;
+      padding:20px; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    }
+    .step::before {
+      content:counter(step, decimal-leading-zero); display:grid; place-items:center; width:44px; height:44px;
+      border-radius:8px; background:var(--panel-2); color:var(--accent); font:700 14px ui-monospace,Consolas,monospace;
+    }
+    .step p { color:var(--muted); margin:0; }
+    .step .result { color:var(--success); font-size:12px; white-space:nowrap; padding-top:4px; }
+    .grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px; }
+    .card { padding:22px; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); }
+    .card ul, .role-card ul { margin:8px 0 0; padding-left:20px; }
+    .card li, .role-card li { margin:5px 0; }
+    .screen {
+      display:grid; grid-template-columns: 170px 1fr; border:1px solid var(--line); border-radius:var(--radius);
+      overflow:hidden; background:var(--panel); min-height:350px;
+    }
+    .screen-nav { padding:16px; background:#0e151c; color:#a9b7c4; }
+    :root[data-theme="light"] .screen-nav { background:#e5ebef; color:#475863; }
+    .screen-nav strong { display:block; color:var(--ink); margin-bottom:16px; }
+    .screen-nav span { display:block; padding:8px 10px; margin-bottom:4px; border-radius:6px; }
+    .screen-nav span:nth-child(3) { background:rgba(73,185,232,.16); color:var(--accent-2); }
+    .screen-main { padding:24px; }
+    .screen-tabs { display:flex; gap:5px; margin-bottom:20px; border-bottom:1px solid var(--line); }
+    .screen-tabs span { padding:7px 10px; color:var(--muted); }
+    .screen-tabs span:first-child { color:var(--ink); border-bottom:2px solid var(--accent); }
+    .fake-row { display:grid; grid-template-columns:1fr 100px 88px; gap:10px; align-items:center; padding:13px 0; border-bottom:1px solid var(--line); }
+    .fake-row small { color:var(--muted); }
+    .fake-button { padding:6px 10px; border-radius:6px; text-align:center; color:#061017; background:var(--accent); font-weight:700; font-size:12px; }
+    .notice { margin-top:16px; padding:14px 16px; border:1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); border-radius:9px; color:var(--warn); background:color-mix(in srgb, var(--warn) 7%, var(--panel)); }
+    .roles { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
+    .role-card { padding:18px; border-top:3px solid var(--accent); background:var(--panel); border-radius:4px 4px var(--radius) var(--radius); }
+    .role-card:nth-child(2) { border-color:#7fd3b0; }
+    .role-card:nth-child(3) { border-color:#d0a9ef; }
+    .role-card:nth-child(4) { border-color:#f0b86e; }
+    .section-body { margin-left:108px; }
+    .faq-list { overflow:hidden; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); }
+    details { border-top:1px solid var(--line); background:var(--panel); }
+    details:first-child { border-top:0; }
+    summary { cursor:pointer; min-height:56px; padding:15px 18px; font-weight:700; list-style:none; }
+    summary::after { content:"+"; float:right; color:var(--accent); font-size:20px; }
+    summary:focus-visible { outline:2px solid var(--accent); outline-offset:-3px; }
+    details[open] summary::after { content:"–"; }
+    details > div { color:var(--muted); padding:0 48px 18px 18px; }
+    .checklist { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .check { display:flex; gap:10px; padding:13px 15px; border:1px solid var(--line); border-radius:9px; background:var(--panel); }
+    .check::before { content:"□"; color:var(--accent); font-size:20px; line-height:1.1; }
+    .support { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .support .pill { color:var(--muted); border-color:var(--line); }
+    .empty-search { display:none; margin:40px 0; padding:30px; text-align:center; color:var(--muted); border:1px dashed var(--line); border-radius:var(--radius); }
+    footer { color:var(--muted); margin-top:60px; padding-top:20px; border-top:1px solid var(--line); font-size:12px; }
+    @media (max-width: 900px) {
+      .shell { grid-template-columns:1fr; }
+      aside { position:relative; height:auto; border-right:0; border-bottom:1px solid var(--line); }
+      aside nav, aside .nav-label, .side-meta { display:none; }
+      .brand { padding-bottom:0; }
+      .route, .roles { grid-template-columns:1fr 1fr; }
+      .topbar, .content { padding-left:20px; padding-right:20px; }
+    }
+    @media (max-width: 640px) {
+      .hero { padding:30px 24px; min-height:420px; }
+      .hero::after { font-size:160px; top:-45px; }
+      .route, .grid, .roles, .checklist { grid-template-columns:1fr; }
+      .section-head { grid-template-columns:1fr; gap:5px; }
+      .section-body { margin-left:0; }
+      .step { grid-template-columns:46px 1fr; }
+      .step .result { grid-column:2; }
+      .flow { flex-direction:column; }
+      .flow .arrow { transform:rotate(90deg); }
+      .screen { grid-template-columns:1fr; }
+      .screen-nav { display:none; }
+      .fake-row { grid-template-columns:1fr 70px; }
+      .fake-row small { display:none; }
+      .topbar { flex-wrap:wrap; }
+      .search { max-width:none; flex-basis:100%; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior:auto; } * { transition:none !important; } }
+    @media print {
+      :root { --bg:#fff; --panel:#fff; --panel-2:#f4f4f4; --ink:#111; --muted:#444; --line:#bbb; --accent:#087fae; --accent-2:#087fae; }
+      aside, .topbar { display:none; }
+      .shell { display:block; }
+      .content { max-width:none; padding:0; }
+      .hero { min-height:0; box-shadow:none; page-break-after:always; }
+      section { break-inside:avoid; margin-top:34px; }
+      details > div { display:block; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand"><div class="brand-mark">MH</div><div><strong>MaxHub</strong><small>使用说明</small></div></div>
+      <div class="nav-label">快速开始</div>
+      <nav>
+        <a href="#overview">认识 MaxHub</a>
+        <a href="#first-use">第一次使用</a>
+        <a href="#daily">日常使用</a>
+        <a href="#agent">Agent 指南</a>
+        <a href="#publish">发布与管理</a>
+        <a href="#troubleshoot">故障速查</a>
+        <a href="#checklist">检查清单</a>
+      </nav>
+      <div class="side-meta">Agent 1.0.22<br>Connector 1.5.7<br>更新于 2026-08-21</div>
+    </aside>
+
+    <main>
+      <div class="topbar">
+        <label class="search"><input id="guide-search" type="search" placeholder="搜索：安装、更新、反馈…" aria-label="搜索说明"></label>
+        <button class="action" id="theme-button" type="button">切换主题</button>
+        <button class="action" type="button" onclick="window.print()">打印 / PDF</button>
+      </div>
+
+      <div class="content">
+        <header class="hero searchable" id="overview">
+          <div>
+            <div class="eyebrow">3DS MAX · TOOL DISTRIBUTION</div>
+            <h1>MaxHub<br>使用说明</h1>
+            <p>从下载 Agent 到在 3ds Max 内安装、运行、更新脚本，一页看懂。普通使用者先完成下面四步即可。</p>
+            <div class="hero-actions">
+              <a class="primary-link" href="#first-use">开始第一次使用</a>
+              <a class="secondary-link" href="http://10.2.13.8:5100/index.html">打开公司内网工具市场</a>
+            </div>
+          </div>
+        </header>
+
+        <section class="searchable">
+          <div class="section-head"><div class="section-no">00 / 架构</div><div><h2>三个入口，各做一件事</h2><p class="lede">服务器负责提供可信工具，Agent 负责安全安装，Connector 负责把工具带进当前 3ds Max。</p></div></div>
+          <div class="route">
+            <article><span class="tag">WEB</span><h3>工具市场</h3><p>浏览工具；发布者提交脚本；审核者与管理员处理发布和平台治理。</p></article>
+            <article><span class="tag">WINDOWS</span><h3>MaxHub Agent</h3><p>飞书登录、检测本机 Max、安装 Connector、管理工具和自动更新。</p></article>
+            <article><span class="tag">3DS MAX</span><h3>MaxHub 工具中心</h3><p>发现、安装、运行、更新、卸载、回滚工具，并查看环境与诊断。</p></article>
+          </div>
+          <div class="flow" aria-label="MaxHub 工作流">
+            <div class="node">公司服务器</div><div class="arrow">→</div><div class="node">Windows Agent</div><div class="arrow">→</div><div class="node">3ds Max 工具中心</div>
+          </div>
+        </section>
+
+        <section class="searchable" id="first-use">
+          <div class="section-head"><div class="section-no">01 / 首次</div><div><h2>第一次使用，只需四步</h2><p class="lede">全程需要公司内网、Windows 和飞书账号。每个要使用的 Max 年份都要安装一次 Connector。</p></div></div>
+          <div class="steps">
+            <article class="step"><div><h3>下载并启动 Agent</h3><p>打开内网工具市场，点击“下载最新版”，运行下载到本机的 MaxHubAgent EXE。它会自动扫描 3ds Max 2019–2026。</p></div><span class="result">结果：显示本机 Max</span></article>
+            <article class="step"><div><h3>飞书扫码登录</h3><p>在“账号”页点击“飞书扫码登录”，在浏览器中用飞书 App 授权。回到 Agent 后确认显示“登录有效，自动续期中”。</p></div><span class="result">结果：账号已连接</span></article>
+            <article class="step"><div><h3>安装 Connector</h3><p>打开“Connector 管理”，为单个 Max 点击安装，或使用“全部安装”。多个 Max 年份需要分别安装。</p></div><span class="result">结果：各年份已安装</span></article>
+            <article class="step"><div><h3>重启 3ds Max</h3><p>工具中心通常随 Max 启动自动打开；也可以在“宏 / 工具栏”中搜索 MaxHub 手动打开。</p></div><span class="result">结果：Agent 已连接</span></article>
+          </div>
+          <div class="notice">关键：关闭 Agent 主窗口只会隐藏到托盘。让 Agent 保持运行，3ds Max 内的工具中心才能联网、安装和更新。</div>
+        </section>
+
+        <section class="searchable" id="daily">
+          <div class="section-head"><div class="section-no">02 / 日常</div><div><h2>在 3ds Max 内完成日常工作</h2><p class="lede">工具中心分为“发现、已安装、更新、环境、诊断”五页。</p></div></div>
+          <div class="screen" aria-label="MaxHub 工具中心示意">
+            <div class="screen-nav"><strong>MaxHub Agent</strong><span>账号</span><span>Connector</span><span>工具管理</span><span>反馈</span></div>
+            <div class="screen-main">
+              <div class="screen-tabs"><span>发现</span><span>已安装</span><span>更新</span><span>环境</span><span>诊断</span></div>
+              <div class="fake-row"><div><strong>场景批量重命名</strong><br><small>场景管理 · Max 2019–2026</small></div><small>v1.2.0</small><div class="fake-button">安装选中</div></div>
+              <div class="fake-row"><div><strong>快速导出</strong><br><small>导出工具 · Max 2021–2026</small></div><small>v2.0.1</small><div class="fake-button">安装选中</div></div>
+              <div class="fake-row"><div><strong>启动环境检查</strong><br><small>诊断工具 · Max 2019–2026</small></div><small>v1.0.0</small><div class="fake-button">安装选中</div></div>
+            </div>
+          </div>
+          <div class="grid" style="margin-top:14px">
+            <article class="card"><h3>发现与安装</h3><p>选中工具，检查版本、适用 Max 范围与说明，再点击“安装选中”。普通脚本可立即运行；Startup 工具需重启 Max。</p></article>
+            <article class="card"><h3>运行</h3><p>进入“已安装”，点击“运行选中”，或直接双击工具。脚本由当前 3ds Max 执行。</p></article>
+            <article class="card"><h3>更新</h3><p>进入“更新”，处理单个工具或点击“全部更新”。涉及 Startup 文件时，更新后重启 Max。</p></article>
+            <article class="card"><h3>卸载与回滚</h3><p>在“已安装”中选择对应操作。人工修改过的文件会被保留并报告冲突，避免误删。</p></article>
+            <article class="card"><h3>环境与诊断</h3><p>查看 Agent、当前 Max、已安装与可更新数量。遇到问题先“重新检查”，再“复制摘要”。</p></article>
+            <article class="card"><h3>工具反馈</h3><p>在前三页选中工具后点击“反馈”。内容会发给最新版本上传者并抄送管理员。</p></article>
+          </div>
+        </section>
+
+        <section class="searchable" id="agent">
+          <div class="section-head"><div class="section-no">03 / AGENT</div><div><h2>Agent 是后台中枢</h2><p class="lede">它负责身份、下载验签、安装账本、Connector 和本机工具。退出 Agent 后，Max 内工具中心将不可用。</p></div></div>
+          <div class="grid">
+            <article class="card"><h3>账号</h3><ul><li>飞书登录 / 退出</li><li>查看服务器与登录状态</li><li>检查 Agent 更新</li><li>查看中文更新日志</li></ul></article>
+            <article class="card"><h3>Connector 管理</h3><ul><li>重新检测本机 Max</li><li>单个或全部安装 Connector</li><li>更新 / 同步 Connector</li><li>从 Agent 直接“打开 Max”</li></ul></article>
+            <article class="card"><h3>工具管理</h3><ul><li>本机工具：查看与卸载</li><li>市场：选择 Max 年份后安装</li><li>上传脚本：自动识别并提交审核</li></ul></article>
+            <article class="card"><h3>平台反馈</h3><p>MaxHub 平台本身有问题时，在 Agent“反馈”页提交 5–2000 字纯文本，内容会送达平台负责人。</p></article>
+          </div>
+        </section>
+
+        <section class="searchable" id="publish">
+          <div class="section-head"><div class="section-no">04 / 角色</div><div><h2>按角色使用发布与管理功能</h2><p class="lede">所有人都可浏览；上传、审核和治理需要管理员预先分配角色。</p></div></div>
+          <div class="roles">
+            <article class="role-card"><h3>普通用户</h3><ul><li>浏览市场</li><li>安装与运行</li><li>更新与反馈</li></ul></article>
+            <article class="role-card"><h3>发布者</h3><ul><li>脚本直传</li><li>ZIP 工具包</li><li>查看提交状态</li></ul></article>
+            <article class="role-card"><h3>审核者</h3><ul><li>通过 / 退回</li><li>编辑元数据</li><li>撤回与统计</li></ul></article>
+            <article class="role-card"><h3>管理员</h3><ul><li>成员角色</li><li>Agent / Connector</li><li>反馈补发</li></ul></article>
+          </div>
+          <div class="grid" style="margin-top:14px">
+            <article class="card"><h3>推荐：脚本直传</h3><p>选择 `.ms`、`.mcr` 或 `.py`，系统自动识别名称与描述。确认版本号、Max 兼容范围和更新说明后提交审核。</p></article>
+            <article class="card"><h3>高级：ZIP 工具包</h3><p>ZIP 根目录需包含 `manifest.json` 与 `payload/`。适合多文件或需要精确安装位置的工具。</p></article>
+          </div>
+          <div class="notice">当前不自动管理第三方原生 `.dlu`、`.dlm`、`.dll` 插件；不要把这类文件当作普通脚本包发布。</div>
+        </section>
+
+        <section class="searchable" id="troubleshoot">
+          <div class="section-head"><div class="section-no">05 / 排障</div><div><h2>故障速查</h2><p class="lede">先检查 Agent，再检查 Connector，最后复制诊断摘要反馈。</p></div></div>
+          <div class="section-body faq-list">
+            <details open><summary>3ds Max 内显示“Agent 未响应”</summary><div>确认 Windows 托盘中有 MaxHub Agent；若没有则启动它。确认已登录且服务器地址正确，再到工具中心“环境”页点击“重新检查”。</div></details>
+          <details><summary>MaxHub 面板没有出现</summary><div>确认对应 Max 年份已安装 Connector；安装或更新后重启 Max；在“宏 / 工具栏”中搜索 MaxHub。仍异常时复制“诊断”摘要并提交平台反馈。</div></details>
+          <details><summary>看不到工具或安装按钮不可用</summary><div>确认 Agent 正在运行并已登录、公司服务器可访问、工具支持当前 Max 年份，然后刷新列表。</div></details>
+          <details><summary>安装成功但工具没有生效</summary><div>普通脚本到“已安装”页双击运行；Startup 工具需重启 Max；MacroScript 请在 Max 的宏或自定义工具栏中寻找入口。</div></details>
+          <details><summary>卸载后仍有文件</summary><div>文件很可能在安装后被人工修改。MaxHub 会保留它并报告冲突，不会强制删除；确认用途后再人工处理。</div></details>
+          <details><summary>Agent、Connector 或工具如何更新</summary><div>Agent：账号页“检查更新”；Connector：Connector 管理页更新或同步后重启 Max；工具：Max 工具中心“更新”页。</div></details>
+            <details><summary>服务器暂时不可访问</summary><div>Agent 1.0.22 仍可启动并保留凭据，但登录、市场、安装和反馈等联网功能暂不可用。服务器恢复后重新检查或重启 Agent。</div></details>
+          </div>
+        </section>
+
+        <section class="searchable" id="checklist">
+          <div class="section-head"><div class="section-no">06 / 检查</div><div><h2>首次使用检查清单</h2><p class="lede">六项全部满足，就可以开始使用。</p></div></div>
+          <div class="checklist">
+            <div class="check">已启动 MaxHub Agent</div><div class="check">已完成飞书扫码登录</div>
+            <div class="check">Agent 已识别正确 Max 年份</div><div class="check">已为目标 Max 安装 Connector</div>
+            <div class="check">安装后已重启 3ds Max</div><div class="check">工具中心显示 Agent 已连接</div>
+          </div>
+          <div class="support"><span class="pill">支持 Max 2019–2026</span><span class="pill">当前生产 Agent 1.0.22</span><span class="pill">当前 Connector 1.5.7</span><span class="pill">Max 2025 已真机验证</span></div>
+        </section>
+
+        <div class="empty-search" id="empty-search">没有找到相关内容。可尝试“安装”“Agent”“反馈”或“更新”。</div>
+        <footer>MaxHub 内部使用说明 · 内容依据当前项目代码、界面与开发文档整理 · 生产入口仅在公司网络环境下可用</footer>
+      </div>
+    </main>
+  </div>
+  <script>
+    const root = document.documentElement;
+    const themeButton = document.getElementById('theme-button');
+    const savedTheme = localStorage.getItem('maxhub-guide-theme');
+    if (savedTheme) root.dataset.theme = savedTheme;
+    themeButton.addEventListener('click', () => {
+      const next = root.dataset.theme === 'light' ? 'dark' : 'light';
+      root.dataset.theme = next;
+      localStorage.setItem('maxhub-guide-theme', next);
+    });
+
+    const sections = [...document.querySelectorAll('.searchable')];
+    const empty = document.getElementById('empty-search');
+    document.getElementById('guide-search').addEventListener('input', event => {
+      const query = event.target.value.trim().toLocaleLowerCase('zh-CN');
+      let visible = 0;
+      sections.forEach(section => {
+        const match = !query || section.textContent.toLocaleLowerCase('zh-CN').includes(query);
+        section.hidden = !match;
+        if (match) visible += 1;
+      });
+      empty.style.display = visible ? 'none' : 'block';
+    });
+
+    const navLinks = [...document.querySelectorAll('nav a')];
+    const observed = navLinks.map(link => document.querySelector(link.hash)).filter(Boolean);
+    let navFrame = 0;
+    const updateActiveNav = () => {
+      navFrame = 0;
+      const marker = window.scrollY + window.innerHeight * .32;
+      const current = observed.reduce((active, section) => section.offsetTop <= marker ? section : active, observed[0]);
+      navLinks.forEach(link => link.classList.toggle('active', Boolean(current) && link.hash === '#' + current.id));
+    };
+    window.addEventListener('scroll', () => {
+      if (!navFrame) navFrame = requestAnimationFrame(updateActiveNav);
+    }, { passive:true });
+    window.addEventListener('resize', updateActiveNav);
+    updateActiveNav();
+  </script>
+</body>
+</html>

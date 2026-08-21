@@ -71,6 +71,21 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
     }
 
     [Fact]
+    public async Task Admin_page_keeps_feedback_helpers_inside_script_block()
+    {
+        // 回归：esc 转义函数曾被误放到 <script> 外，导致后台页渲染出 JS 文本且反馈列表报错空白
+        var html = await fixture.CreateClient().GetStringAsync("/admin.html");
+        var scriptStart = html.LastIndexOf("<script>", StringComparison.Ordinal);
+        var escDef = html.IndexOf("function esc(s)", StringComparison.Ordinal);
+        var mainEnd = html.IndexOf("</main>", StringComparison.Ordinal);
+
+        Assert.True(scriptStart > 0);
+        Assert.True(escDef > scriptStart);
+        Assert.True(escDef > mainEnd);
+        Assert.DoesNotContain("</main>\n\n\n// 反馈内容来自用户输入", html);
+    }
+
+    [Fact]
     public async Task Anonymous_feedback_is_rejected()
     {
         var client = fixture.CreateClient();
