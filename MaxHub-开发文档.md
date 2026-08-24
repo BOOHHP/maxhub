@@ -4,8 +4,8 @@
 >
 > - 项目周期：2026-08-18 至今
 > - 文档更新：2026-08-21
-> - 当前 Agent：1.0.23
-> - 当前 Connector：1.5.11
+> - 当前 Agent：1.0.24
+> - 当前 Connector：1.5.12
 > - 生产地址：http://10.2.13.8:5100
 > - 代码仓库：https://github.com/BOOHHP/maxhub
 
@@ -557,10 +557,10 @@ dotnet test MaxHub.sln --no-restore
 | --- | ---: |
 | MaxHub.Core.Tests | 57 |
 | MaxHub.Agent.Tests | 51 |
-| MaxHub.Server.Tests | 61 |
-| **合计** | **169** |
+| MaxHub.Server.Tests | 63 |
+| **合计** | **171** |
 
-当前完整测试为 169/169 通过。
+当前完整测试为 171/171 通过。
 
 ### 10.3 发布 Agent
 
@@ -617,6 +617,7 @@ GitHub Release 使用版本标签 `v{version}`，资产名必须与 Server 镜�
 | 工具中心打开报“show 位于 undefined” | MaxScript 的 `case … of` 左括号换行，脚本加载即编译失败 | 左括号与 `of` 同行（1.5.8），并新增全文件 case 语法回归测试 |
 | 点击工具反馈报 undefined 类型错误 | 从列表显示文本查找不存在的 `" | "` 分隔符，`findString` 返回 undefined | 三类列表分别缓存工具名称，反馈按选择索引直接读取（1.5.10） |
 | 点击反馈报“调用需要函数或类，得到 undefined” | 主 rollout 编译时尚未声明后置的 `openMaxHubFeedback` 函数 | 在主 rollout 前前向声明入口，移除 rollout `isValid` 调用；真实 Max 主动调用反馈弹窗验证为 OK（1.5.11） |
+| 反馈提交报“Agent 无响应” | Agent 未运行或旧版本无反馈接口；服务端校验错误被笼统状态码吞掉 | 1.0.24/1.5.12：本地预检字数、透传服务端 errors、未启动时提示“请先启动 Agent” |
 
 ## 12. 版本演进摘要
 
@@ -654,8 +655,9 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 | 1.5.9 | 移除不兼容的字符字面量转义，反馈正文改用 Base64；经真实 Max 2025 解析验证为 OK |
 | 1.5.10 | 反馈入口直接使用名称缓存，不再从列表显示文本反向解析，修复 undefined 类型比较错误 |
 | 1.5.11 | 前向声明反馈弹窗入口并重建弹窗，修复作用域 undefined；经真实 Max 主动调用验证为 OK |
+| 1.5.12 | 反馈提交前本地预检字数；Agent 未运行时提示“请先启动 Agent”，失败时透传服务端校验原因 |
 
-当前生产版本：**1.5.11**，兼容 Max 2019–2026。
+当前生产版本：**1.5.12**，兼容 Max 2019–2026。
 
 ## 13. 当前生产状态
 
@@ -736,7 +738,7 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 5. 阅读 `MaxHub.Agent.Core/Install`，理解账本与回滚边界。
 6. 阅读 `MaxHub.Server/Program.cs`，了解当前 API。
 7. 阅读 `connector/maxhub_connector.ms`，注意 MaxScript 兼容性注释。
-8. 运行 `dotnet test MaxHub.sln --no-restore`，确保 169 项基线通过。
+8. 运行 `dotnet test MaxHub.sln --no-restore`，确保 171 项基线通过。
 9. 修改功能时先增加能复现问题的测试，再做最小实现。
 10. 发布前核对 GitHub 资产、局域网镜像、sidecar 和生产 latest 的版本与 SHA-256。
 
