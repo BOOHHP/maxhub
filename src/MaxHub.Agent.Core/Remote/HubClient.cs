@@ -141,9 +141,28 @@ public sealed class HubClient(HttpClient http)
             new { scope, toolId, message, client, clientVersion, maxYear });
         if (!response.IsSuccessStatusCode)
         {
-            var detail = response.StatusCode == (System.Net.HttpStatusCode)429
-                ? "反馈过于频繁，请稍后再试。"
-                : $"提交失败（{(int)response.StatusCode}）。";
+            string detail;
+            if (response.StatusCode == (System.Net.HttpStatusCode)429)
+                detail = "反馈过于频繁，请稍后再试。";
+            else
+            {
+                // 透传服务端校验信息（如长度限制），避免只显示笼统状态码
+                detail = $"提交失败（{(int)response.StatusCode}）。";
+                try
+                {
+                    var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+                    if (body.TryGetProperty("errors", out var errors) && errors.ValueKind == JsonValueKind.Array)
+                    {
+                        var messages = errors.EnumerateArray()
+                            .Select(x => x.GetString() ?? "")
+                            .Where(m => m.Length > 0)
+                            .ToArray();
+                        if (messages.Length > 0)
+                            detail = string.Join("；", messages);
+                    }
+                }
+                catch { /* 非 JSON 或无 errors 时保留状态码提示 */ }
+            }
             return new FeedbackOutcome(false, "", detail);
         }
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();

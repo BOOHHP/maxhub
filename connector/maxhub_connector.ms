@@ -704,7 +704,8 @@ global MaxHubConnector
         on btnFeedbackSubmit pressed do
         (
             local message = txtFeedback.text
-            if message == "" then ( lblFeedbackStatus.text = "请先填写反馈内容。" )
+            if message.count < 5 then ( lblFeedbackStatus.text = "✕ 反馈内容需 5-2000 字。" )
+            else if message.count > 2000 then ( lblFeedbackStatus.text = "✕ 反馈内容需 5-2000 字。" )
             else (
                 lblFeedbackStatus.text = "◌ 提交中…"
                 -- Base64 避免在 MaxScript 中手写 JSON 字符转义（字符字面量跨版本兼容性差）
@@ -714,8 +715,10 @@ global MaxHubConnector
                 if parts.count >= 1 and parts[1] == "ok" then (
                     lblFeedbackStatus.text = "✓ 已提交，上传者会收到飞书消息。"
                     txtFeedback.text = ""
+                ) else if parts.count >= 2 then (
+                    lblFeedbackStatus.text = "✕ " + parts[2]
                 ) else (
-                    lblFeedbackStatus.text = "✕ " + (if parts.count >= 2 then parts[2] else "Agent 无响应，请稍后重试。")
+                    lblFeedbackStatus.text = "✕ MaxHub Agent 未响应，请先启动 Agent。"
                 )
             )
         )
