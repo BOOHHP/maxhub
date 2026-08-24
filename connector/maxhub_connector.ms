@@ -45,6 +45,20 @@ global MaxHubConnector
         ) catch ( "" )
     )
 
+    -- 与 httpGet 相同，但失败时返回 "ERR:<异常>" 文本，便于在弹窗里看到真实原因
+    fn httpGetDebug url timeoutMs:10000 =
+    (
+        try (
+            local request = (dotNetClass "System.Net.WebRequest").Create url
+            request.Timeout = timeoutMs
+            local response = request.GetResponse()
+            local reader = dotNetObject "System.IO.StreamReader" (response.GetResponseStream())
+            local body = reader.ReadToEnd()
+            reader.Close(); response.Close()
+            body
+        ) catch ( "ERR:" + (getCurrentException()) )
+    )
+
     fn httpPostJson url body timeoutMs:10000 =
     (
         try (
@@ -52,11 +66,15 @@ global MaxHubConnector
             request.Method = "POST"
             request.ContentType = "application/json"
             request.Timeout = timeoutMs
-            local bytes = (dotNetClass "System.Text.Encoding").UTF8.GetBytes body
-            request.ContentLength = bytes.Length
+            -- .NET byte[] 会被 MaxScript 转成数组（无 .length）；且 Encoding.UTF8 带 BOM
+            -- 会多写 3 字节超过 ContentLength。用无 BOM 的 UTF8Encoding + StreamWriter 写字符串。
+            local enc = dotNetObject "System.Text.UTF8Encoding" false
+            request.ContentLength = enc.GetByteCount body
             local stream = request.GetRequestStream()
-            stream.Write bytes 0 bytes.Length
-            stream.Close()
+            local writer = dotNetObject "System.IO.StreamWriter" stream enc
+            writer.Write body
+            writer.Flush()
+            writer.Close()
             local response = request.GetResponse()
             local reader = dotNetObject "System.IO.StreamReader" (response.GetResponseStream())
             local result = reader.ReadToEnd()
@@ -708,17 +726,22 @@ global MaxHubConnector
             else if message.count > 2000 then ( lblFeedbackStatus.text = "✕ 反馈内容需 5-2000 字。" )
             else (
                 lblFeedbackStatus.text = "◌ 提交中…"
-                -- Base64 避免在 MaxScript 中手写 JSON 字符转义（字符字面量跨版本兼容性差）
-                local body = "{\"messageBase64\":\"" + (encodeBase64 message) + "\"}"
-                local result = httpPostJson (agentBaseUrl + "/max/feedback?toolId=" + maxHubFeedbackToolId + "&maxYear=" + (currentMaxYear() as string)) body
-                local parts = if result != undefined then (filterString result "|") else #()
-                if parts.count >= 1 and parts[1] == "ok" then (
-                    lblFeedbackStatus.text = "✓ 已提交，上传者会收到飞书消息。"
-                    txtFeedback.text = ""
-                ) else if parts.count >= 2 then (
-                    lblFeedbackStatus.text = "✕ " + parts[2]
+                -- MaxScript 对 .NET 二进制封送不可靠（byte[] 变数组、UTF8 带 BOM），
+                -- 反馈正文用 Base64 走 GET 查询串，复用已验证可用的 httpGet
+                local safe = (dotNetClass "System.Uri").EscapeDataString (encodeBase64 message)
+                local result = httpGetDebug (agentBaseUrl + "/max/feedback?toolId=" + maxHubFeedbackToolId + "&maxYear=" + (currentMaxYear() as string) + "&messageBase64=" + safe) timeoutMs:10000
+                if result != undefined and (substring result 1 4) == "ERR:" then (
+                    lblFeedbackStatus.text = "✕ " + (substring result 5)
                 ) else (
-                    lblFeedbackStatus.text = "✕ MaxHub Agent 未响应，请先启动 Agent。"
+                    local parts = if result != undefined then (filterString result "|") else #()
+                    if parts.count >= 1 and parts[1] == "ok" then (
+                        lblFeedbackStatus.text = "✓ 已提交，上传者会收到飞书消息。"
+                        txtFeedback.text = ""
+                    ) else if parts.count >= 2 then (
+                        lblFeedbackStatus.text = "✕ " + parts[2]
+                    ) else (
+                        lblFeedbackStatus.text = "✕ MaxHub Agent 未响应，请先启动 Agent。"
+                    )
                 )
             )
         )

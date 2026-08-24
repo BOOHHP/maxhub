@@ -1,5 +1,13 @@
 [
   {
+    "version": "1.0.25",
+    "date": "2026-08-24",
+    "summary": "工具反馈改用 GET 传输，彻底修复 Max 内提交失败。",
+    "sections": [
+      { "title": "修复", "items": ["MaxScript 对 .NET 二进制封送不可靠（byte[] 变数组、UTF8 带 BOM），反馈正文改为 Base64 走 GET 查询串。", "本地反馈接口同时兼容 GET 与 POST，旧版 Connector 仍可用。"] }
+    ]
+  },
+  {
     "version": "1.0.24",
     "date": "2026-08-24",
     "summary": "工具反馈提示更准确：区分未启动 Agent 与内容校验失败。",

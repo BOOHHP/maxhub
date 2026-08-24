@@ -35,7 +35,7 @@ public class FeedbackEntryTests
         var localServer = Read("src", "MaxHub.Agent.Service", "AgentLocalServer.cs");
         var hubClient = Read("src", "MaxHub.Agent.Core", "Remote", "HubClient.cs");
 
-        Assert.Contains("app.MapPost(\"/max/feedback\"", localServer);
+        Assert.Contains("app.MapMethods(\"/max/feedback\", [\"GET\", \"POST\"]", localServer);
         Assert.Contains("SubmitFeedbackAsync(\"tool\"", localServer);
         Assert.Contains("SubmitFeedbackAsync(", hubClient);
     }
@@ -47,9 +47,9 @@ public class FeedbackEntryTests
 
         Assert.Contains("button btnFeedback", connector);
         Assert.Contains("rollout maxHubFeedbackRollout", connector);
-        Assert.Contains("fn httpPostJson", connector);
         Assert.Contains("fn encodeBase64", connector);
-        Assert.Contains("messageBase64", connector);
+        Assert.Contains("messageBase64=", connector);
+        Assert.Contains("EscapeDataString", connector);
         Assert.DoesNotContain("fn jsonEscape", connector);
         Assert.Contains("local toolNames = #()", connector);
         Assert.Contains("local installedNames = #()", connector);

@@ -284,40 +284,46 @@ public static class AgentLocalServer
             return Results.Text($"{job.State}|{job.Message}");
         });
 
-        // Connector 反馈入口：带 JSON 体调用，Agent 附加会话与客户端上下文后转发服务器
-        app.MapPost("/max/feedback", async (HttpRequest request, string toolId, int maxYear) =>
+        // Connector 反馈入口：GET（Base64 走查询串，绕开 MaxScript 二进制封送问题）与 POST（JSON 体）都支持。
+        // 转发失败也返回 200 + error|原因：MaxScript 的 GetResponse 对非 200 会抛异常且读不到错误体。
+        app.MapMethods("/max/feedback", ["GET", "POST"], async (HttpRequest request, string toolId, int maxYear, string? messageBase64) =>
         {
-            string body;
-            using (var reader = new StreamReader(request.Body, Encoding.UTF8))
-                body = await reader.ReadToEndAsync();
             string message = "";
             try
             {
-                using var json = System.Text.Json.JsonDocument.Parse(body);
-                if (json.RootElement.TryGetProperty("messageBase64", out var encoded) &&
-                    encoded.GetString() is { Length: > 0 } base64)
-                    message = Encoding.UTF8.GetString(Convert.FromBase64String(base64));
-                else if (json.RootElement.TryGetProperty("message", out var plain))
-                    message = plain.GetString() ?? ""; // 兼容旧 Connector
+                if (!string.IsNullOrEmpty(messageBase64))
+                    message = Encoding.UTF8.GetString(Convert.FromBase64String(messageBase64));
+                else if (request.Method == "POST")
+                {
+                    string body;
+                    using (var reader = new StreamReader(request.Body, Encoding.UTF8))
+                        body = await reader.ReadToEndAsync();
+                    using var json = System.Text.Json.JsonDocument.Parse(body);
+                    if (json.RootElement.TryGetProperty("messageBase64", out var encoded) &&
+                        encoded.GetString() is { Length: > 0 } b64)
+                        message = Encoding.UTF8.GetString(Convert.FromBase64String(b64));
+                    else if (json.RootElement.TryGetProperty("message", out var plain))
+                        message = plain.GetString() ?? ""; // 兼容旧 Connector
+                }
             }
             catch
             {
-                return Results.Text("error|反馈内容格式错误", statusCode: 400);
+                return Results.Text("error|反馈内容格式错误");
             }
             if (string.IsNullOrWhiteSpace(message))
-                return Results.Text("error|反馈内容不能为空", statusCode: 400);
+                return Results.Text("error|反馈内容不能为空");
 
             var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
             try
             {
                 var outcome = await hub.SubmitFeedbackAsync("tool", toolId, message, "connector", version, maxYear);
-                return outcome.Success
-                    ? Results.Text($"ok|{outcome.DeliveryStatus}")
-                    : Results.Text($"error|{outcome.Error}", statusCode: 502);
+                // 转发失败也返回 200：MaxScript 的 GetResponse 对非 200 会抛异常且读不到错误体，
+                // 只有 200 才能让 Connector 读到 error|原因 文本
+                return Results.Text(outcome.Success ? $"ok|{outcome.DeliveryStatus}" : $"error|{outcome.Error}");
             }
             catch (Exception ex)
             {
-                return Results.Text($"error|{ex.Message}", statusCode: 502);
+                return Results.Text($"error|{ex.Message}");
             }
         });
 
