@@ -46,6 +46,18 @@ public class WebPerformanceTests(ServerFixture fixture) : IClassFixture<ServerFi
     }
 
     [Fact]
+    public async Task Root_path_serves_tool_market_page()
+    {
+        var client = fixture.CreateClient();
+
+        var response = await client.GetAsync("/");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("工具市场", html);
+    }
+
+    [Fact]
     public async Task Html_supports_gzip_response_compression()
     {
         var client = fixture.CreateClient();

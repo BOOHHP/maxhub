@@ -44,6 +44,10 @@ builder.Services.AddSingleton(sp => new RegistryStore(dataDir, sp.GetRequiredSer
 builder.Services.AddSingleton<IFeishuMessageSender>(sp =>
     new FeishuMessageClient(new HttpClient { Timeout = TimeSpan.FromSeconds(10) }, feishuOptions));
 builder.Services.AddSingleton(new FeedbackRateLimiter(builder.Configuration.GetValue("Feedback:MaxPerHour", 10)));
+builder.Services.AddSingleton(sp => new ReviewNotifier(
+    sp.GetRequiredService<RoleService>(),
+    sp.GetRequiredService<IUserDirectory>(),
+    sp.GetRequiredService<IFeishuMessageSender>()));
 builder.Services.AddSingleton(sp => new FeedbackService(
     sp.GetRequiredService<IDbContextFactory<MaxHubDb>>(),
     sp.GetRequiredService<RegistryStore>(),
@@ -349,10 +353,28 @@ app.MapPost("/api/v1/publish/releases", async (HttpContext ctx) =>
 
     await using var stream = file.OpenReadStream();
     var outcome = registry.SubmitRelease(user, stream);
+    if (outcome.Success)
+        _ = NotifyReviewAsync(outcome.ReleaseId, user);
     return outcome.Success
         ? Results.Ok(new { releaseId = outcome.ReleaseId, status = "pendingReview" })
         : Results.BadRequest(new { errors = outcome.Errors });
 });
+
+// 提交待审核后向管理员/审核者发飞书通知；失败不阻断提交，审核队列兜底
+async Task NotifyReviewAsync(string releaseId, EmployeeIdentity submitter)
+{
+    try
+    {
+        var release = registry.GetRelease(releaseId);
+        if (release is null) return;
+        var notifier = app.Services.GetRequiredService<ReviewNotifier>();
+        await notifier.NotifyAsync(submitter, release.Manifest.Name, release.Manifest.Version);
+    }
+    catch
+    {
+        // 通知失败不影响提交流程
+    }
+}
 
 // ---- 脚本直传：自动识别 + 打包提交 ----
 app.MapPost("/api/v1/scripts/analyze", (HttpContext ctx, AnalyzeScriptRequest request) =>
@@ -381,6 +403,8 @@ app.MapPost("/api/v1/scripts/publish", async (HttpContext ctx, PublishScriptRequ
             request.MinMaxYear, request.MaxMaxYear), zipPath);
         await using var stream = File.OpenRead(zipPath);
         var outcome = registry.SubmitRelease(user, stream);
+        if (outcome.Success)
+            _ = NotifyReviewAsync(outcome.ReleaseId, user);
         return outcome.Success
             ? Results.Ok(new { releaseId = outcome.ReleaseId, status = "pendingReview" })
             : Results.BadRequest(new { errors = outcome.Errors });
@@ -451,6 +475,8 @@ app.MapGet("/api/v1/signing/public-key", () =>
 });
 
 // ---- Web Portal 静态资源 ----
+// 根路径 / 直接映射到 index.html（工具市场），无需手动输入文件名。
+app.UseDefaultFiles();
 // HTML 不缓存以确保部署后立即更新；CSS/JS 短时缓存，跨页面导航不重复下载。
 app.UseStaticFiles(new StaticFileOptions
 {

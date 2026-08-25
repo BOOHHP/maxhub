@@ -224,4 +224,38 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
         var body = await redeliver.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("delivered", body.GetProperty("deliveryStatus").GetString());
     }
+
+    [Fact]
+    public async Task Script_submission_notifies_admins_and_reviewers_via_feishu()
+    {
+        var publisher = await LoginAsync("emp-pub", "发布者");
+        var res = await publisher.PostAsJsonAsync("/api/v1/scripts/publish", new
+        {
+            fileName = "notify-tool.ms",
+            content = "macroScript NotifyTool category:\"MaxHub\" buttonText:\"N\"\n(\n)\n",
+            name = "审核通知测试工具",
+            description = "用于验证提交后飞书通知",
+            version = "1.0.0",
+            minMaxYear = 2019,
+            maxMaxYear = 2026,
+        });
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+
+        // 通知为后台异步发送，轮询等待
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        List<(string EmployeeId, string? OpenId, string? UserId, string Text)> sent;
+        do
+        {
+            await Task.Delay(200);
+            lock (fixture.Sender.Sent) sent = [.. fixture.Sender.Sent];
+        } while (sw.Elapsed.TotalSeconds < 5 && !sent.Any(s => s.Text.Contains("待审核")));
+
+        lock (fixture.Sender.Sent)
+        {
+            var notify = fixture.Sender.Sent.Where(s => s.Text.Contains("待审核")).ToList();
+            var recipients = notify.Select(s => s.EmployeeId).Distinct().OrderBy(x => x).ToArray();
+            Assert.Equal(["emp-admin", "emp-rev"], recipients); // 管理员+审核者，排除提交者
+            Assert.Contains("审核通知测试工具", notify.First().Text);
+        }
+    }
 }

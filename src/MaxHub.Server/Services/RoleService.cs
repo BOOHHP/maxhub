@@ -41,6 +41,16 @@ public sealed class RoleService(IUserDirectory users, string[] bootstrapAdmins, 
         return ids.OrderBy(id => id, StringComparer.Ordinal).ToArray();
     }
 
+    /// <summary>全部审核者：引导配置 + 数据库中授予 reviewer 的用户，用于待审核通知。</summary>
+    public string[] GetReviewerEmployeeIds()
+    {
+        var ids = new HashSet<string>(bootstrapReviewers, StringComparer.Ordinal);
+        foreach (var user in users.GetAllUsers())
+            if (IsIn(SplitRoles(user.Roles), Roles.Reviewer))
+                ids.Add(user.EmployeeId);
+        return ids.OrderBy(id => id, StringComparer.Ordinal).ToArray();
+    }
+
     private static string[] SplitRoles(string? roles) =>
         string.IsNullOrWhiteSpace(roles) ? [] : roles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 }

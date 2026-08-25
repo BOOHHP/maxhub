@@ -126,6 +126,14 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
     public ToolRelease? GetPublished(string toolId, string version) =>
         GetToolReleases(toolId).FirstOrDefault(r => r.Manifest.Version == version);
 
+    /// <summary>按发布记录 ID 查询（含任意状态），用于提交后通知。</summary>
+    public ToolRelease? GetRelease(string releaseId)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var row = db.Releases.AsNoTracking().FirstOrDefault(r => r.ReleaseId == releaseId);
+        return row is null ? null : ToDomain(row);
+    }
+
     /// <summary>管理后台：全部版本（含待审核/已拒绝），按提交时间倒序。</summary>
     public IReadOnlyList<ToolRelease> GetAllReleases()
     {
