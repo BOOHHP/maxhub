@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>工具市场 · MaxHub</title>
-<link rel="stylesheet" href="css/site.css?v=20260825.1">
+<link rel="stylesheet" href="css/site.css?v=20260825.3">
 <style>
   .market-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
   .market-toolbar input[type=search] { flex: 1; min-width: 200px; }
@@ -53,8 +53,8 @@
 
 <div id="msg"></div>
 
-<script src="js/api.js?v=20260825.1"></script>
-<script src="js/auth.js?v=20260825.1"></script>
+<script src="js/api.js?v=20260825.3"></script>
+<script src="js/auth.js?v=20260825.3"></script>
 <script>
 const api = window.Api.api;
 
@@ -109,8 +109,8 @@ async function loadAgentInfo() {
   }
 }
 
-// ---- 分类由服务端统一计算，网页与 Max 工具中心消费同一结果 ----
-const CATEGORIES = ['重命名', '导入导出', '材质贴图', 'UV', '清理优化', '动画绑定', '灯光渲染', '场景对象'];
+// ---- 分类清单以 /api/v1/categories 为准，下列仅加载失败时兜底 ----
+let CATEGORIES = ['重命名', '导入导出', '材质贴图', 'UV', '清理优化', '动画绑定', '灯光渲染', '场景对象'];
 
 // ---- 工具市场 ----
 let allTools = [];
@@ -118,7 +118,14 @@ let activeCat = '';
 const MAX_YEARS = Array.from({ length: 2026 - 2019 + 1 }, (_, i) => 2019 + i);
 
 async function loadTools() {
-  const res = await api('/api/v1/tools?maxVersion=2026', { retry: false });
+  const [res, catRes] = await Promise.all([
+    api('/api/v1/tools?maxVersion=2026', { retry: false }),
+    api('/api/v1/categories', { retry: false }),
+  ]);
+  if (catRes?.ok) {
+    const cats = await catRes.json();
+    if (Array.isArray(cats) && cats.length) CATEGORIES = cats.filter(c => c !== '其他');
+  }
   if (!res.ok) { document.getElementById('tools').innerHTML = '<div class="empty">加载失败</div>'; return; }
   allTools = await res.json();
   renderCatNav();

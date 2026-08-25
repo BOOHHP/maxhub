@@ -138,4 +138,12 @@ public class ReleaseMetadataTests(ServerFixture fixture) : IClassFixture<ServerF
             new { category = "不存在的分类" });
         Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
     }
+
+    [Fact]
+    public async Task Categories_endpoint_returns_classifier_list()
+    {
+        var cats = await fixture.CreateClient().GetFromJsonAsync<string[]>("/api/v1/categories");
+        Assert.NotNull(cats);
+        Assert.Equal(ToolCategoryClassifier.Categories, cats);
+    }
 }

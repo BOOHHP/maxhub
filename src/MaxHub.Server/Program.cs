@@ -269,6 +269,9 @@ app.MapGet("/api/v1/tools", (int maxVersion) =>
     return Results.Ok(items);
 });
 
+// 分类清单由服务端统一下发，网页动态渲染，消除前端硬编码同步负担
+app.MapGet("/api/v1/categories", () => Results.Ok(ToolCategoryClassifier.Categories));
+
 app.MapGet("/api/v1/tools/{toolId}", (string toolId) =>
 {
     var releases = registry.GetToolReleases(toolId);
