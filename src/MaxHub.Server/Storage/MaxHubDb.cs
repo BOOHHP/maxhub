@@ -42,6 +42,7 @@ public sealed class ReleaseRow
     public required string Channel { get; set; }
     public string? ReviewedBy { get; set; }
     public string? SignatureBase64 { get; set; }
+    public string? CategoryOverride { get; set; }
     public DateTimeOffset SubmittedAtUtc { get; set; }
 }
 

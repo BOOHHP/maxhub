@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>后台管理 · MaxHub</title>
-<link rel="stylesheet" href="css/site.css?v=20260825.1">
+<link rel="stylesheet" href="css/site.css?v=20260825.2">
 <style>
   .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
   .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 14px 16px; }
@@ -51,7 +51,7 @@
       <section id="sec-releases" hidden>
         <h2>版本管理</h2>
         <table id="all-table">
-          <thead><tr><th>工具</th><th>版本</th><th>状态</th><th>频道</th><th>签名</th><th>提交人</th><th>审核人</th><th>提交时间</th><th></th></tr></thead>
+          <thead><tr><th>工具</th><th>版本</th><th>状态</th><th>频道</th><th>分类</th><th>签名</th><th>提交人</th><th>审核人</th><th>提交时间</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </section>
@@ -120,8 +120,8 @@
 
 <div id="msg"></div>
 
-<script src="js/api.js?v=20260825.1"></script>
-<script src="js/auth.js?v=20260825.1"></script>
+<script src="js/api.js?v=20260825.2"></script>
+<script src="js/auth.js?v=20260825.2"></script>
 <script>
 const api = window.Api.api;
 const toast = window.Api.toast;
@@ -196,9 +196,11 @@ async function saveMetadata(releaseId) {
   const name = document.getElementById(`edit-name-${releaseId}`).value.trim();
   const description = document.getElementById(`edit-desc-${releaseId}`).value.trim();
   const channel = document.getElementById(`edit-ch-${releaseId}`).value;
+  const catSel = document.getElementById(`edit-cat-${releaseId}`).value;
+  const category = catSel === '__auto__' ? '' : catSel;
   if (!name) { toast('名称不能为空', false); return; }
   const res = await api(`/api/v1/admin/releases/${releaseId}/metadata`, {
-    method: 'PATCH', body: JSON.stringify({ name, description, channel }),
+    method: 'PATCH', body: JSON.stringify({ name, description, channel, category }),
   });
   toast(res.ok ? '已保存' : (res.status === 403 ? '需要审核者/管理员角色' : '保存失败'), res.ok);
   if (res.ok) refresh();
@@ -225,6 +227,8 @@ async function uploadConnector() {
 }
 
 const fmt = (t) => new Date(t).toLocaleString('zh-CN', { hour12: false });
+// 与服务端 ToolCategoryClassifier.Categories 保持一致
+const CATEGORY_OPTIONS = ['重命名', '导入导出', '材质贴图', 'UV', '清理优化', '动画绑定', '灯光渲染', '场景对象', '其他'];
 let releasesCache = [];
 
 // 从使用统计跳到版本管理并展开对应版本的编辑表单
@@ -280,6 +284,7 @@ async function refresh() {
       <td>${r.version}</td>
       <td><span class="badge ${r.status}">${{ PendingReview: '待审核', Published: '已发布', Rejected: '已退回', Withdrawn: '已撤回' }[r.status] ?? r.status}</span></td>
       <td>${r.channel}</td>
+      <td>${r.category}${r.categoryOverridden ? ' <span style="color:var(--text-3);font-size:10px">手动</span>' : ''}</td>
       <td>${r.signed ? '✓ 已签名' : '—'}</td>
       <td>${r.submittedBy}</td>
       <td>${r.reviewedBy ?? '—'}</td>
@@ -290,7 +295,7 @@ async function refresh() {
       </div></td>
     </tr>
     <tr id="edit-${r.releaseId}" hidden>
-      <td colspan="9" style="background:var(--bg-2);padding:14px 16px">
+      <td colspan="10" style="background:var(--bg-2);padding:14px 16px">
         <div style="display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;max-width:640px">
           <label>名称</label><input id="edit-name-${r.releaseId}" value="${(r.name ?? '').replace(/"/g, '&quot;')}">
           <label>描述</label><textarea id="edit-desc-${r.releaseId}" rows="2">${r.description ?? ''}</textarea>
@@ -298,11 +303,16 @@ async function refresh() {
           <select id="edit-ch-${r.releaseId}">
             ${['stable', 'beta', 'internal'].map(c => `<option ${c === r.channel ? 'selected' : ''}>${c}</option>`).join('')}
           </select>
+          <label>分类</label>
+          <select id="edit-cat-${r.releaseId}">
+            <option value="__auto__" ${r.categoryOverridden ? '' : 'selected'}>自动（当前：${r.category}）</option>
+            ${CATEGORY_OPTIONS.map(c => `<option value="${c}" ${r.categoryOverridden && c === r.category ? 'selected' : ''}>${c}</option>`).join('')}
+          </select>
           <span></span>
           <div style="display:flex;gap:8px">
             <button class="btn-primary" onclick="saveMetadata('${r.releaseId}')">保存</button>
             <button class="btn-outline" onclick="toggleEdit('${r.releaseId}')">取消</button>
-            <span style="color:var(--text-3);font-size:11px;align-self:center">分类由名称/描述关键词自动归类；修改不影响已签名的安装包</span>
+            <span style="color:var(--text-3);font-size:11px;align-self:center">分类选「自动」时按名称/描述关键词归类；修改不影响已签名的安装包</span>
           </div>
         </div>
       </td>

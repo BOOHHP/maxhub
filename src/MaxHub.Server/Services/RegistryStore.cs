@@ -145,8 +145,8 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
             .ToList();
     }
 
-    /// <summary>规范化编辑：只改 DB 中的展示元数据（名称/描述/频道），不动包文件，哈希与签名保持不变。</summary>
-    public bool UpdateReleaseMetadata(string releaseId, string? name, string? description, string? channel)
+    /// <summary>规范化编辑：只改 DB 中的展示元数据（名称/描述/频道/分类），不动包文件，哈希与签名保持不变。</summary>
+    public bool UpdateReleaseMetadata(string releaseId, string? name, string? description, string? channel, string? category = null)
     {
         lock (_writeLock)
         {
@@ -178,6 +178,10 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
 
             if (!string.IsNullOrWhiteSpace(channel))
                 row.Channel = channel;
+
+            // category：null 表示本次不改动；空串表示重置为自动归类；其余为人工覆盖
+            if (category is not null)
+                row.CategoryOverride = string.IsNullOrWhiteSpace(category) ? null : category.Trim();
 
             db.SaveChanges();
             return true;
@@ -367,6 +371,7 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
         Channel = row.Channel,
         ReviewedBy = row.ReviewedBy,
         SignatureBase64 = row.SignatureBase64,
+        CategoryOverride = row.CategoryOverride,
         SubmittedAtUtc = row.SubmittedAtUtc,
     };
 

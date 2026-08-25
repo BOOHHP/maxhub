@@ -21,6 +21,7 @@ public sealed class ToolRelease
     public string Channel { get; set; } = "internal";
     public string? ReviewedBy { get; set; }
     public string? SignatureBase64 { get; set; }
+    public string? CategoryOverride { get; init; }
     public DateTimeOffset SubmittedAtUtc { get; init; } = DateTimeOffset.UtcNow;
 }
 

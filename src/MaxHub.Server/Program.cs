@@ -69,6 +69,7 @@ using (var db = app.Services.GetRequiredService<IDbContextFactory<MaxHubDb>>().C
         "ALTER TABLE Users ADD COLUMN Roles TEXT DEFAULT ''",
         "ALTER TABLE Users ADD COLUMN FeishuOpenId TEXT",
         "ALTER TABLE Users ADD COLUMN FeishuUserId TEXT",
+        "ALTER TABLE Releases ADD COLUMN CategoryOverride TEXT",
         """CREATE TABLE IF NOT EXISTS "Users" ("EmployeeId" TEXT NOT NULL CONSTRAINT "PK_Users" PRIMARY KEY, "Username" TEXT NOT NULL)""",
         """CREATE TABLE IF NOT EXISTS "AgentReleases" ("Id" INTEGER NOT NULL CONSTRAINT "PK_AgentReleases" PRIMARY KEY AUTOINCREMENT, "Version" TEXT NOT NULL, "DownloadUrl" TEXT NOT NULL, "Sha256" TEXT NOT NULL, "UpdatedAtUtc" TEXT NOT NULL)""",
         """CREATE TABLE IF NOT EXISTS "Feedbacks" ("Id" INTEGER NOT NULL CONSTRAINT "PK_Feedbacks" PRIMARY KEY AUTOINCREMENT, "Scope" TEXT NOT NULL, "ToolId" TEXT, "ToolName" TEXT, "FromEmployeeId" TEXT NOT NULL, "FromUsername" TEXT NOT NULL, "ToEmployeeIds" TEXT NOT NULL, "Message" TEXT NOT NULL, "Client" TEXT NOT NULL, "ClientVersion" TEXT, "MaxYear" INTEGER, "DeliveryStatus" TEXT NOT NULL, "DeliveryError" TEXT, "AtUtc" TEXT NOT NULL)""",
@@ -258,7 +259,7 @@ app.MapGet("/api/v1/tools", (int maxVersion) =>
         publicToolId = ToolId.PublicCode(r.Manifest.Id),
         name = r.Manifest.Name,
         description = r.Manifest.Description,
-        category = ToolCategoryClassifier.Classify(r.Manifest.Name, r.Manifest.Description, r.Manifest.Id),
+        category = r.CategoryOverride ?? ToolCategoryClassifier.Classify(r.Manifest.Name, r.Manifest.Description, r.Manifest.Id),
         latestVersion = r.Manifest.Version,
         channel = r.Channel,
         minMaxYear = r.Manifest.Compatibility.MinVersion,
@@ -508,6 +509,8 @@ app.MapGet("/api/v1/admin/releases", (HttpContext ctx) =>
         version = r.Manifest.Version,
         status = r.Status.ToString(),
         channel = r.Channel,
+        category = r.CategoryOverride ?? ToolCategoryClassifier.Classify(r.Manifest.Name, r.Manifest.Description, r.Manifest.Id),
+        categoryOverridden = r.CategoryOverride is not null,
         submittedBy = names.GetValueOrDefault(r.SubmittedBy, r.SubmittedBy),
         reviewedBy = r.ReviewedBy is null ? null : names.GetValueOrDefault(r.ReviewedBy, r.ReviewedBy),
         submittedAtUtc = r.SubmittedAtUtc,
@@ -522,7 +525,9 @@ app.MapPatch("/api/v1/admin/releases/{releaseId}/metadata", (HttpContext ctx, st
     if (!IsReviewer(ctx) && !IsAdmin(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     if (request.Channel is { Length: > 0 } ch && ch is not ("internal" or "beta" or "stable"))
         return Results.BadRequest(new { errors = new[] { "非法频道。" } });
-    return registry.UpdateReleaseMetadata(releaseId, request.Name, request.Description, request.Channel)
+    if (request.Category is { Length: > 0 } cat && !ToolCategoryClassifier.Categories.Contains(cat))
+        return Results.BadRequest(new { errors = new[] { "非法分类。" } });
+    return registry.UpdateReleaseMetadata(releaseId, request.Name, request.Description, request.Channel, request.Category)
         ? Results.Ok()
         : Results.NotFound();
 });
@@ -719,7 +724,7 @@ internal sealed record SetRolesRequest(string[] Roles);
 internal sealed record AnalyzeScriptRequest(string FileName, string Content);
 internal sealed record PublishScriptRequest(string FileName, string Content, string Name, string? Description, string Version, int MinMaxYear, int MaxMaxYear);
 internal sealed record SetAgentReleaseRequest(string Version, string DownloadUrl, string? Sha256);
-internal sealed record UpdateReleaseMetadataRequest(string? Name, string? Description, string? Channel);
+internal sealed record UpdateReleaseMetadataRequest(string? Name, string? Description, string? Channel, string? Category = null);
 internal sealed record SubmitFeedbackRequest(string Scope, string? ToolId, string Message, string? Client, string? ClientVersion, int? MaxYear);
 
 public partial class Program;
