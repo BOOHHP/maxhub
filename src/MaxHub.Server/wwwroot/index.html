@@ -4,17 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>工具市场 · MaxHub</title>
-<link rel="stylesheet" href="css/site.css?v=20260821.1">
+<link rel="stylesheet" href="css/site.css?v=20260825.1">
 <style>
   .market-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
   .market-toolbar input[type=search] { flex: 1; min-width: 200px; }
-  .download-banner { background: linear-gradient(135deg, #1E2A38, #26323F); border: 1px solid var(--border); border-radius: 10px; padding: 18px 22px; display: flex; align-items: center; gap: 18px; margin-bottom: 26px; flex-wrap: wrap; }
+  .download-banner { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 18px 22px; display: flex; align-items: center; gap: 18px; margin-bottom: 26px; flex-wrap: wrap; }
   .download-banner .icon { font-size: 30px; }
   .download-banner .info { flex: 1; min-width: 220px; }
   .download-banner .info h2 { font-size: 16px; margin: 0 0 3px; }
   .download-banner .info p { color: var(--text-2); font-size: 12.5px; margin: 0; }
-  .compat-chip { color: var(--text-3); font-size: 11.5px; border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px; }
-  .cat-chip { color: var(--accent); font-size: 11.5px; background: rgba(76,159,224,.12); border-radius: 3px; padding: 1px 7px; }
+  .compat-chip { color: var(--text-3); font-size: 11.5px; border: 1px solid var(--border); border-radius: var(--radius-s); padding: 1px 6px; }
+  .cat-chip { color: var(--accent); font-size: 11.5px; background: var(--accent-soft); border-radius: var(--radius-s); padding: 1px 7px; }
 </style>
 </head>
 <body>
@@ -53,8 +53,8 @@
 
 <div id="msg"></div>
 
-<script src="js/api.js?v=20260821.1"></script>
-<script src="js/auth.js?v=20260821.1"></script>
+<script src="js/api.js?v=20260825.1"></script>
+<script src="js/auth.js?v=20260825.1"></script>
 <script>
 const api = window.Api.api;
 
