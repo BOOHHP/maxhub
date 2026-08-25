@@ -557,10 +557,10 @@ dotnet test MaxHub.sln --no-restore
 | --- | ---: |
 | MaxHub.Core.Tests | 57 |
 | MaxHub.Agent.Tests | 51 |
-| MaxHub.Server.Tests | 63 |
-| **合计** | **171** |
+| MaxHub.Server.Tests | 65 |
+| **合计** | **173** |
 
-当前完整测试为 171/171 通过。
+当前完整测试为 173/173 通过。
 
 ### 10.3 发布 Agent
 
@@ -618,6 +618,8 @@ GitHub Release 使用版本标签 `v{version}`，资产名必须与 Server 镜�
 | 点击工具反馈报 undefined 类型错误 | 从列表显示文本查找不存在的 `" | "` 分隔符，`findString` 返回 undefined | 三类列表分别缓存工具名称，反馈按选择索引直接读取（1.5.10） |
 | 点击反馈报“调用需要函数或类，得到 undefined” | 主 rollout 编译时尚未声明后置的 `openMaxHubFeedback` 函数 | 在主 rollout 前前向声明入口，移除 rollout `isValid` 调用；真实 Max 主动调用反馈弹窗验证为 OK（1.5.11） |
 | 反馈提交报“Agent 无响应” | Agent 未运行或旧版本无反馈接口；服务端校验错误被笼统状态码吞掉 | 1.0.24/1.5.12：本地预检字数、透传服务端 errors、未启动时提示“请先启动 Agent” |
+| 访问根路径需手动输入 index.html | 只启用 UseStaticFiles，根路径无默认文档映射 | 增加 UseDefaultFiles()，`/` 直接返回工具市场页 |
+| 提交脚本后管理员无感知 | 审核队列仅网页展示 | ReviewNotifier：提交待审核后向全部管理员+审核者发飞书通知（排除提交者），失败不阻断提交 |
 | Max 内反馈 POST 始终失败 | MaxScript 把 .NET byte[] 转成数组（无 .length），且 Encoding.UTF8 带 BOM 多写 3 字节 | 1.0.25/1.5.13：正文 Base64 走 GET 查询串（纯 ASCII 无封送问题），本地接口兼容 GET/POST |
 
 ## 12. 版本演进摘要
@@ -740,7 +742,7 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 5. 阅读 `MaxHub.Agent.Core/Install`，理解账本与回滚边界。
 6. 阅读 `MaxHub.Server/Program.cs`，了解当前 API。
 7. 阅读 `connector/maxhub_connector.ms`，注意 MaxScript 兼容性注释。
-8. 运行 `dotnet test MaxHub.sln --no-restore`，确保 171 项基线通过。
+8. 运行 `dotnet test MaxHub.sln --no-restore`，确保 173 项基线通过。
 9. 修改功能时先增加能复现问题的测试，再做最小实现。
 10. 发布前核对 GitHub 资产、局域网镜像、sidecar 和生产 latest 的版本与 SHA-256。
 
