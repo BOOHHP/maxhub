@@ -350,6 +350,33 @@ Connector 1.5.6 修复关闭后再打开工具中心时的异常：部分 Max �
 - Server 启用 gzip/Brotli 响应压缩。浏览器实测本地首屏 `DOMContentLoaded` 约 229ms、完整加载约 364ms；CSS/JS 压缩传输合计约 5.6KB。
 - 新增 `WebPerformanceTests`，约束缓存头、版本化资源、并行加载与 gzip。
 
+## 4.5 2026-08-25：反馈管道稳定化、审核通知与 Web Portal 视觉刷新
+
+### 反馈“Agent 无响应”治理（Agent 1.0.24/1.0.25、Connector 1.5.12/1.5.13）
+
+Connector 提交反馈反复报“Agent 无响应”，分阶段定位并解决：
+
+- 1.0.24 / 1.5.12：提交前本地预检字数；Agent 未运行时提示“请先启动 Agent”；失败时透传服务端校验原因，不再显示笼统错误。
+- 1.0.25 / 1.5.13：根因是 MaxScript ↔ .NET 封送缺陷（`byte[]` 变成无 `.length` 的 MaxScript 数组、`Encoding.UTF8` 带 BOM）。反馈正文改为 Base64 走 GET 查询串（`messageBase64`），绕开二进制封送路径；失败弹窗显示真实异常文本。PowerShell 直调验证 `200 ok|partial`。
+
+### 提交审核飞书通知（ReviewNotifier）
+
+- `POST /api/v1/publish/releases` 与 `POST /api/v1/scripts/publish` 成功后以 fire-and-forget 方式调用 `ReviewNotifier.NotifyAsync`：通知除提交人外的全部管理员与审核者，文案为「【MaxHub 待审核】{username} 提交了工具「{name}」v{version}，请到后台审核。」。
+- 每个接收人独立 try/catch，单人失败不影响其他人，也不阻塞发布主流程。
+- 生产端到端验证：测试提交触发飞书通知，随后以审核拒绝路径清理队列。
+
+### 根路径直达工具市场
+
+- `app.UseDefaultFiles()` 置于 `UseStaticFiles` 之前，`http://10.2.13.8:5100/` 直接返回 `index.html`（工具市场），与 `/index.html` 行为一致。
+- `WebPerformanceTests` 增加 `Root_path_serves_tool_market_page` 锁定该行为。
+
+### Web Portal 高级感视觉刷新
+
+- 目标：市场/发布/后台三页向 Agent 客户端的深色高级感风格对齐；所有功能、DOM ID 与 JS 钩子保持不变。
+- `site.css` 引入成套设计令牌：近黑蓝背景分层、12% 透明度彩色徽章、浅蓝主按钮、下划线式页签、面板式卡片与登录卡、统一圆角/焦点环/深色滚动条；三个 HTML 的内联样式同步对齐令牌。
+- 缓存戳升级至 `v=20260825.1`。静态资源不被服务锁定，`wwwroot` 可不停服热同步到共享目录。
+- 浏览器目视验证三页：渲染正常、无脚本错误、功能完好；提交 `c9d7997`。
+
 ## 5. 关键架构决策
 
 ### 5.1 使用 MaxScript Connector，而非 Autodesk SDK 插件
@@ -639,8 +666,10 @@ GitHub Release 使用版本标签 `v{version}`，资产名必须与 Server 镜�
 | 1.0.21 | 平台反馈页、托盘反馈入口、本地反馈转发 |
 | 1.0.22 | 服务器不可达时启动不崩溃，保留凭据 |
 | 1.0.23 | 本地反馈接口支持 Base64 正文，兼容 MaxScript 安全传输 |
+| 1.0.24 | 反馈提交透传服务端校验错误；Agent 未运行时提示先启动 |
+| 1.0.25 | 反馈本地转发改用 GET Base64 传输，绕开 MaxScript 二进制封送缺陷 |
 
-当前生产版本：**1.0.23**。
+当前生产版本：**1.0.25**。
 
 ### 12.2 Connector
 
@@ -665,16 +694,17 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 
 ## 13. 当前生产状态
 
-截至 2026-08-21：
+截至 2026-08-25：
 
-- Server 正常运行于 `http://10.2.13.8:5100`。2。
+- Server 正常运行于 `http://10.2.13.8:5100`，根路径直达工具市场页。
 - Agent 局域网镜像和 GitHub Release 均可用。
-- Agent 1.0.22 SHA-256：`f6dd4c381d877b93d70bd680446fbeb58e10bf32dcc7c6ff2e53a640aaa03275`。
-- Connector 1.5.7 已注册；2026-08-21 的 CLI 同步记录显示本机 Max 2025 已从 1.5.6 更新到 1.5.7，重启 Max 后生效。
+- Agent 1.0.25 SHA-256：`4708606c7dd5786d873a987dfad67bcff9057f35224ba9bbfda0615d70950136`。
+- Connector 1.5.13 已注册并同步到本机 Max 2025。
+- 工具提交后管理员/审核者自动收到飞书「待审核」通知。
 - 用户反馈管道已端到端验证：直调飞书投递成功、生产反馈状态 `delivered`、后台列表与补发可用。
-- 完整测试 167/167 通过。
-- Agent 单实例在 2026-08-20 做过真实双开冒烟：以 `Win32_Process Name LIKE 'MaxHubAgent%.exe'` 统计版本化进程，第二实例退出，本地 `/health` 返回 `ok`；1.0.22 另在服务器停机状态做过“启动不崩溃”冒烟
-- Agent 单实例在 2026-08-20 做过真实双开冒烟：以 `Win32_Process Name LIKE 'MaxHubAgent%.exe'` 统计版本化进程，第二实例退出，本地 `/health` 返回 `ok`。
+- Web Portal 完成高级感视觉刷新（与 Agent 客户端对齐的深色令牌），不停服热部署。
+- 完整测试 173/173 通过（Core 57、Agent 51、Server 65）。
+- Agent 单实例在 2026-08-20 做过真实双开冒烟：以 `Win32_Process Name LIKE 'MaxHubAgent%.exe'` 统计版本化进程，第二实例退出，本地 `/health` 返回 `ok`；1.0.22 另在服务器停机状态做过“启动不崩溃”冒烟。
 
 ## 14. 已完成范围
 
