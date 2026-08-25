@@ -377,6 +377,14 @@ Connector 提交反馈反复报“Agent 无响应”，分阶段定位并解决�
 - 缓存戳升级至 `v=20260825.1`。静态资源不被服务锁定，`wwwroot` 可不停服热同步到共享目录。
 - 浏览器目视验证三页：渲染正常、无脚本错误、功能完好；提交 `c9d7997`。
 
+### 工具分类人工覆盖（后台版本管理）
+
+- `Releases` 表新增 `CategoryOverride TEXT` 列（旧库容错 ALTER）；`null` 表示自动归类，非空为人工覆盖。
+- `PATCH /api/v1/admin/releases/{id}/metadata` 增加 `category` 字段：空串重置为自动；非空须命中 `ToolCategoryClassifier.Categories` 白名单，否则 400。
+- `/api/v1/tools` 与 `/api/v1/admin/releases` 均返回生效分类（`category`）与覆盖标记（`categoryOverridden`），市场页无需改动即同步生效。
+- 后台版本管理表新增“分类”列（覆盖时附“手动”标记）；编辑表单新增分类下拉，首项为「自动（当前：X）」，选项与服务端分类表一致。
+- 生产端到端验证：覆盖→市场索引同步→重置回自动，均正常；测试新增 2 例（175/175）。
+
 ## 5. 关键架构决策
 
 ### 5.1 使用 MaxScript Connector，而非 Autodesk SDK 插件
@@ -703,7 +711,7 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 - 工具提交后管理员/审核者自动收到飞书「待审核」通知。
 - 用户反馈管道已端到端验证：直调飞书投递成功、生产反馈状态 `delivered`、后台列表与补发可用。
 - Web Portal 完成高级感视觉刷新（与 Agent 客户端对齐的深色令牌），不停服热部署。
-- 完整测试 173/173 通过（Core 57、Agent 51、Server 65）。
+- 完整测试 175/175 通过（Core 57、Agent 51、Server 67）。
 - Agent 单实例在 2026-08-20 做过真实双开冒烟：以 `Win32_Process Name LIKE 'MaxHubAgent%.exe'` 统计版本化进程，第二实例退出，本地 `/health` 返回 `ok`；1.0.22 另在服务器停机状态做过“启动不崩溃”冒烟。
 
 ## 14. 已完成范围
