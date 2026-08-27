@@ -618,6 +618,8 @@ dotnet test MaxHub.sln --no-restore
 - 尽力同步到 `\\10.2.13.8\Server\maxhub\data\agent`。
 - 写入同名 `.sha256` sidecar。
 
+> ⚠️ 镜像同步是 best-effort：SMB 共享不可达时脚本只打 warning 不报错，镜像文件不会写入。发布后必须用 `HEAD /downloads/agent/{version}/{fileName}` 验证返回 200（而非 302 重定向循环）。若登记数据库时 `downloadUrl` 填了相对镜像路径而镜像缺失，会形成「重定向到自身」的无限循环，Agent 无法下载。
+
 GitHub Release 使用版本标签 `v{version}`，资产名必须与 Server 镜像路由约定一致。
 
 ### 10.4 部署 Server
