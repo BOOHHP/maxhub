@@ -6,27 +6,27 @@
     <Application.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <local:InverseBoolToVisConverter x:Key="InverseBoolToVis"/>
-        <!-- 颜色 token：对齐 Agent 客户端深色高级感（近黑分层 + 蓝色强调） -->
-        <SolidColorBrush x:Key="Bg.Window" Color="#0D1117"/>
-        <SolidColorBrush x:Key="Bg.Sidebar" Color="#10141A"/>
-        <SolidColorBrush x:Key="Bg.Card" Color="#161B22"/>
-        <SolidColorBrush x:Key="Bg.CardHover" Color="#1C2128"/>
-        <SolidColorBrush x:Key="Bg.Active" Color="#1E242C"/>
-        <SolidColorBrush x:Key="Border.Default" Color="#252C36"/>
-        <SolidColorBrush x:Key="Border.Subtle" Color="#1A2027"/>
-        <SolidColorBrush x:Key="Border.Strong" Color="#2E3844"/>
-        <SolidColorBrush x:Key="Text.Primary" Color="#E6EDF3"/>
-        <SolidColorBrush x:Key="Text.Secondary" Color="#8B949E"/>
-        <SolidColorBrush x:Key="Text.Disabled" Color="#484F58"/>
-        <SolidColorBrush x:Key="Accent.Primary" Color="#58A6FF"/>
-        <SolidColorBrush x:Key="Accent.PrimaryHover" Color="#79B8FF"/>
-        <SolidColorBrush x:Key="Accent.Soft" Color="#1B2A3F"/>
+        <!-- 颜色 token：深灰蓝分层，层次清晰不压抑 -->
+        <SolidColorBrush x:Key="Bg.Window" Color="#1E2228"/>
+        <SolidColorBrush x:Key="Bg.Sidebar" Color="#16191E"/>
+        <SolidColorBrush x:Key="Bg.Card" Color="#282D34"/>
+        <SolidColorBrush x:Key="Bg.CardHover" Color="#31373F"/>
+        <SolidColorBrush x:Key="Bg.Active" Color="#38414C"/>
+        <SolidColorBrush x:Key="Border.Default" Color="#3A4148"/>
+        <SolidColorBrush x:Key="Border.Subtle" Color="#23272D"/>
+        <SolidColorBrush x:Key="Border.Strong" Color="#4A525C"/>
+        <SolidColorBrush x:Key="Text.Primary" Color="#E9EDF2"/>
+        <SolidColorBrush x:Key="Text.Secondary" Color="#A3ACB6"/>
+        <SolidColorBrush x:Key="Text.Disabled" Color="#5C6470"/>
+        <SolidColorBrush x:Key="Accent.Primary" Color="#6BB2FF"/>
+        <SolidColorBrush x:Key="Accent.PrimaryHover" Color="#8AC3FF"/>
+        <SolidColorBrush x:Key="Accent.Soft" Color="#24303C"/>
         <SolidColorBrush x:Key="Status.Success" Color="#4CC38A"/>
         <SolidColorBrush x:Key="Status.Warning" Color="#F0B429"/>
         <SolidColorBrush x:Key="Status.Danger" Color="#F47067"/>
-        <SolidColorBrush x:Key="Status.SuccessBg" Color="#12291F"/>
-        <SolidColorBrush x:Key="Status.WarningBg" Color="#2E2614"/>
-        <SolidColorBrush x:Key="Status.DangerBg" Color="#331A1A"/>
+        <SolidColorBrush x:Key="Status.SuccessBg" Color="#1D2F26"/>
+        <SolidColorBrush x:Key="Status.WarningBg" Color="#362D1A"/>
+        <SolidColorBrush x:Key="Status.DangerBg" Color="#3D2222"/>
 
         <Style TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
@@ -346,9 +346,9 @@
         <!-- 主色实心按钮：浅蓝底 + 深色文字（对齐截图） -->
         <Style x:Key="PrimaryButton" TargetType="Button">
             <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
-            <Setter Property="Foreground" Value="#0B0E11"/>
+            <Setter Property="Foreground" Value="#0E1116"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Background" Value="#7CC0EA"/>
+            <Setter Property="Background" Value="#8FBBF7"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Height" Value="28"/>
             <Setter Property="Padding" Value="14,0"/>
@@ -361,7 +361,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#8FCAF0"/>
+                                <Setter Property="Background" Value="#A3C8FA"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Background" Value="{StaticResource Bg.Card}"/>
