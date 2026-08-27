@@ -26,6 +26,8 @@ $sha256 = (Get-FileHash -Algorithm SHA256 -Path $distPath).Hash.ToLowerInvariant
 
 # Best-effort LAN mirror. The server serves data/agent first and redirects to GitHub when absent.
 $serverRoot = "\\10.2.13.8\Server\maxhub"
+$serverHttp = "http://10.2.13.8:5100"
+$mirrorPath = $null
 if (Test-Path $serverRoot) {
     try {
         $mirrorDir = Join-Path $serverRoot "data\agent"
@@ -36,7 +38,27 @@ if (Test-Path $serverRoot) {
         Write-Host "Mirror:    $mirrorDir"
     }
     catch {
-        Write-Warning "LAN mirror failed; GitHub release remains available: $($_.Exception.Message)"
+        # 镜像同步失败必须报错，避免静默漏部署导致下载 302 重定向循环
+        throw "LAN mirror sync FAILED: $($_.Exception.Message)"
+    }
+}
+else {
+    throw "LAN mirror share not reachable: $serverRoot"
+}
+
+# Verify the mirror is actually served (200, not a 302 redirect loop when the file is missing).
+if ($mirrorPath) {
+    $fileName = Split-Path $distPath -Leaf
+    $url = "$serverHttp/downloads/agent/$version/$fileName"
+    try {
+        $resp = Invoke-WebRequest -UseBasicParsing -Method Head -MaximumRedirection 0 $url -ErrorAction Stop
+        if ($resp.StatusCode -ne 200) {
+            throw "Mirror HEAD returned $($resp.StatusCode) (expected 200); check the file exists on the server."
+        }
+        Write-Host "Mirror OK: $url ($($resp.Headers['Content-Length']) bytes)"
+    }
+    catch {
+        throw "Mirror verify FAILED for $url : $($_.Exception.Message)"
     }
 }
 Write-Host "Published: $exe ($exeSizeMb MB)"
