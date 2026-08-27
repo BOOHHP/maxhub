@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:MaxHub.Agent.Tray"
-        Title="MaxHub Agent" Width="900" Height="600"
-        MinWidth="760" MinHeight="520"
+        Title="MaxHub Agent" Width="980" Height="640"
+        MinWidth="860" MinHeight="560"
         Icon="Assets/maxhub.ico"
         WindowStyle="None" ResizeMode="CanResize"
         WindowStartupLocation="CenterScreen"
@@ -48,29 +48,32 @@
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="56"/>
+                <ColumnDefinition Width="180"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 左侧导航 -->
-            <Border Grid.Column="0" Background="{StaticResource Bg.Sidebar}">
+            <!-- 左侧导航：宽文字 + 圆角高亮块 -->
+            <Border Grid.Column="0" Background="{StaticResource Bg.Sidebar}" BorderBrush="{StaticResource Border.Subtle}"
+                    BorderThickness="0,0,1,0">
                 <DockPanel>
-                    <StackPanel DockPanel.Dock="Bottom" Margin="0,0,0,6">
-                        <RadioButton x:Name="NavReleaseNotes" Style="{StaticResource NavButton}" Content="📝"
-                                     GroupName="Nav" Checked="NavReleaseNotes_Checked"
-                                     ToolTip="更新日志" AutomationProperties.Name="更新日志"/>
-                        <TextBlock x:Name="VersionText" Text="v?" FontSize="10"
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,0,0,10">
+                        <RadioButton x:Name="NavReleaseNotes" Style="{StaticResource NavButton}" Content="更新日志"
+                                     GroupName="Nav" Checked="NavReleaseNotes_Checked" ToolTip="更新日志"
+                                     AutomationProperties.Name="更新日志"/>
+                        <TextBlock x:Name="VersionText" Text="v?" FontSize="11"
                                    Foreground="{StaticResource Text.Disabled}"
-                                   HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                                   HorizontalAlignment="Left" Margin="18,6,0,0"/>
                     </StackPanel>
                     <StackPanel>
-                        <RadioButton x:Name="NavAccount" Style="{StaticResource NavButton}" Content="👤"
+                        <TextBlock Text="MaxHub Agent" FontSize="15" FontWeight="Bold"
+                                   Foreground="{StaticResource Text.Primary}" Margin="18,16,0,14"/>
+                        <RadioButton x:Name="NavAccount" Style="{StaticResource NavButton}" Content="账号"
                                      GroupName="Nav" Checked="NavAccount_Checked" ToolTip="账号"/>
-                        <RadioButton x:Name="NavConnectors" Style="{StaticResource NavButton}" Content="🔌"
+                        <RadioButton x:Name="NavConnectors" Style="{StaticResource NavButton}" Content="Connector"
                                      GroupName="Nav" Checked="NavConnectors_Checked" ToolTip="Connector 管理"/>
-                        <RadioButton x:Name="NavTools" Style="{StaticResource NavButton}" Content="🧰"
+                        <RadioButton x:Name="NavTools" Style="{StaticResource NavButton}" Content="工具管理"
                                      GroupName="Nav" Checked="NavTools_Checked" ToolTip="工具管理"/>
-                        <RadioButton x:Name="NavFeedback" Style="{StaticResource NavButton}" Content="💬"
+                        <RadioButton x:Name="NavFeedback" Style="{StaticResource NavButton}" Content="反馈"
                                      GroupName="Nav" Checked="NavFeedback_Checked" ToolTip="反馈"
                                      AutomationProperties.Name="反馈"/>
                     </StackPanel>
@@ -175,7 +178,7 @@
                              Visibility="{Binding IsBatchInstalling, Converter={StaticResource BoolToVis}}"/>
 
                 <!-- 提示条 -->
-                <Border Grid.Row="2" Background="{StaticResource Bg.Card}" CornerRadius="4" Padding="10,6" Margin="0,0,0,8"
+                <Border Grid.Row="2" Background="{StaticResource Bg.Card}" CornerRadius="8" Padding="10,6" Margin="0,0,0,8"
                         Visibility="{Binding HasBanner, Converter={StaticResource BoolToVis}}">
                     <TextBlock Text="{Binding Banner}" FontSize="12" Foreground="{StaticResource Status.Warning}"/>
                 </Border>
@@ -186,7 +189,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Margin="0,0,0,4">
-                                    <Border Background="{StaticResource Bg.Card}" CornerRadius="4" Height="44" Padding="12,0">
+                                    <Border Background="{StaticResource Bg.Card}" CornerRadius="8" Height="44" Padding="12,0">
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="*"/>
@@ -205,23 +208,23 @@
                                                        Foreground="{StaticResource Text.Secondary}"
                                                        TextTrimming="CharacterEllipsis" ToolTip="{Binding InstallDir}"
                                                        VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                            <Border Grid.Column="2" CornerRadius="4" Padding="8,2"
+                                            <Border Grid.Column="2" CornerRadius="6" Padding="8,2"
                                                     HorizontalAlignment="Left" VerticalAlignment="Center">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
-                                                        <Setter Property="Background" Value="#3A3D42"/>
+                                                        <Setter Property="Background" Value="{StaticResource Bg.Card}"/>
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding StatusName}" Value="Installed">
-                                                                <Setter Property="Background" Value="#1B3B2A"/>
+                                                                <Setter Property="Background" Value="{StaticResource Status.SuccessBg}"/>
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding StatusName}" Value="UpdateAvailable">
-                                                                <Setter Property="Background" Value="#3D3320"/>
+                                                                <Setter Property="Background" Value="{StaticResource Status.WarningBg}"/>
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding StatusName}" Value="Installing">
-                                                                <Setter Property="Background" Value="#1E3448"/>
+                                                                <Setter Property="Background" Value="{StaticResource Accent.Soft}"/>
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding StatusName}" Value="Failed">
-                                                                <Setter Property="Background" Value="#42272A"/>
+                                                                <Setter Property="Background" Value="{StaticResource Status.DangerBg}"/>
                                                             </DataTrigger>
                                                         </Style.Triggers>
                                                     </Style>
@@ -229,19 +232,19 @@
                                                 <TextBlock Text="{Binding StatusText}" FontSize="12">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                                                            <Setter Property="Foreground" Value="#9BA0A6"/>
+                                                            <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding StatusName}" Value="Installed">
-                                                                    <Setter Property="Foreground" Value="#4CC38A"/>
+                                                                    <Setter Property="Foreground" Value="{StaticResource Status.Success}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding StatusName}" Value="UpdateAvailable">
-                                                                    <Setter Property="Foreground" Value="#F0B429"/>
+                                                                    <Setter Property="Foreground" Value="{StaticResource Status.Warning}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding StatusName}" Value="Installing">
-                                                                    <Setter Property="Foreground" Value="#4C9FE0"/>
+                                                                    <Setter Property="Foreground" Value="{StaticResource Accent.Primary}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding StatusName}" Value="Failed">
-                                                                    <Setter Property="Foreground" Value="#E5534B"/>
+                                                                    <Setter Property="Foreground" Value="{StaticResource Status.Danger}"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
@@ -289,7 +292,7 @@
                                         </Grid>
                                     </Border>
                                     <!-- 行内错误条 -->
-                                    <Border Background="#2AE5534B" BorderBrush="{StaticResource Status.Danger}" BorderThickness="2,0,0,0"
+                                    <Border Background="{StaticResource Status.DangerBg}" BorderBrush="{StaticResource Status.Danger}" BorderThickness="2,0,0,0"
                                             Padding="10,4" Margin="0,2,0,0"
                                             Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="{Binding ErrorMessage}" FontSize="12" Foreground="{StaticResource Status.Danger}"/>
@@ -346,7 +349,7 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Margin="0,0,0,4">
-                                                <Border Background="{StaticResource Bg.Card}" CornerRadius="4" Height="44" Padding="12,0">
+                                                <Border Background="{StaticResource Bg.Card}" CornerRadius="8" Height="44" Padding="12,0">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*"/>
@@ -388,7 +391,7 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel Margin="0,0,0,4">
-                                                <Border Background="{StaticResource Bg.Card}" CornerRadius="4" Padding="12,8">
+                                                <Border Background="{StaticResource Bg.Card}" CornerRadius="8" Padding="12,8">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="200"/>

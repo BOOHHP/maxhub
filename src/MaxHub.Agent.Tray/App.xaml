@@ -6,20 +6,27 @@
     <Application.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <local:InverseBoolToVisConverter x:Key="InverseBoolToVis"/>
-        <!-- 颜色 token（UI 设计方案第 5 节） -->
-        <SolidColorBrush x:Key="Bg.Window" Color="#26282B"/>
-        <SolidColorBrush x:Key="Bg.Sidebar" Color="#1E2023"/>
-        <SolidColorBrush x:Key="Bg.Card" Color="#2E3136"/>
-        <SolidColorBrush x:Key="Bg.CardHover" Color="#35393F"/>
-        <SolidColorBrush x:Key="Border.Default" Color="#3D4147"/>
-        <SolidColorBrush x:Key="Text.Primary" Color="#E8EAED"/>
-        <SolidColorBrush x:Key="Text.Secondary" Color="#9BA0A6"/>
-        <SolidColorBrush x:Key="Text.Disabled" Color="#5F6368"/>
-        <SolidColorBrush x:Key="Accent.Primary" Color="#4C9FE0"/>
-        <SolidColorBrush x:Key="Accent.PrimaryHover" Color="#63AFE8"/>
+        <!-- 颜色 token：对齐 Agent 客户端深色高级感（近黑分层 + 蓝色强调） -->
+        <SolidColorBrush x:Key="Bg.Window" Color="#0D1117"/>
+        <SolidColorBrush x:Key="Bg.Sidebar" Color="#10141A"/>
+        <SolidColorBrush x:Key="Bg.Card" Color="#161B22"/>
+        <SolidColorBrush x:Key="Bg.CardHover" Color="#1C2128"/>
+        <SolidColorBrush x:Key="Bg.Active" Color="#1E242C"/>
+        <SolidColorBrush x:Key="Border.Default" Color="#252C36"/>
+        <SolidColorBrush x:Key="Border.Subtle" Color="#1A2027"/>
+        <SolidColorBrush x:Key="Border.Strong" Color="#2E3844"/>
+        <SolidColorBrush x:Key="Text.Primary" Color="#E6EDF3"/>
+        <SolidColorBrush x:Key="Text.Secondary" Color="#8B949E"/>
+        <SolidColorBrush x:Key="Text.Disabled" Color="#484F58"/>
+        <SolidColorBrush x:Key="Accent.Primary" Color="#58A6FF"/>
+        <SolidColorBrush x:Key="Accent.PrimaryHover" Color="#79B8FF"/>
+        <SolidColorBrush x:Key="Accent.Soft" Color="#1B2A3F"/>
         <SolidColorBrush x:Key="Status.Success" Color="#4CC38A"/>
         <SolidColorBrush x:Key="Status.Warning" Color="#F0B429"/>
-        <SolidColorBrush x:Key="Status.Danger" Color="#E5534B"/>
+        <SolidColorBrush x:Key="Status.Danger" Color="#F47067"/>
+        <SolidColorBrush x:Key="Status.SuccessBg" Color="#12291F"/>
+        <SolidColorBrush x:Key="Status.WarningBg" Color="#2E2614"/>
+        <SolidColorBrush x:Key="Status.DangerBg" Color="#331A1A"/>
 
         <Style TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
@@ -39,17 +46,19 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="bg" Background="Transparent" CornerRadius="4,4,0,0" Padding="14,7" Margin="0,0,4,0">
+                        <Border x:Name="bg" Background="Transparent" Padding="0,10" Margin="0,0,22,0"
+                                BorderBrush="Transparent" BorderThickness="0,0,0,2">
                             <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              TextBlock.Foreground="{TemplateBinding Foreground}"/>
+                                              TextBlock.Foreground="{TemplateBinding Foreground}" TextBlock.FontWeight="Normal"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="{StaticResource Bg.Card}"/>
+                                <Setter TargetName="bg" Property="BorderBrush" Value="{StaticResource Accent.Primary}"/>
                                 <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="{StaticResource Bg.CardHover}"/>
+                                <Setter TargetName="bg" Property="BorderBrush" Value="{StaticResource Border.Strong}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -334,11 +343,12 @@
             </Setter>
         </Style>
 
-        <!-- 主色实心按钮 -->
+        <!-- 主色实心按钮：浅蓝底 + 深色文字（对齐截图） -->
         <Style x:Key="PrimaryButton" TargetType="Button">
             <Setter Property="FontFamily" Value="Microsoft YaHei UI"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Background" Value="{StaticResource Accent.Primary}"/>
+            <Setter Property="Foreground" Value="#0B0E11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Background" Value="#7CC0EA"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Height" Value="28"/>
             <Setter Property="Padding" Value="14,0"/>
@@ -346,12 +356,12 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="{StaticResource Accent.PrimaryHover}"/>
+                                <Setter Property="Background" Value="#8FCAF0"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Background" Value="{StaticResource Bg.Card}"/>
@@ -367,16 +377,18 @@
         <Style x:Key="OutlineButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+            <Setter Property="FontWeight" Value="Normal"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="4"
-                                BorderBrush="{StaticResource Border.Default}" BorderThickness="1">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6"
+                                BorderBrush="{StaticResource Border.Strong}" BorderThickness="1">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Background" Value="{StaticResource Bg.CardHover}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Foreground" Value="{StaticResource Text.Disabled}"/>
@@ -392,22 +404,33 @@
             <Setter Property="Foreground" Value="{StaticResource Status.Danger}"/>
         </Style>
 
-        <!-- 左侧导航按钮 -->
+        <!-- 左侧导航按钮：宽文字 + 圆角高亮块 -->
         <Style x:Key="NavButton" TargetType="RadioButton">
-            <Setter Property="Width" Value="40"/>
             <Setter Property="Height" Value="40"/>
-            <Setter Property="Margin" Value="8,4"/>
+            <Setter Property="Margin" Value="6,3"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="bg" Background="Transparent" CornerRadius="4">
-                            <TextBlock Text="{TemplateBinding Content}" FontSize="18"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <Border x:Name="bg" Background="Transparent" CornerRadius="6" Padding="12,0">
+                            <TextBlock Text="{TemplateBinding Content}" FontSize="14" FontWeight="Medium"
+                                       VerticalAlignment="Center" Foreground="{StaticResource Text.Secondary}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                        <Setter Property="Foreground" Value="{StaticResource Text.Secondary}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsChecked, RelativeSource={RelativeSource AncestorType=RadioButton}}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource Text.Primary}"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="{StaticResource Bg.Card}"/>
+                                <Setter TargetName="bg" Property="Background" Value="{StaticResource Bg.Active}"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="bg" Property="Background" Value="{StaticResource Bg.CardHover}"/>
