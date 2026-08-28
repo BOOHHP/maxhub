@@ -392,6 +392,13 @@ Connector 提交反馈反复报“Agent 无响应”，分阶段定位并解决�
 - `/api/v1/tools` 响应结构保持不变（Agent `HubClient` 按顶层数组解析，兼容性零风险）。
 - 生产验证：端点返回 9 个分类；人工覆盖的工具（MaxToUE_Toolkit→导入导出、批量附加 Pro→场景对象）使市场侧栏动态出现“导入导出”分类，动态渲染生效。测试新增 1 例（176/176 中 Server 68）。
 
+### 审核通过与上架广播通知
+
+- `ReviewNotifier.NotifyApprovedAsync`：审核通过后（1）向提交者发「审核通过」消息；（2）向全部登录过的用户（`Users` 表，登录时 Upsert，排除提交者）广播「新工具上架」。
+- 审核端点 approve 成功后 fire-and-forget 触发；单个接收人投递失败不影响其他人，也不阻断审核操作。
+- 广播范围语义：`Users` 表 = 登录过的用户；bootstrap 配置但从未登录的账号不在广播名单内。
+- 测试新增 1 例（177/177：Core 57、Agent 51、Server 69）；生产端到端验证通过（提交→审核通过→通知发出→测试工具撤回）。
+
 ## 5. 关键架构决策
 
 ### 5.1 使用 MaxScript Connector，而非 Autodesk SDK 插件
