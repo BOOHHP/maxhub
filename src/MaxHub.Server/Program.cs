@@ -425,7 +425,21 @@ app.MapPost("/api/v1/releases/{releaseId}/review", (HttpContext ctx, string rele
     if (!IsReviewer(ctx)) return Results.StatusCode(StatusCodes.Status403Forbidden);
     var allowedChannels = new[] { "internal", "beta", "stable" };
     if (request.Approve && !allowedChannels.Contains(request.Channel)) return Results.BadRequest(new { errors = new[] { "非法频道。" } });
-    return registry.Review(releaseId, request.Approve, request.Channel ?? "internal", user) ? Results.Ok() : Results.NotFound();
+    if (!registry.Review(releaseId, request.Approve, request.Channel ?? "internal", user)) return Results.NotFound();
+
+    // 审核通过：通知提交者 + 向全部登录过的用户推送上架（fire-and-forget，失败不影响审核）
+    if (request.Approve)
+    {
+        var release = registry.GetRelease(releaseId);
+        if (release is not null)
+        {
+            var users = app.Services.GetRequiredService<IUserDirectory>();
+            var submitter = users.ResolveIdentity(release.SubmittedBy);
+            _ = app.Services.GetRequiredService<ReviewNotifier>()
+                .NotifyApprovedAsync(submitter, release.Manifest.Name, release.Manifest.Version);
+        }
+    }
+    return Results.Ok();
 });
 
 // ---- Connector 制品 ----

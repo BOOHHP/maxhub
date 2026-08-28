@@ -258,4 +258,54 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
             Assert.Contains("审核通知测试工具", notify.First().Text);
         }
     }
+
+    [Fact]
+    public async Task Approval_notifies_submitter_and_broadcasts_release_to_logged_in_users()
+    {
+        // 先让多个用户登录（Upsert 进 Users 表），再提交并审核通过
+        var publisher = await LoginAsync("emp-pub", "发布者");
+        var bystander = await LoginAsync("emp-bystander", "旁观者");
+        var reviewer = await LoginAsync("emp-rev", "审核者");
+
+        var res = await publisher.PostAsJsonAsync("/api/v1/scripts/publish", new
+        {
+            fileName = "approve-tool.ms",
+            content = "macroScript ApproveTool category:\"MaxHub\" buttonText:\"A\"\n(\n)\n",
+            name = "上架广播测试工具",
+            description = "用于验证审核通过通知与上架广播",
+            version = "2.0.0",
+            minMaxYear = 2019,
+            maxMaxYear = 2026,
+        });
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var releaseId = (await res.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("releaseId").GetString()!;
+
+        lock (fixture.Sender.Sent) fixture.Sender.Sent.Clear();
+        var review = await reviewer.PostAsJsonAsync($"/api/v1/releases/{releaseId}/review",
+            new { approve = true, channel = "stable" });
+        Assert.Equal(HttpStatusCode.OK, review.StatusCode);
+
+        // 通知为后台异步发送，轮询等待上架广播出现
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        List<(string EmployeeId, string? OpenId, string? UserId, string Text)> sent;
+        do
+        {
+            await Task.Delay(200);
+            lock (fixture.Sender.Sent) sent = [.. fixture.Sender.Sent];
+        } while (sw.Elapsed.TotalSeconds < 5 && !sent.Any(s => s.Text.Contains("新工具上架")));
+
+        lock (fixture.Sender.Sent)
+        {
+            var approved = sent.Where(s => s.Text.Contains("审核通过")).ToList();
+            var approvedTo = approved.Select(s => s.EmployeeId).Distinct().ToArray();
+            Assert.Equal(["emp-pub"], approvedTo); // 仅提交者
+            Assert.Contains("上架广播测试工具", approved.First().Text);
+
+            var broadcast = sent.Where(s => s.Text.Contains("新工具上架")).ToList();
+            var broadcastTo = broadcast.Select(s => s.EmployeeId).Distinct().OrderBy(x => x).ToArray();
+            // 全部登录过的用户（Users 表），排除提交者；emp-admin 未登录过故不在名单
+            Assert.Equal(["emp-bystander", "emp-rev"], broadcastTo);
+            Assert.Contains("上架广播测试工具", broadcast.First().Text);
+        }
+    }
 }
