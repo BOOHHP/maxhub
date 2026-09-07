@@ -399,6 +399,14 @@ Connector 提交反馈反复报“Agent 无响应”，分阶段定位并解决�
 - 广播范围语义：`Users` 表 = 登录过的用户；bootstrap 配置但从未登录的账号不在广播名单内。
 - 测试新增 1 例（177/177：Core 57、Agent 51、Server 69）；生产端到端验证通过（提交→审核通过→通知发出→测试工具撤回）。
 
+### 反馈处理状态生命周期
+
+- `Feedbacks` 表新增 `Status`（open/in_progress/resolved/wontfix）、`StatusNote`、`StatusChangedAtUtc`（旧库容错 ALTER；NULL 视为 open）。与 `DeliveryStatus`（投递状态）语义分离。
+- `PATCH /api/v1/feedbacks/{id}/status`：接收人（该反馈接收人员工号）或管理员/审核者可变更；非法状态 400。变更后 fire-and-forget 飞书回执反馈人（状态中文名+备注）。
+- `GET /api/v1/my-feedbacks`（反馈人视角）、`GET /api/v1/feedbacks/recipients`（接收人视角，供发布页直接改状态——普通上传者无需进后台）。
+- UI：后台反馈表与发布页「反馈跟踪」区块均渲染状态徽章（复用网页 token 配色）与状态变更按钮；备注随内容展示。
+- 测试 71/71（Server，新增端到端：open→接收人改 in_progress→回执断言→反馈人可见→非接收人 403→非法状态 400）。
+
 ## 5. 关键架构决策
 
 ### 5.1 使用 MaxScript Connector，而非 Autodesk SDK 插件
