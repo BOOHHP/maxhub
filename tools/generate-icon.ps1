@@ -19,8 +19,10 @@ function New-RoundedPath([float]$x, [float]$y, [float]$w, [float]$h, [float]$r) 
 
 function Fill-Polygon([System.Drawing.Graphics]$gr, [float[]]$xs, [float[]]$ys, [System.Drawing.Color]$col) {
     $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $pts = New-Object 'System.Drawing.PointF[]' $ys.Count
-    for ($i = 0; $i -lt $ys.Count; $i++) { $pts[$i] = New-Object System.Drawing.PointF ($xs[$i]), ($ys[$i]) }
+    $n = $xs.Length
+    $pts = New-Object 'System.Drawing.PointF[]' $n
+    for ($i = 0; $i -lt $n; $i++) { $pts[$i] = New-Object System.Drawing.PointF ($xs[$i]), ($ys[$i]) }
+    $path.AddPolygon($pts)
     $b = New-Object System.Drawing.SolidBrush $col
     $gr.FillPath($b, $path)
     $path.Dispose(); $b.Dispose()
@@ -67,9 +69,23 @@ foreach ($size in $sizes) {
     $leftY = [float[]]@($gdy, $qy, $ey, $fyy)
     $rightX = [float[]]@($bx, $qx, $qx, $bx)
     $rightY = [float[]]@($by, $qy, $ey, $fyy)
+
+    # soft ground shadow for float feel (skipped at 16px)
+    if ($size -gt 16) {
+        $shB = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(40, 0, 0, 0))
+        $g.FillEllipse($shB, ((15.5 - 10.5) * $f), ((29.6 - 2.2) * $f), (21 * $f), (4.4 * $f))
+        $shB.Dispose()
+    }
     Fill-Polygon $g $topX $topY $faceTop
     Fill-Polygon $g $leftX $leftY $faceLeft
     Fill-Polygon $g $rightX $rightY $faceRight
+    # top highlight: thin bright edge along the two upper edges
+    $hiPen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(120, 255, 255, 255)), (0.8 * $f)
+    $hiPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $hiPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $g.DrawLine($hiPen, $ax, $ay, $bx, $by)
+    $g.DrawLine($hiPen, $ax, $ay, $gdx, $gdy)
+    $hiPen.Dispose()
 
     # Hub satellite node + link (skipped at 16px for legibility)
     if ($size -gt 16) {
@@ -77,6 +93,9 @@ foreach ($size in $sizes) {
         $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
         $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
         $g.DrawLine($pen, (26 * $f), (6 * $f), (20.5 * $f), (11 * $f))
+        $dotSh = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(45, 0, 0, 0))
+        $g.FillEllipse($dotSh, ((26 - 3) * $f), ((6.6 - 1.4) * $f), (6 * $f), (2.8 * $f))
+        $dotSh.Dispose()
         $dot = New-RoundedPath (23.5 * $f) (3.5 * $f) (5 * $f) (5 * $f) (1.5 * $f)
         $nb = New-Object System.Drawing.SolidBrush $node
         $g.FillPath($nb, $dot)
@@ -111,5 +130,16 @@ for ($i = 0; $i -lt $sizes.Count; $i++) {
 }
 foreach ($frame in $frames) { $writer.Write($frame) }
 $writer.Close()
+
+# Brand exports for the web portal: favicon (32px frame) + 256px PNG, same drawing source as the .ico
+$repoRoot = Split-Path $PSScriptRoot -Parent
+$wwwroot = Join-Path $repoRoot "src\MaxHub.Server\wwwroot"
+if (Test-Path $wwwroot) {
+    $idx32 = 2  # $sizes = 16,24,32,48,256
+    [System.IO.File]::WriteAllBytes((Join-Path $wwwroot "favicon.png"), $frames[$idx32])
+    [System.IO.File]::WriteAllBytes((Join-Path $wwwroot "icon-256.png"), $frames[4])
+    Write-Host "Favicon written: $(Join-Path $wwwroot 'favicon.png')"
+    Write-Host "Web icon written: $(Join-Path $wwwroot 'icon-256.png')"
+}
 
 Write-Host "Icon written: $outPath ($((Get-Item $outPath).Length) bytes)"

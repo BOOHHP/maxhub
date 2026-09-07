@@ -28,7 +28,7 @@ body { background: var(--bg-window); color: var(--text-1); font: 13px/1.5 "Micro
 /* ---- 导航栏 ---- */
 .nav { background: var(--bg-sidebar); display: flex; align-items: center; padding: 0 20px; height: 52px; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
 .nav .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text-1); text-decoration: none; font-size: 14px; margin-right: 28px; letter-spacing: .2px; }
-.nav .brand .dot { color: var(--accent); }
+.nav .brand .logo { display: block; border-radius: 5px; }
 .nav a.tab { color: var(--text-2); text-decoration: none; padding: 0 12px; height: 52px; display: inline-flex; align-items: center; border-bottom: 2px solid transparent; margin-right: 4px; transition: color var(--t-fast); }
 .nav a.tab:hover { color: var(--text-1); }
 .nav a.tab.active { color: var(--text-1); border-bottom-color: var(--accent); font-weight: 600; }
