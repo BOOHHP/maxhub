@@ -1,7 +1,34 @@
 // MaxHub Web Portal 共享 API 封装与登录态
 window.Api = (() => {
   const tokenKey = 'maxhubToken';
+  const refreshKey = 'maxhubRefresh';
   const userKey = 'maxhubUser';
+
+  // 用 refresh token 换新会话；并发 401 只触发一次刷新（共享同一 Promise）
+  let refreshing = null;
+  async function refreshSession() {
+    const refreshToken = localStorage.getItem(refreshKey);
+    if (!refreshToken) return false;
+    refreshing ??= (async () => {
+      try {
+        const res = await fetch('/api/v1/auth/sessions/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (!res.ok) return false;
+        const s = await res.json();
+        localStorage.setItem(tokenKey, s.accessToken);
+        localStorage.setItem(refreshKey, s.refreshToken);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshing = null;
+      }
+    })();
+    return refreshing;
+  }
 
   async function api(path, opts = {}) {
     const headers = { ...(opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...opts.headers };
@@ -9,8 +36,13 @@ window.Api = (() => {
     if (token) headers.Authorization = 'Bearer ' + token;
     const res = await fetch(path, { ...opts, headers });
     if (res.status === 401 && opts.retry !== false) {
-      // 令牌失效：清理本地态并抛特殊错误，由页面决定是否提示重新登录
+      // access token 过期（30 分钟）：先用 refresh token 透明续期并重试原请求
+      if (path !== '/api/v1/auth/sessions/refresh' && await refreshSession()) {
+        return api(path, { ...opts, retry: false });
+      }
+      // refresh 也失效：清理本地态并抛特殊错误，由页面决定是否提示重新登录
       localStorage.removeItem(tokenKey);
+      localStorage.removeItem(refreshKey);
       localStorage.removeItem(userKey);
       throw new UnauthorizedError();
     }
@@ -65,6 +97,7 @@ window.Api = (() => {
     const polled = await (await api(`/api/v1/auth/feishu/qr-sessions/${state}`, { retry: false })).json();
     if (polled.status === 'authorized' && polled.session) {
       localStorage.setItem(tokenKey, polled.session.accessToken);
+      localStorage.setItem(refreshKey, polled.session.refreshToken);
       localStorage.setItem(userKey, polled.session.user.username);
       history.replaceState(null, '', location.pathname);
       return true;
@@ -74,8 +107,9 @@ window.Api = (() => {
   }
 
   async function logout() {
-    try { await api('/api/v1/auth/sessions/current', { method: 'DELETE' }); } catch { /* ignore */ }
+    try { await api('/api/v1/auth/sessions/current', { method: 'DELETE', retry: false }); } catch { /* ignore */ }
     localStorage.removeItem(tokenKey);
+    localStorage.removeItem(refreshKey);
     localStorage.removeItem(userKey);
     location.href = 'index.html';
   }
