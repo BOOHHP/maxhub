@@ -615,6 +615,33 @@ public sealed class MarketToolRowViewModel : ViewModelBase
     public RelayCommand InstallCommand { get; }
 }
 
+/// <summary>工具管理页：我的提交行；待审核状态显示撤回按钮。</summary>
+public sealed class MySubmissionRowViewModel : ViewModelBase
+{
+    private readonly ToolsViewModel _owner;
+
+    public MySubmissionRowViewModel(ToolsViewModel owner, MySubmissionItem item)
+    {
+        _owner = owner;
+        Item = item;
+        CancelCommand = new RelayCommand(() => owner.CancelSubmissionAsync(this), () => IsPending);
+    }
+
+    public MySubmissionItem Item { get; }
+    public string Name => Item.Name;
+    public string Version => Item.Version;
+    public bool IsPending => Item.Status == "PendingReview";
+    public string StatusText => Item.Status switch
+    {
+        "PendingReview" => "待审核",
+        "Published" => "已发布",
+        "Rejected" => "已退回",
+        "Withdrawn" => "已撤回",
+        _ => Item.Status,
+    };
+    public RelayCommand CancelCommand { get; }
+}
+
 /// <summary>工具管理页：本机工具 / 市场安装 / 脚本上传。</summary>
 public sealed class ToolsViewModel : ViewModelBase
 {
@@ -681,6 +708,49 @@ public sealed class ToolsViewModel : ViewModelBase
     public RelayCommand UninstallAllCommand { get; }
     public RelayCommand PickFileCommand { get; }
     public RelayCommand SubmitUploadCommand { get; }
+    public ObservableCollection<MySubmissionRowViewModel> MySubmissions { get; } = [];
+
+    /// <summary>加载我的提交（登录后），供撤回待审核版本。</summary>
+    public async Task LoadMySubmissionsAsync()
+    {
+        if (!_account.IsLoggedIn)
+        {
+            MySubmissions.Clear();
+            return;
+        }
+        try
+        {
+            var items = await _services.Hub.GetMySubmissionsAsync();
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                MySubmissions.Clear();
+                foreach (var item in items.OrderByDescending(i => i.Status == "PendingReview"))
+                    MySubmissions.Add(new MySubmissionRowViewModel(this, item));
+            });
+        }
+        catch
+        {
+            // 列表加载失败不阻塞其他面板
+        }
+    }
+
+    public async Task CancelSubmissionAsync(MySubmissionRowViewModel row)
+    {
+        var confirm = System.Windows.MessageBox.Show(
+            $"确认撤回「{row.Name}」v{row.Version}？撤回后需重新上传提交。",
+            "MaxHub", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.OK) return;
+        try
+        {
+            var ok = await _services.Hub.CancelSubmissionAsync(row.Item.ReleaseId);
+            if (ok) await LoadMySubmissionsAsync();
+        }
+        catch
+        {
+            // 静默失败，刷新列表反映真实状态
+            await LoadMySubmissionsAsync();
+        }
+    }
 
     public async Task RefreshAsync()
     {
@@ -695,6 +765,7 @@ public sealed class ToolsViewModel : ViewModelBase
             SelectedMaxYear = MaxYears.Max();
         await RefreshInstalledAsync();
         await LoadMarketAsync();
+        await LoadMySubmissionsAsync();
     }
 
     public async Task RefreshInstalledAsync()
@@ -889,6 +960,8 @@ public sealed class ToolsViewModel : ViewModelBase
             UploadStatus = outcome.Success
                 ? $"✓ 已提交审核（Release {outcome.ReleaseId}），审核通过后即可在市场中安装"
                 : $"✗ 提交失败：{string.Join("；", outcome.Errors)}";
+            if (outcome.Success)
+                await LoadMySubmissionsAsync();
         }
         catch (Exception ex)
         {

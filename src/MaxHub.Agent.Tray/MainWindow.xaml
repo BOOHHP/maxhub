@@ -432,8 +432,11 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>                            </Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0" Text="选择本地脚本（.ms / .py），自动识别名称与描述后提交审核" FontSize="12"
                                        Foreground="{StaticResource Text.Secondary}" Margin="0,0,0,10"/>
                             <Button Grid.Row="1" Content="{Binding PickFileText}"
@@ -457,6 +460,36 @@
                             <TextBlock Grid.Row="7" Text="{Binding UploadStatus}" FontSize="12"
                                        Foreground="{StaticResource Status.Warning}" Margin="0,10,0,0"
                                        Visibility="{Binding HasUploadStatus, Converter={StaticResource BoolToVis}}"/>
+
+                            <!-- 我的提交：待审核版本可撤回 -->
+                            <TextBlock Grid.Row="8" Text="我的提交" FontSize="13" FontWeight="SemiBold" Margin="0,16,0,6"/>
+                            <ScrollViewer Grid.Row="9" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding MySubmissions}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{StaticResource Bg.Card}" CornerRadius="6" Height="38"
+                                                    Padding="12,0" Margin="0,0,0,4">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="70"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="12"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding Name}"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="11"
+                                                               Foreground="{StaticResource Text.Secondary}"
+                                                               VerticalAlignment="Center"/>
+                                                    <Button Grid.Column="2" Content="撤回" Width="52" Height="24" FontSize="11"
+                                                            Style="{StaticResource OutlineButton}"
+                                                            Command="{Binding CancelCommand}"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
                         </Grid>
                     </TabItem>
                 </TabControl>
