@@ -74,6 +74,51 @@ public sealed class FeedbackService(
         return db.Feedbacks.Find(id);
     }
 
+    /// <summary>处理状态白名单与中文名。</summary>
+    public static readonly string[] AllowedStatuses = ["open", "in_progress", "resolved", "wontfix"];
+    public static string StatusText(string status) => status switch
+    {
+        "open" => "待处理",
+        "in_progress" => "处理中",
+        "resolved" => "已解决",
+        "wontfix" => "暂不处理",
+        _ => status,
+    };
+
+    /// <summary>变更处理状态并写备注；返回更新后的行，反馈不存在或状态非法时返回 null。</summary>
+    public FeedbackRow? ChangeStatus(int id, string status, string? note)
+    {
+        if (!AllowedStatuses.Contains(status))
+            return null;
+        using var db = dbFactory.CreateDbContext();
+        var row = db.Feedbacks.Find(id);
+        if (row is null)
+            return null;
+        row.Status = status;
+        row.StatusNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        row.StatusChangedAtUtc = DateTimeOffset.UtcNow;
+        db.SaveChanges();
+        return row;
+    }
+
+    /// <summary>反馈人查看自己的反馈（按时间倒序）。</summary>
+    public IReadOnlyList<FeedbackRow> ListMine(string employeeId, int take = 100)
+    {
+        using var db = dbFactory.CreateDbContext();
+        return db.Feedbacks.Where(f => f.FromEmployeeId == employeeId).ToList()
+            .OrderByDescending(f => f.AtUtc).Take(take).ToList();
+    }
+
+    /// <summary>我是接收人的反馈（工具上传者/平台接收人），可变更其处理状态。</summary>
+    public IReadOnlyList<FeedbackRow> ListForRecipient(string employeeId, int take = 100)
+    {
+        using var db = dbFactory.CreateDbContext();
+        return db.Feedbacks.ToList()
+            .Where(f => f.ToEmployeeIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Contains(employeeId, StringComparer.Ordinal))
+            .OrderByDescending(f => f.AtUtc).Take(take).ToList();
+    }
+
     /// <summary>解析接收人：tool 发给最新已发布版本上传者并抄送管理员；platform 发给配置接收人。</summary>
     public (string[] Recipients, string? ToolName) ResolveRecipients(string scope, string? toolId, string[] platformRecipients)
     {

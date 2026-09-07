@@ -116,6 +116,11 @@ public sealed class FeedbackRow
     /// <summary>pending/delivered/failed/skipped。</summary>
     public required string DeliveryStatus { get; set; }
     public string? DeliveryError { get; set; }
+    /// <summary>处理状态：open（待处理）/ in_progress（处理中）/ resolved（已解决）/ wontfix（暂不处理）。旧库加列后为 NULL，读取按 open。</summary>
+    public string? Status { get; set; }
+    /// <summary>处理备注（如“下版本修复”），随状态变更更新。</summary>
+    public string? StatusNote { get; set; }
+    public DateTimeOffset StatusChangedAtUtc { get; set; }
     public DateTimeOffset AtUtc { get; set; }
 }
 

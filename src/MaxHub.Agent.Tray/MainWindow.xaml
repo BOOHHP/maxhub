@@ -479,11 +479,12 @@
                                                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                                                ToolTip="{Binding Name}"/>
                                                     <TextBlock Grid.Column="1" Text="{Binding StatusText}" FontSize="11"
-                                                               Foreground="{StaticResource Text.Secondary}"
+                                                               Foreground="{Binding StatusBrush}"
                                                                VerticalAlignment="Center"/>
                                                     <Button Grid.Column="2" Content="撤回" Width="52" Height="24" FontSize="11"
                                                             Style="{StaticResource OutlineButton}"
-                                                            Command="{Binding CancelCommand}"/>
+                                                            Command="{Binding CancelCommand}"
+                                                            Visibility="{Binding IsPending, Converter={StaticResource BoolToVis}}"/>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>

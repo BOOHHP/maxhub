@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>发布工具 · MaxHub</title>
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="stylesheet" href="css/site.css?v=20260907.1">
+<link rel="stylesheet" href="css/site.css?v=20260907.2">
 <style>
   .publish-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
   @media (max-width: 900px) { .publish-layout { grid-template-columns: 1fr; } }
@@ -78,13 +78,28 @@
         <tbody></tbody>
       </table>
     </section>
+
+    <section>
+      <h2 style="margin-top:0">反馈跟踪</h2>
+      <p class="subtitle" style="margin-bottom:10px">我发出的反馈与收到（作为工具上传者）的反馈及其处理进展。</p>
+      <h3 style="margin:0 0 8px;font-size:14px">我发出的</h3>
+      <table id="my-feedback-table">
+        <thead><tr><th>编号</th><th>对象</th><th>内容</th><th>状态</th><th>备注</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <h3 style="margin:16px 0 8px;font-size:14px">我收到的</h3>
+      <table id="recv-feedback-table">
+        <thead><tr><th>编号</th><th>反馈人</th><th>内容</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
   </div>
 </main>
 
 <div id="msg"></div>
 
-<script src="js/api.js?v=20260907.1"></script>
-<script src="js/auth.js?v=20260907.1"></script>
+<script src="js/api.js?v=20260907.2"></script>
+<script src="js/auth.js?v=20260907.2"></script>
 <script>
 const api = window.Api.api;
 const toast = window.Api.toast;
@@ -97,6 +112,7 @@ function render() {
     const user = window.MaxHubAuth?.user;
     document.getElementById('who').textContent = user ? `当前身份：${user.username}` : '';
     loadMine();
+    loadFeedbacks();
   }
 }
 
@@ -233,6 +249,41 @@ async function cancelSubmission(releaseId) {
   const res = await api(`/api/v1/releases/${releaseId}/cancel`, { method: 'POST' });
   toast(res.ok ? '已撤回' : '撤回失败', res.ok);
   if (res.ok) loadMine();
+}
+
+// ---- 反馈跟踪 ----
+const procBadge = { open: 'badge PendingReview', in_progress: 'badge beta', resolved: 'badge Published', wontfix: 'badge Withdrawn' };
+const procName = { open: '待处理', in_progress: '处理中', resolved: '已解决', wontfix: '暂不处理' };
+
+function feedbackRows(items, mine) {
+  return items.map(f => `
+    <tr>
+      <td style="white-space:nowrap">#${f.id}</td>
+      <td>${mine ? (f.scope === 'tool' ? esc(f.toolName || '未知工具') : '平台') : esc(f.fromUsername)}</td>
+      <td style="max-width:340px;white-space:pre-wrap">${esc(f.message)}</td>
+      <td><span class="${procBadge[f.status] ?? 'badge PendingReview'}">${esc(f.statusText)}</span>
+        ${f.note ? `<div style="color:var(--text-3);font-size:11px;margin-top:2px">${esc(f.note)}</div>` : ''}</td>
+      <td>${mine ? '' : ['open', 'in_progress', 'resolved', 'wontfix'].filter(s => s !== f.status)
+        .map(s => `<button class="btn-outline" style="padding:1px 6px;font-size:11px;margin:0 2px 2px 0" onclick="setFeedbackStatus(${f.id}, '${s}')">${procName[s]}</button>`).join('')}</td>
+    </tr>`).join('') || '<tr><td colspan="5" class="empty">暂无反馈</td></tr>';
+}
+
+async function loadFeedbacks() {
+  const mineRes = await api('/api/v1/my-feedbacks');
+  if (mineRes.ok)
+    document.querySelector('#my-feedback-table tbody').innerHTML = feedbackRows(await mineRes.json(), true);
+  const recvRes = await api('/api/v1/feedbacks/recipients');
+  if (recvRes.ok)
+    document.querySelector('#recv-feedback-table tbody').innerHTML = feedbackRows(await recvRes.json(), false);
+}
+
+async function setFeedbackStatus(id, status) {
+  const note = prompt('备注（可选，将随状态回执反馈人）：') ?? '';
+  const res = await api(`/api/v1/feedbacks/${id}/status`, {
+    method: 'PATCH', body: JSON.stringify({ status, note }),
+  });
+  toast(res.ok ? `已更新为「${procName[status]}」并回执反馈人` : (res.status === 403 ? '仅接收人/管理员可变更' : '更新失败'), res.ok);
+  if (res.ok) loadFeedbacks();
 }
 
 document.getElementById('feishu-login')?.addEventListener('click', () => window.Api.startLogin());

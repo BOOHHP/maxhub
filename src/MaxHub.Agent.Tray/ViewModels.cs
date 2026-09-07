@@ -639,6 +639,15 @@ public sealed class MySubmissionRowViewModel : ViewModelBase
         "Withdrawn" => "已撤回",
         _ => Item.Status,
     };
+
+    /// <summary>状态色与网页端徽章一致：黄=待审核、绿=已发布、红=已退回、灰=已撤回。</summary>
+    public System.Windows.Media.Brush StatusBrush => Item.Status switch
+    {
+        "PendingReview" => System.Windows.Application.Current.Resources["Status.Warning"] as System.Windows.Media.Brush ?? System.Windows.Media.Brushes.Goldenrod,
+        "Published" => System.Windows.Application.Current.Resources["Status.Success"] as System.Windows.Media.Brush ?? System.Windows.Media.Brushes.LightGreen,
+        "Rejected" => System.Windows.Application.Current.Resources["Status.Danger"] as System.Windows.Media.Brush ?? System.Windows.Media.Brushes.IndianRed,
+        _ => System.Windows.Application.Current.Resources["Text.Secondary"] as System.Windows.Media.Brush ?? System.Windows.Media.Brushes.Gray,
+    };
     public RelayCommand CancelCommand { get; }
 }
 

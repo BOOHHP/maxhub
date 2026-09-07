@@ -70,6 +70,9 @@ using (var db = app.Services.GetRequiredService<IDbContextFactory<MaxHubDb>>().C
         "ALTER TABLE Users ADD COLUMN FeishuOpenId TEXT",
         "ALTER TABLE Users ADD COLUMN FeishuUserId TEXT",
         "ALTER TABLE Releases ADD COLUMN CategoryOverride TEXT",
+        "ALTER TABLE Feedbacks ADD COLUMN Status TEXT",
+        "ALTER TABLE Feedbacks ADD COLUMN StatusNote TEXT",
+        "ALTER TABLE Feedbacks ADD COLUMN StatusChangedAtUtc TEXT",
         """CREATE TABLE IF NOT EXISTS "Users" ("EmployeeId" TEXT NOT NULL CONSTRAINT "PK_Users" PRIMARY KEY, "Username" TEXT NOT NULL)""",
         """CREATE TABLE IF NOT EXISTS "AgentReleases" ("Id" INTEGER NOT NULL CONSTRAINT "PK_AgentReleases" PRIMARY KEY AUTOINCREMENT, "Version" TEXT NOT NULL, "DownloadUrl" TEXT NOT NULL, "Sha256" TEXT NOT NULL, "UpdatedAtUtc" TEXT NOT NULL)""",
         """CREATE TABLE IF NOT EXISTS "Feedbacks" ("Id" INTEGER NOT NULL CONSTRAINT "PK_Feedbacks" PRIMARY KEY AUTOINCREMENT, "Scope" TEXT NOT NULL, "ToolId" TEXT, "ToolName" TEXT, "FromEmployeeId" TEXT NOT NULL, "FromUsername" TEXT NOT NULL, "ToEmployeeIds" TEXT NOT NULL, "Message" TEXT NOT NULL, "Client" TEXT NOT NULL, "ClientVersion" TEXT, "MaxYear" INTEGER, "DeliveryStatus" TEXT NOT NULL, "DeliveryError" TEXT, "AtUtc" TEXT NOT NULL)""",
@@ -689,6 +692,9 @@ app.MapGet("/api/v1/admin/feedbacks", (HttpContext ctx) =>
             maxYear = f.MaxYear,
             deliveryStatus = f.DeliveryStatus,
             deliveryError = f.DeliveryError,
+            status = f.Status ?? "open",
+            statusText = FeedbackService.StatusText(f.Status ?? "open"),
+            statusNote = f.StatusNote,
             atUtc = f.AtUtc,
         };
     }));
@@ -702,6 +708,70 @@ app.MapPost("/api/v1/admin/feedbacks/{id:int}/redeliver", async (HttpContext ctx
     if (row is null) return Results.NotFound();
     var (status, error) = await feedback.DeliverAsync(row);
     return Results.Ok(new { deliveryStatus = status, deliveryError = error });
+});
+
+// ---- 反馈处理状态：接收人（工具上传者/平台接收人/管理员）可变更，变更后飞书回执反馈人 ----
+app.MapPatch("/api/v1/feedbacks/{id:int}/status", async (HttpContext ctx, int id, UpdateFeedbackStatusRequest request) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    var row = feedback.Get(id);
+    if (row is null) return Results.NotFound();
+
+    // 权限：管理员/审核者，或该反馈的接收人（工具上传者/平台接收人）
+    var isRecipient = row.ToEmployeeIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Contains(user.EmployeeId, StringComparer.Ordinal);
+    if (!IsAdmin(ctx) && !IsReviewer(ctx) && !isRecipient)
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+    var updated = feedback.ChangeStatus(id, request.Status, request.Note);
+    if (updated is null)
+        return Results.BadRequest(new { errors = new[] { "非法状态。" } });
+
+    // 飞书回执反馈人（fire-and-forget，失败不影响状态变更）
+    var statusName = FeedbackService.StatusText(updated.Status ?? "open");
+    var subject = updated.Scope == "tool" ? $"工具「{updated.ToolName ?? "未知"}」的反馈" : "平台反馈";
+    var text = $"【MaxHub 反馈进展】你关于{subject}的反馈（#{updated.Id}）状态更新为：{statusName}" +
+               (string.IsNullOrWhiteSpace(updated.StatusNote) ? "" : $"\n备注：{updated.StatusNote}");
+    var notifier = app.Services.GetRequiredService<ReviewNotifier>();
+    var fromIdentity = app.Services.GetRequiredService<IUserDirectory>().ResolveIdentity(updated.FromEmployeeId);
+    _ = notifier.SendToAsync(fromIdentity, text);
+
+    return Results.Ok(new { status = updated.Status, note = updated.StatusNote, changedAtUtc = updated.StatusChangedAtUtc });
+});
+
+app.MapGet("/api/v1/my-feedbacks", (HttpContext ctx) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    return Results.Ok(feedback.ListMine(user.EmployeeId).Select(f => new
+    {
+        id = f.Id,
+        scope = f.Scope,
+        toolName = f.ToolName,
+        message = f.Message,
+        status = f.Status ?? "open",
+        statusText = FeedbackService.StatusText(f.Status ?? "open"),
+        note = f.StatusNote,
+        statusChangedAtUtc = f.StatusChangedAtUtc == default ? null : (DateTimeOffset?)f.StatusChangedAtUtc,
+        atUtc = f.AtUtc,
+    }));
+});
+
+// 我是接收人的反馈：可变更其处理状态（供发布页使用，普通上传者无需进后台）
+app.MapGet("/api/v1/feedbacks/recipients", (HttpContext ctx) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    return Results.Ok(feedback.ListForRecipient(user.EmployeeId).Select(f => new
+    {
+        id = f.Id,
+        scope = f.Scope,
+        toolName = f.ToolName,
+        fromUsername = f.FromUsername,
+        message = f.Message,
+        status = f.Status ?? "open",
+        statusText = FeedbackService.StatusText(f.Status ?? "open"),
+        note = f.StatusNote,
+        atUtc = f.AtUtc,
+    }));
 });
 
 // ---- 下载（服务端按认证主体记账） ----
@@ -749,6 +819,7 @@ internal sealed record AnalyzeScriptRequest(string FileName, string Content);
 internal sealed record PublishScriptRequest(string FileName, string Content, string Name, string? Description, string Version, int MinMaxYear, int MaxMaxYear);
 internal sealed record SetAgentReleaseRequest(string Version, string DownloadUrl, string? Sha256);
 internal sealed record UpdateReleaseMetadataRequest(string? Name, string? Description, string? Channel, string? Category = null);
+internal sealed record UpdateFeedbackStatusRequest(string Status, string? Note = null);
 internal sealed record SubmitFeedbackRequest(string Scope, string? ToolId, string Message, string? Client, string? ClientVersion, int? MaxYear);
 
 public partial class Program;

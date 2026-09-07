@@ -95,6 +95,62 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
     }
 
     [Fact]
+    public async Task Feedback_status_lifecycle_with_recipient_update_and_receipt()
+    {
+        var submitter = await LoginAsync("emp-fb-sub", "反馈人");
+        var admin = await LoginAsync("emp-admin", "管理员");
+
+        // 平台反馈提交（接收人=emp-admin）
+        var res = await submitter.PostAsJsonAsync("/api/v1/feedback",
+            new { scope = "platform", message = "反馈状态跟踪端到端验证内容。" });
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var feedbackId = (await res.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("feedbackId").GetInt32();
+
+        // 反馈人看到 open 状态
+        var mine = await submitter.GetFromJsonAsync<JsonElement[]>("/api/v1/my-feedbacks");
+        var myRow = mine!.Single(f => f.GetProperty("id").GetInt32() == feedbackId);
+        Assert.Equal("open", myRow.GetProperty("status").GetString());
+
+        // 接收人（管理员）变更为 in_progress 并写备注；回执 mock 发送器收到消息（fire-and-forget，轮询等待）
+        lock (fixture.Sender.Sent) fixture.Sender.Sent.Clear();
+        var patch = await admin.PatchAsJsonAsync($"/api/v1/feedbacks/{feedbackId}/status",
+            new { status = "in_progress", note = "排期处理中" });
+        Assert.Equal(HttpStatusCode.OK, patch.StatusCode);
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        List<(string EmployeeId, string? OpenId, string? UserId, string Text)> sent;
+        do
+        {
+            await Task.Delay(100);
+            lock (fixture.Sender.Sent) sent = [.. fixture.Sender.Sent];
+        } while (sw.Elapsed.TotalSeconds < 5 && !sent.Any(s => s.EmployeeId == "emp-fb-sub" && s.Text.Contains("处理中")));
+
+        lock (fixture.Sender.Sent)
+        {
+            var receipt = fixture.Sender.Sent.Single(s => s.EmployeeId == "emp-fb-sub");
+            Assert.Contains("处理中", receipt.Text);
+            Assert.Contains("排期处理中", receipt.Text);
+        }
+
+        // 反馈人看到更新后的状态与备注
+        mine = await submitter.GetFromJsonAsync<JsonElement[]>("/api/v1/my-feedbacks");
+        myRow = mine!.Single(f => f.GetProperty("id").GetInt32() == feedbackId);
+        Assert.Equal("in_progress", myRow.GetProperty("status").GetString());
+        Assert.Equal("排期处理中", myRow.GetProperty("note").GetString());
+
+        // 非接收人无法变更
+        var outsider = await LoginAsync("emp-fb-out", "无关人");
+        var forbidden = await outsider.PatchAsJsonAsync($"/api/v1/feedbacks/{feedbackId}/status",
+            new { status = "resolved" });
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        // 非法状态返回 400
+        var bad = await admin.PatchAsJsonAsync($"/api/v1/feedbacks/{feedbackId}/status",
+            new { status = "hacked" });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+    }
+
+    [Fact]
     public async Task Validation_rejects_bad_payload()
     {
         var user = await LoginAsync("emp-viewer", "王五");

@@ -60,4 +60,17 @@ public sealed class ReviewNotifier(RoleService roles, IUserDirectory users, IFei
             }
         }
     }
+
+    /// <summary>向单个用户发送飞书文本（状态回执等场景）；失败静默。</summary>
+    public async Task SendToAsync(EmployeeIdentity target, string text)
+    {
+        try
+        {
+            await sender.SendTextAsync(target, text);
+        }
+        catch
+        {
+            // 回执失败不影响主流程
+        }
+    }
 }

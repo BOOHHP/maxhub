@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>后台管理 · MaxHub</title>
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="stylesheet" href="css/site.css?v=20260907.1">
+<link rel="stylesheet" href="css/site.css?v=20260907.2">
 <style>
   .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
   .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 14px 16px; }
@@ -98,7 +98,7 @@
         <h2>用户反馈</h2>
         <p class="subtitle" style="margin-bottom:10px">工具反馈发给上传者并抄送管理员；平台反馈发给平台负责人。投递失败的记录可由管理员补发。</p>
         <table id="feedback-table">
-          <thead><tr><th>时间</th><th>类型</th><th>对象</th><th>反馈人</th><th>接收人</th><th>内容</th><th>投递</th><th></th></tr></thead>
+          <thead><tr><th>时间</th><th>类型</th><th>对象</th><th>反馈人</th><th>接收人</th><th>内容</th><th>处理状态</th><th>投递</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
       </section>
@@ -121,8 +121,8 @@
 
 <div id="msg"></div>
 
-<script src="js/api.js?v=20260907.1"></script>
-<script src="js/auth.js?v=20260907.1"></script>
+<script src="js/api.js?v=20260907.2"></script>
+<script src="js/auth.js?v=20260907.2"></script>
 <script>
 const api = window.Api.api;
 const toast = window.Api.toast;
@@ -450,6 +450,7 @@ async function loadFeedbacks() {
 function renderFeedbacks(items) {
   document.getElementById('nav-feedbacks').textContent = items.length > 0 ? items.length : '';
   const statusText = { delivered: '✓ 已送达', partial: '◐ 部分送达', failed: '✕ 失败', skipped: '— 未配置', pending: '◌ 待发' };
+  const procBadge = { open: 'badge PendingReview', in_progress: 'badge beta', resolved: 'badge Published', wontfix: 'badge Withdrawn' };
   document.querySelector('#feedback-table tbody').innerHTML = items.map(f => `
     <tr>
       <td style="white-space:nowrap">${fmt(f.atUtc)}</td>
@@ -457,10 +458,27 @@ function renderFeedbacks(items) {
       <td>${f.scope === 'tool' ? `${esc(f.toolName || '未知工具')}<div style="color:var(--text-3);font-size:11px">${esc(f.publicToolId || '')}</div>` : 'MaxHub 平台'}</td>
       <td>${esc(f.fromUsername)}</td>
       <td>${esc(f.toUsernames)}</td>
-      <td style="max-width:340px;white-space:pre-wrap">${esc(f.message)}</td>
+      <td style="max-width:300px;white-space:pre-wrap">${esc(f.message)}${f.statusNote ? `<div style="color:var(--text-3);font-size:11px;margin-top:4px">备注：${esc(f.statusNote)}</div>` : ''}</td>
+      <td>
+        <span class="${procBadge[f.status] ?? 'badge PendingReview'}">${esc(f.statusText)}</span>
+        <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">
+          ${['open', 'in_progress', 'resolved', 'wontfix'].map(s =>
+            s === f.status ? '' : `<button class="btn-outline" style="padding:1px 6px;font-size:11px" onclick="setFeedbackStatus(${f.id}, '${s}')">${{ open: '待处理', in_progress: '处理中', resolved: '已解决', wontfix: '暂不处理' }[s]}</button>`).join('')}
+        </div>
+      </td>
       <td title="${esc(f.deliveryError || '')}">${statusText[f.deliveryStatus] ?? esc(f.deliveryStatus)}</td>
       <td>${(f.deliveryStatus === 'failed' || f.deliveryStatus === 'partial') ? `<button class="btn-outline" onclick="redeliverFeedback(${f.id})">补发</button>` : ''}</td>
-    </tr>`).join('') || '<tr><td colspan="8" class="empty">暂无用户反馈</td></tr>';
+    </tr>`).join('') || '<tr><td colspan="9" class="empty">暂无用户反馈</td></tr>';
+}
+
+async function setFeedbackStatus(id, status) {
+  const note = prompt('备注（可选，将随状态回执反馈人）：') ?? '';
+  const res = await api(`/api/v1/feedbacks/${id}/status`, {
+    method: 'PATCH', body: JSON.stringify({ status, note }),
+  });
+  const body = res.ok ? await res.json() : null;
+  toast(res.ok ? `已更新为「${{ open: '待处理', in_progress: '处理中', resolved: '已解决', wontfix: '暂不处理' }[status]}」并回执反馈人` : (res.status === 403 ? '仅接收人/管理员可变更' : '更新失败'), res.ok);
+  if (res.ok) loadFeedbacks();
 }
 
 async function redeliverFeedback(id) {
