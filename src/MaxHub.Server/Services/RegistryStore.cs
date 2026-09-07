@@ -285,6 +285,23 @@ public sealed class RegistryStore(string dataDir, IDbContextFactory<MaxHubDb> db
         }
     }
 
+    /// <summary>提交者撤回待审核版本：仅本人、仅 PendingReview 状态可撤。</summary>
+    public bool CancelSubmission(string releaseId, EmployeeIdentity submitter)
+    {
+        lock (_writeLock)
+        {
+            using var db = dbFactory.CreateDbContext();
+            var row = db.Releases.Find(releaseId);
+            if (row is null || row.Status != ReleaseStatus.PendingReview)
+                return false;
+            if (!string.Equals(row.SubmittedBy, submitter.EmployeeId, StringComparison.Ordinal))
+                return false;
+            row.Status = ReleaseStatus.Withdrawn;
+            db.SaveChanges();
+            return true;
+        }
+    }
+
     public IReadOnlyList<ConnectorRelease> GetAllConnectors()
     {
         using var db = dbFactory.CreateDbContext();

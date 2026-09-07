@@ -557,6 +557,13 @@ app.MapPost("/api/v1/releases/{releaseId}/withdraw", (HttpContext ctx, string re
     return registry.Withdraw(releaseId, user) ? Results.Ok() : Results.NotFound();
 });
 
+// 提交者撤回待审核版本：仅本人、仅 PendingReview
+app.MapPost("/api/v1/releases/{releaseId}/cancel", (HttpContext ctx, string releaseId) =>
+{
+    if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
+    return registry.CancelSubmission(releaseId, user) ? Results.Ok() : Results.NotFound();
+});
+
 app.MapGet("/api/v1/admin/connectors", (HttpContext ctx) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();

@@ -765,7 +765,7 @@ global MaxHubConnector
     struct MaxHubConnectorStruct
     (
         fn show = createDialog maxHubRollout width:548 height:440 \
-            style:#(#style_titlebar, #style_border, #style_sysmenu, #style_resizing),
+            style:#(#style_titlebar, #style_border, #style_sysmenu, #style_minimizebox, #style_resizing),
         fn online = isAgentOnline()
     )
     MaxHubConnector = MaxHubConnectorStruct()

@@ -146,4 +146,42 @@ public class ReleaseMetadataTests(ServerFixture fixture) : IClassFixture<ServerF
         Assert.NotNull(cats);
         Assert.Equal(ToolCategoryClassifier.Categories, cats);
     }
+
+    [Fact]
+    public async Task Submitter_can_cancel_pending_submission()
+    {
+        var api = new ApiTests(fixture);
+        var publisher = await api.LoginPublicAsync("emp-pub", "张三");
+        var other = await api.LoginPublicAsync("emp-bystander", "路人");
+
+        // 发布但保持待审核（不调用 review）
+        var res = await publisher.PostAsJsonAsync("/api/v1/scripts/publish", new
+        {
+            fileName = "cancel_tool.ms",
+            content = "fn go() = ()",
+            name = "Cancel Tool",
+            description = "待审核撤回测试",
+            version = "1.0.0",
+            minMaxYear = 2019,
+            maxMaxYear = 2026,
+        });
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var releaseId = (await res.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("releaseId").GetString()!;
+
+        // 非提交者不能撤回
+        var forbidden = await other.PostAsJsonAsync($"/api/v1/releases/{releaseId}/cancel", new { });
+        Assert.Equal(HttpStatusCode.NotFound, forbidden.StatusCode);
+
+        // 提交者本人撤回成功
+        var cancel = await publisher.PostAsJsonAsync($"/api/v1/releases/{releaseId}/cancel", new { });
+        Assert.Equal(HttpStatusCode.OK, cancel.StatusCode);
+
+        var all = await publisher.GetFromJsonAsync<JsonElement[]>("/api/v1/my-tools");
+        var row = all!.Single(r => r.GetProperty("releaseId").GetString() == releaseId);
+        Assert.Equal("Withdrawn", row.GetProperty("status").GetString());
+
+        // 已撤回后不能再次撤回
+        var again = await publisher.PostAsJsonAsync($"/api/v1/releases/{releaseId}/cancel", new { });
+        Assert.Equal(HttpStatusCode.NotFound, again.StatusCode);
+    }
 }
