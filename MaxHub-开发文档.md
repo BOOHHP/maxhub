@@ -726,7 +726,7 @@ Connector 尚未建立独立 Git Tag 或内置版本日志；下表依据 Git �
 
 - Server 正常运行于 `http://10.2.13.8:5100`，根路径直达工具市场页。
 - Agent 局域网镜像和 GitHub Release 均可用。
-- Agent 1.1.1 SHA-256：`9fe62be66e36fc165bfa03cd36e1c3f957e260fa58a12485afda4b1c80a81fb3`。（新应用图标随本版生效；品牌与网站 favicon 统一）
+- Agent 1.1.2 SHA-256：`df0d23c99c4f8c7dc771953e9bce4a07915050c9a344606cbe7b5e234c5ff625`。（上传页新增"我的提交"列表，待审核版本可在 Agent 内直接撤回）
 - Connector 1.5.13 已注册并同步到本机 Max 2025。
 - 工具提交后管理员/审核者自动收到飞书「待审核」通知。
 - 用户反馈管道已端到端验证：直调飞书投递成功、生产反馈状态 `delivered`、后台列表与补发可用。
