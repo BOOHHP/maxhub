@@ -193,7 +193,7 @@ public partial class App : Application
 
     private static readonly IntPtr HWND_BROADCAST = new(0xFFFF);
 
-    /// <summary>运行时绘制 MaxHub 分发中枢图标：未登录=灰，已登录=蓝，有可更新=右下角橙点。</summary>
+    /// <summary>运行时绘制 MaxHub 等距立方体图标（与应用图标同源）：未登录=灰调，已登录=蓝调，有可更新=右下角橙点。</summary>
     private static Icon CreateTrayIcon(bool loggedIn, bool hasUpdate)
     {
         using var bmp = new Bitmap(64, 64);
@@ -202,21 +202,37 @@ public partial class App : Application
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.ScaleTransform(2, 2);
 
-            using var background = new SolidBrush(Color.FromArgb(0x1E, 0x20, 0x23));
-            using var link = new SolidBrush(loggedIn ? Color.FromArgb(0x4C, 0x9F, 0xE0) : Color.FromArgb(0x5F, 0x63, 0x68));
-            using var center = new SolidBrush(Color.FromArgb(0xE8, 0xEA, 0xED));
+            using var background = new SolidBrush(Color.FromArgb(0x1E, 0x24, 0x2C));
+            // 蓝色明度阶梯（未登录时整体降饱和为灰调）
+            (Color top, Color left, Color right) faces = loggedIn
+                ? (Color.FromArgb(0x9C, 0xC4, 0xFA), Color.FromArgb(0x58, 0x90, 0xE8), Color.FromArgb(0x34, 0x64, 0xB4))
+                : (Color.FromArgb(0x8A, 0x92, 0x9C), Color.FromArgb(0x64, 0x6C, 0x76), Color.FromArgb(0x4A, 0x52, 0x5A));
             FillRoundedRectangle(g, background, new RectangleF(2, 2, 28, 28), 7);
 
-            using (var pathPen = new Pen(link, 2.5f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            // 等距立方体：顶面菱形 + 左右两面（顶点在 32 网格）
+            PointF A = new(15f, 11.8f), B = new(24f, 17f), Q = new(15f, 22.2f), D = new(6f, 17f),
+                   E = new(15f, 30.2f), F = new(6f, 25f), G2 = new(24f, 25f);
+            FillPolygon(g, faces.top, A, B, Q, D);
+            FillPolygon(g, faces.left, D, Q, E, F);
+            FillPolygon(g, faces.right, B, Q, G2, E);
+
+            // 顶面高光描边
+            using (var hi = new Pen(Color.FromArgb(120, 255, 255, 255), 0.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
             {
-                g.DrawLine(pathPen, 16, 16, 8, 8);
-                g.DrawLine(pathPen, 16, 16, 8, 24);
-                g.DrawLine(pathPen, 16, 16, 24, 16);
+                g.DrawLine(hi, A, B);
+                g.DrawLine(hi, A, D);
             }
-            FillRoundedRectangle(g, link, new RectangleF(5, 5, 6, 6), 1.5f);
-            FillRoundedRectangle(g, link, new RectangleF(5, 21, 6, 6), 1.5f);
-            FillRoundedRectangle(g, link, new RectangleF(21, 13, 6, 6), 1.5f);
-            FillRoundedRectangle(g, center, new RectangleF(12, 12, 8, 8), 1.5f);
+
+            // 右上 hub 节点 + 连线
+            using (var link = new Pen(faces.top, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            {
+                g.DrawLine(link, 26f, 6f, 20.5f, 11f);
+            }
+            using (var nodeBrush = new SolidBrush(faces.top))
+            {
+                FillRoundedRectangle(g, nodeBrush, new RectangleF(23.5f, 3.5f, 5f, 5f), 1.5f);
+            }
+
             if (hasUpdate)
             {
                 using var dot = new SolidBrush(Color.FromArgb(0xF0, 0xB4, 0x29));
@@ -233,6 +249,12 @@ public partial class App : Application
         {
             DestroyIcon(iconHandle);
         }
+    }
+
+    private static void FillPolygon(Graphics g, Color color, params PointF[] pts)
+    {
+        using var b = new SolidBrush(color);
+        g.FillPolygon(b, pts);
     }
 
     private static void FillRoundedRectangle(Graphics graphics, Brush brush, RectangleF bounds, float radius)

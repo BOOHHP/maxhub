@@ -28,6 +28,30 @@ function Fill-Polygon([System.Drawing.Graphics]$gr, [float[]]$xs, [float[]]$ys, 
     $path.Dispose(); $b.Dispose()
 }
 
+# Convert a 32bpp bitmap to an ICO BMP frame: BITMAPINFOHEADER + bottom-up BGRA pixels + AND mask.
+function ConvertTo-IcoBmpFrame([System.Drawing.Bitmap]$bmp) {
+    $w = $bmp.Width; $h = $bmp.Height
+    $ms = New-Object System.IO.MemoryStream
+    $bw = New-Object System.IO.BinaryWriter($ms)
+    # BITMAPINFOHEADER (biHeight = 2*h for ICO)
+    $bw.Write([UInt32]40); $bw.Write([Int32]$w); $bw.Write([Int32]($h * 2)); $bw.Write([UInt16]1)
+    $bw.Write([UInt16]32); $bw.Write([UInt32]0); $bw.Write([UInt32]($w * $h * 4))
+    $bw.Write([Int32]0); $bw.Write([Int32]0); $bw.Write([UInt32]0); $bw.Write([UInt32]0)
+    # pixels: bottom-up BGRA
+    for ($y = $h - 1; $y -ge 0; $y--) {
+        for ($x = 0; $x -lt $w; $x++) {
+            $c = $bmp.GetPixel($x, $y)
+            $bw.Write([Byte]$c.B); $bw.Write([Byte]$c.G); $bw.Write([Byte]$c.R); $bw.Write([Byte]$c.A)
+        }
+    }
+    # AND mask (all zero; alpha channel is authoritative), rows padded to 32 bits
+    $maskRow = [Math]::Ceiling($w / 32.0) * 4
+    $zeroRow = New-Object byte[] $maskRow
+    for ($y = 0; $y -lt $h; $y++) { $bw.Write($zeroRow) }
+    $bw.Flush()
+    $bytes = $ms.ToArray(); $bw.Close(); return ,$bytes
+}
+
 $sizes = @(16, 24, 32, 48, 256)
 $frames = @()
 $tempPng = Join-Path $env:TEMP "maxhub-icon-frame.png"
@@ -104,8 +128,8 @@ foreach ($size in $sizes) {
 
     $brush.Dispose(); $edgePen.Dispose(); $plate.Dispose(); $g.Dispose()
     $bmp.Save($tempPng, [System.Drawing.Imaging.ImageFormat]::Png)
+    $frames += ,(ConvertTo-IcoBmpFrame $bmp)
     $bmp.Dispose()
-    $frames += ,([System.IO.File]::ReadAllBytes($tempPng))
 }
 Remove-Item $tempPng -ErrorAction SilentlyContinue
 
@@ -130,6 +154,7 @@ for ($i = 0; $i -lt $sizes.Count; $i++) {
 }
 foreach ($frame in $frames) { $writer.Write($frame) }
 $writer.Close()
+# Note: frames are BMP-encoded (BITMAPINFOHEADER), fully compatible with GDI+/WPF/Explorer.
 
 # Brand exports for the web portal: favicon (32px frame) + 256px PNG, same drawing source as the .ico
 $repoRoot = Split-Path $PSScriptRoot -Parent
