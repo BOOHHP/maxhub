@@ -5,43 +5,50 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>工具市场 · MaxHub</title>
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="stylesheet" href="css/site.css?v=20260907.3">
+<link rel="stylesheet" href="css/site.css?v=20260910.1">
 <style>
-  .market-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
-  .market-toolbar input[type=search] { flex: 1; min-width: 200px; }
-  .download-banner { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 18px 22px; display: flex; align-items: center; gap: 18px; margin-bottom: 26px; flex-wrap: wrap; }
-  .download-banner .icon { font-size: 30px; }
-  .download-banner .info { flex: 1; min-width: 220px; }
-  .download-banner .info h2 { font-size: 16px; margin: 0 0 3px; }
-  .download-banner .info p { color: var(--text-2); font-size: 12.5px; margin: 0; }
-  .compat-chip { color: var(--text-3); font-size: 11.5px; border: 1px solid var(--border); border-radius: var(--radius-s); padding: 1px 6px; }
-  .cat-chip { color: var(--accent); font-size: 11.5px; background: var(--accent-soft); border-radius: var(--radius-s); padding: 1px 7px; }
+  .market-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; animation: rise .5s .12s var(--t-med) both; }
+  .market-toolbar input[type=search] { flex: 1; min-width: 200px; padding-left: 12px; }
+  .compat-chip { color: var(--text-3); font-size: 11px; border: 1px solid var(--border); border-radius: var(--radius-s); padding: 1px 7px; font-variant-numeric: tabular-nums; }
+  .cat-chip { color: var(--accent-hover); font-size: 11px; background: var(--accent-soft); border-radius: 999px; padding: 1px 8px; }
 </style>
 </head>
 <body>
 <nav class="nav" id="topnav"></nav>
 
 <main>
-  <h1 class="title">工具市场</h1>
-  <p class="subtitle">公司内部 3ds Max 脚本与插件分发平台 · 安装与管理请使用 MaxHub Agent</p>
-
-  <div class="download-banner">
-    <div class="icon">⬇️</div>
-    <div class="info">
-      <h2>MaxHub Agent</h2>
-      <p>桌面客户端：自动识别本机 Max 版本，一键安装/卸载/更新脚本</p>
+  <section class="hero">
+    <div class="hero-text">
+      <div class="hero-eyebrow">INTERNAL TOOL PLATFORM</div>
+      <h1 class="title">工具市场<br><span class="grad">让每个 Max 场景都跑在最好的工具上</span></h1>
+      <p class="subtitle" style="margin-top:10px;max-width:520px">公司内部 3ds Max 脚本与插件分发平台。浏览、安装与更新由 MaxHub Agent 自动完成，无需手动拷贝文件。</p>
+      <div class="hero-stats">
+        <div class="hstat"><div class="num" id="stat-total">—</div><div class="label">在架工具</div></div>
+        <div class="hstat"><div class="num">2019–2026</div><div class="label">Max 版本覆盖</div></div>
+        <div class="hstat"><div class="num" id="stat-cats">—</div><div class="label">工具分类</div></div>
+      </div>
     </div>
-    <div style="text-align:right">
-      <button class="btn-primary" id="agent-download" style="padding:9px 20px">下载最新版</button>
-      <div class="hint" id="agent-version" style="margin-top:6px">正在检查版本…</div>
+    <div class="agent-card">
+      <div class="head">
+        <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+          <polygon points="16,3 28,10 16,17 4,10" fill="#9CC4FA"/>
+          <polygon points="4,10 16,17 16,29 4,22" fill="#5890E8"/>
+          <polygon points="28,10 16,17 16,29 28,22" fill="#3464B4"/>
+        </svg>
+        <h2>MaxHub Agent</h2>
+        <span class="ver" id="agent-ver-chip" hidden></span>
+      </div>
+      <p>桌面客户端：自动识别本机 Max 版本，一键安装 / 卸载 / 更新脚本，安装后直接在 Max 面板中使用。</p>
+      <button class="btn-primary" id="agent-download">⬇ 下载最新版</button>
+      <div class="foot" id="agent-version">正在检查版本…</div>
     </div>
-  </div>
+  </section>
 
   <div class="side-layout">
     <aside class="side-nav" id="cat-nav"></aside>
     <div class="side-content">
       <div class="market-toolbar">
-        <input type="search" id="search" placeholder="搜索工具名称或描述…">
+        <input type="search" id="search" placeholder="搜索工具名称、描述或编号…">
         <select id="max-filter">
           <option value="">全部 Max 版本</option>
         </select>
@@ -54,8 +61,8 @@
 
 <div id="msg"></div>
 
-<script src="js/api.js?v=20260907.3"></script>
-<script src="js/auth.js?v=20260907.3"></script>
+<script src="js/api.js?v=20260910.1"></script>
+<script src="js/auth.js?v=20260910.1"></script>
 <script>
 const api = window.Api.api;
 
@@ -86,7 +93,10 @@ async function loadAgentInfo() {
   } catch { /* 回退 GitHub */ }
   if (!info) try { info = await fetchLatestFromGitHub(); } catch { /* ignore */ }
   if (info) {
-    document.getElementById('agent-version').textContent = `v${info.version}`;
+    document.getElementById('agent-version').textContent = `Windows x64 · v${info.version}`;
+    const chip = document.getElementById('agent-ver-chip');
+    chip.hidden = false;
+    chip.textContent = `v${info.version}`;
     document.getElementById('agent-download').onclick = async () => {
       const button = document.getElementById('agent-download');
       button.disabled = true;
@@ -113,6 +123,20 @@ async function loadAgentInfo() {
 // ---- 分类清单以 /api/v1/categories 为准，下列仅加载失败时兜底 ----
 let CATEGORIES = ['重命名', '导入导出', '材质贴图', 'UV', '清理优化', '动画绑定', '灯光渲染', '场景对象'];
 
+// ---- 分类色环：每个分类一个专属色相（CSS 变量） ----
+const CAT_COLORS = {
+  '重命名': 'var(--cat-rename)', '导入导出': 'var(--cat-io)', '材质贴图': 'var(--cat-mat)',
+  'UV': 'var(--cat-uv)', '清理优化': 'var(--cat-clean)', '动画绑定': 'var(--cat-anim)',
+  '灯光渲染': 'var(--cat-light)', '场景对象': 'var(--cat-scene)', '其他': 'var(--cat-other)',
+};
+const catColor = (c) => CAT_COLORS[c] || 'var(--cat-other)';
+// 分类图标（emoji，零资源依赖）
+const CAT_ICONS = {
+  '重命名': '🏷️', '导入导出': '📦', '材质贴图': '🎨', 'UV': '🗺️', '清理优化': '🧹',
+  '动画绑定': '🦴', '灯光渲染': '💡', '场景对象': '🧊', '其他': '🔧',
+};
+const catIcon = (c) => CAT_ICONS[c] || '🔧';
+
 // ---- 工具市场 ----
 let allTools = [];
 let activeCat = '';
@@ -129,6 +153,9 @@ async function loadTools() {
   }
   if (!res.ok) { document.getElementById('tools').innerHTML = '<div class="empty">加载失败</div>'; return; }
   allTools = await res.json();
+  // Hero 统计
+  document.getElementById('stat-total').textContent = allTools.length;
+  document.getElementById('stat-cats').textContent = new Set(allTools.map(t => t.category)).size;
   renderCatNav();
   render();
 }
@@ -137,9 +164,10 @@ function renderCatNav() {
   const counts = {};
   allTools.forEach(t => counts[t.category] = (counts[t.category] || 0) + 1);
   const cats = ['', ...CATEGORIES.filter(c => counts[c]), ...(counts['其他'] ? ['其他'] : [])];
-  document.getElementById('cat-nav').innerHTML = cats.map(c => `
+  document.getElementById('cat-nav').innerHTML = `<div class="side-head">分类</div>` + cats.map(c => `
     <button class="side-item ${activeCat === c ? 'active' : ''}" onclick="setCat('${c}')">
-      ${c === '' ? '全部工具' : c}<span class="count">${c === '' ? allTools.length : counts[c] || 0}</span>
+      ${c === '' ? '<span class="dot" style="background:var(--accent)"></span>全部工具'
+        : `<span class="dot" style="background:${catColor(c)}"></span>${c}`}<span class="count">${c === '' ? allTools.length : counts[c] || 0}</span>
     </button>`).join('');
 }
 
@@ -163,15 +191,16 @@ function render() {
   const list = allTools.filter(matchesFilter);
   document.getElementById('empty').hidden = list.length > 0;
   document.getElementById('tools').innerHTML = list.map(t => `
-    <div class="card tool-card">
-      <div class="name">${esc(t.name)}</div>
-      <div class="meta">${esc(t.publicToolId || t.toolId)}</div>
+    <div class="card tool-card" style="--cat:${catColor(t.category)}">
+      <div class="t-head">
+        <span class="t-ico">${catIcon(t.category)}</span>
+        <div><div class="name">${esc(t.name)}</div><div class="meta">${esc(t.publicToolId || t.toolId)}</div></div>
+      </div>
       <div class="desc">${esc(t.description || '暂无描述')}</div>
       <div class="foot">
         <span class="badge ${t.channel}">${{ stable: '稳定', beta: '测试', internal: '内部' }[t.channel] ?? t.channel}</span>
-        <span style="color:var(--text-2);font-size:12px">v${t.latestVersion}</span>
-        <span class="cat-chip">${t.category}</span>
-        <span class="compat-chip" style="margin-left:auto">Max ${t.compatibility.minVersion}–${t.compatibility.maxVersion}</span>
+        <span class="ver">v${t.latestVersion}</span>
+        <span class="compat">Max ${t.compatibility.minVersion}–${t.compatibility.maxVersion}</span>
       </div>
     </div>`).join('') || '';
 }

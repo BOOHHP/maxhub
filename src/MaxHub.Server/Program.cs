@@ -736,8 +736,7 @@ app.MapPatch("/api/v1/feedbacks/{id:int}/status", async (HttpContext ctx, int id
     var notifier = app.Services.GetRequiredService<ReviewNotifier>();
     _ = notifier.SendReceiptAsync(fromIdentity, updated, portalBase);
 
-    return Results.Ok(new { status = updated.Status, note = updated.StatusNote, changedAtUtc = updated.StatusChangedAtUtc });
-});
+    return Results.Ok(new { status = updated.Status, note = updated.StatusNote, changedAtUtc = updated.StatusChangedAtUtc });});
 
 app.MapGet("/api/v1/my-feedbacks", (HttpContext ctx) =>
 {
@@ -751,7 +750,7 @@ app.MapGet("/api/v1/my-feedbacks", (HttpContext ctx) =>
         status = f.Status ?? "open",
         statusText = FeedbackService.StatusText(f.Status ?? "open"),
         note = f.StatusNote,
-        statusChangedAtUtc = f.StatusChangedAtUtc == default ? null : (DateTimeOffset?)f.StatusChangedAtUtc,
+        statusChangedAtUtc = f.StatusChangedAtUtc,
         atUtc = f.AtUtc,
     }));
 });

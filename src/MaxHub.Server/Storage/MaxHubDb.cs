@@ -120,7 +120,8 @@ public sealed class FeedbackRow
     public string? Status { get; set; }
     /// <summary>处理备注（如“下版本修复”），随状态变更更新。</summary>
     public string? StatusNote { get; set; }
-    public DateTimeOffset StatusChangedAtUtc { get; set; }
+    /// <summary>状态变更时间。旧库加列后存量行为 NULL，必须可空，否则 EF 物化抛异常。</summary>
+    public DateTimeOffset? StatusChangedAtUtc { get; set; }
     public DateTimeOffset AtUtc { get; set; }
 }
 

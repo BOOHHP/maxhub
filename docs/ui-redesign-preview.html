@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MaxHub 前端改版 · 静态展示案例</title>
+<style>
+/* ============================================================
+   MaxHub UI Redesign Preview — 静态展示（零依赖，mock 数据）
+   风格原型：暗夜终端 × 克制玻璃拟物
+   品牌母题：3ds Max 视口（透视网格 + 等距立方体）
+   ============================================================ */
+:root {
+  color-scheme: dark;
+  /* ---- 背景层 ---- */
+  --bg: #0A0D12;
+  --bg-glow: rgba(76, 159, 224, .07);
+  --surface: #11151C;
+  --surface-2: #161B24;
+  --surface-3: #1B2230;
+  --border: #1E2530;
+  --border-strong: #2A3442;
+  /* ---- 文字 ---- */
+  --text-1: #E8EEF6;
+  --text-2: #93A0B4;
+  --text-3: #6B7788;
+  /* ---- 品牌色（延续托盘 Agent #4C9FE0） ---- */
+  --accent: #4C9FE0;
+  --accent-bright: #7CC0EA;
+  --accent-deep: #2E6FB0;
+  --accent-soft: rgba(76, 159, 224, .13);
+  /* ---- 反馈色 ---- */
+  --ok: #4CC38A; --ok-soft: rgba(76,195,138,.13);
+  --warn: #F0B429; --warn-soft: rgba(240,180,41,.13);
+  --danger: #F47067; --danger-soft: rgba(244,112,103,.13);
+  /* ---- 分类色环（创意点：每个分类一个色相） ---- */
+  --cat-rename: #7CC0EA;
+  --cat-io: #6EC8B8;
+  --cat-mat: #C9A227;
+  --cat-uv: #B48CE8;
+  --cat-clean: #8FBF6A;
+  --cat-anim: #E8927C;
+  --cat-light: #F0C987;
+  --cat-scene: #7FA8E8;
+  /* ---- 几何 ---- */
+  --radius-s: 6px; --radius-m: 10px; --radius-l: 14px;
+  --shadow-rest: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-lift: 0 8px 24px -8px rgba(0,0,0,.55);
+  --focus-ring: 0 0 0 3px rgba(76,159,224,.28);
+  --t-fast: 150ms cubic-bezier(.16,1,.3,1);
+  --t-med: 280ms cubic-bezier(.16,1,.3,1);
+}
+* { box-sizing: border-box; margin: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text-1);
+  font: 13.5px/1.6 "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif;
+  letter-spacing: .1px;
+  -webkit-font-smoothing: antialiased;
+}
+/* 顶部品牌光晕 + 视口网格（创意母题，纯 CSS） */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(900px 380px at 70% -80px, var(--bg-glow), transparent 65%),
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: auto, 44px 44px, 44px 44px;
+  opacity: .5;
+  mask-image: linear-gradient(#000 0%, transparent 340px);
+  -webkit-mask-image: linear-gradient(#000 0%, transparent 340px);
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #3A4656; }
+
+/* ================= 导航 ================= */
+.nav {
+  position: sticky; top: 0; z-index: 100; height: 56px;
+  display: flex; align-items: center; gap: 4px; padding: 0 28px;
+  background: rgba(10,13,18,.78);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 10px; margin-right: 26px; text-decoration: none; color: var(--text-1); font-weight: 700; font-size: 15px; letter-spacing: .3px; }
+.brand .cube { display: block; filter: drop-shadow(0 0 8px rgba(76,159,224,.35)); }
+.nav a.tab {
+  color: var(--text-2); text-decoration: none; padding: 0 14px; height: 56px;
+  display: inline-flex; align-items: center; position: relative; transition: color var(--t-fast);
+}
+.nav a.tab:hover { color: var(--text-1); }
+.nav a.tab.active { color: var(--text-1); font-weight: 600; }
+.nav a.tab.active::after {
+  content: ""; position: absolute; left: 14px; right: 14px; bottom: -1px; height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+  border-radius: 2px 2px 0 0;
+  box-shadow: 0 0 10px rgba(76,159,224,.5);
+}
+.nav .spacer { flex: 1; }
+.user-chip {
+  display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+  color: var(--text-2); font-size: 12.5px;
+}
+.user-chip .avatar {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-deep), var(--accent));
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 11px; font-weight: 700;
+}
+
+/* ================= 主容器 ================= */
+main { max-width: 1180px; margin: 0 auto; padding: 36px 28px 80px; }
+
+/* ================= Hero ================= */
+.hero {
+  display: flex; gap: 28px; align-items: stretch; margin-bottom: 34px;
+  animation: rise .5s var(--t-med) both;
+}
+.hero-text { flex: 1; min-width: 0; padding-top: 8px; }
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 7px;
+  color: var(--accent-bright); font-size: 12px; font-weight: 600; letter-spacing: 1.5px;
+  margin-bottom: 12px;
+}
+.hero-eyebrow::before { content: ""; width: 22px; height: 1.5px; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+h1.title { font-size: clamp(26px, 3.4vw, 34px); font-weight: 800; letter-spacing: .5px; line-height: 1.25; }
+h1.title .grad {
+  background: linear-gradient(92deg, #E8EEF6 30%, var(--accent-bright) 75%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+p.subtitle { color: var(--text-2); margin-top: 10px; max-width: 520px; font-size: 14px; }
+.hero-stats { display: flex; gap: 26px; margin-top: 22px; flex-wrap: wrap; }
+.hstat { display: flex; flex-direction: column; }
+.hstat .num { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text-1); }
+.hstat .num em { font-style: normal; color: var(--accent-bright); }
+.hstat .label { color: var(--text-3); font-size: 12px; margin-top: 1px; }
+
+/* Agent 下载卡（玻璃拟物） */
+.agent-card {
+  flex-shrink: 0; width: 320px; position: relative; overflow: hidden;
+  background: linear-gradient(160deg, rgba(76,159,224,.10), rgba(76,159,224,.03) 55%), var(--surface);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-l);
+  padding: 22px; display: flex; flex-direction: column;
+  box-shadow: var(--shadow-lift);
+}
+.agent-card::before {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(140deg, rgba(124,192,234,.35), transparent 38%);
+  -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  -webkit-mask-composite: xor; mask-composite: exclude; padding: 1px;
+}
+.agent-card .head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.agent-card .head h2 { font-size: 15px; font-weight: 700; }
+.agent-card .head .ver {
+  font-size: 11px; color: var(--accent-bright); background: var(--accent-soft);
+  border: 1px solid rgba(76,159,224,.3); padding: 1px 8px; border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.agent-card p { color: var(--text-2); font-size: 12.5px; flex: 1; }
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: linear-gradient(180deg, var(--accent-bright), var(--accent));
+  color: #071018; font: inherit; font-weight: 700; border: 0; border-radius: var(--radius-m);
+  padding: 10px 18px; cursor: pointer; margin-top: 14px;
+  box-shadow: 0 0 0 1px rgba(124,192,234,.4), 0 4px 18px -4px rgba(76,159,224,.45);
+  transition: transform var(--t-fast), box-shadow var(--t-fast), filter var(--t-fast);
+}
+.btn-primary:hover { filter: brightness(1.06); box-shadow: 0 0 0 1px rgba(124,192,234,.6), 0 6px 24px -4px rgba(76,159,224,.55); transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+.btn-primary .dl-ico { font-size: 14px; }
+.agent-card .foot { color: var(--text-3); font-size: 11.5px; margin-top: 10px; }
+
+/* ================= 布局：侧栏 + 内容 ================= */
+.side-layout { display: flex; gap: 24px; align-items: flex-start; }
+.side-nav {
+  width: 196px; flex-shrink: 0; position: sticky; top: 80px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-l);
+  padding: 10px; box-shadow: var(--shadow-rest);
+  animation: rise .5s .08s var(--t-med) both;
+}
+.side-nav .side-head { color: var(--text-3); font-size: 11px; font-weight: 600; letter-spacing: 1.2px; padding: 8px 12px 6px; }
+.side-item {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  background: transparent; color: var(--text-2); border: 0; border-radius: var(--radius-m);
+  padding: 8px 12px; margin-bottom: 2px; font: inherit; font-size: 13px; cursor: pointer;
+  transition: background-color var(--t-fast), color var(--t-fast);
+}
+.side-item:hover { color: var(--text-1); background: var(--surface-2); }
+.side-item.active { color: var(--text-1); background: var(--surface-3); font-weight: 600; }
+.side-item.active::before {
+  content: ""; position: absolute; left: 0; width: 3px; height: 18px; border-radius: 0 3px 3px 0;
+  background: var(--accent); box-shadow: 0 0 8px rgba(76,159,224,.6);
+}
+.side-item { position: relative; }
+.side-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.side-item .count { margin-left: auto; color: var(--text-3); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.side-item.active .count { color: var(--accent-bright); }
+
+.side-content { flex: 1; min-width: 0; }
+
+/* ================= 工具条 ================= */
+.market-toolbar { display: flex; gap: 10px; margin-bottom: 18px; animation: rise .5s .12s var(--t-med) both; }
+.search-box { flex: 1; position: relative; }
+.search-box svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: .5; }
+input[type=search], select {
+  font: inherit; background: var(--surface); color: var(--text-1);
+  border: 1px solid var(--border); border-radius: var(--radius-m); padding: 9px 12px;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+input[type=search] { width: 100%; padding-left: 36px; }
+input[type=search]:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+input::placeholder { color: var(--text-3); }
+select { cursor: pointer; }
+select option { background: var(--surface); }
+
+/* ================= 工具卡片 ================= */
+.tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.tool-card {
+  position: relative; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-l);
+  padding: 18px 18px 16px; cursor: pointer;
+  transition: transform var(--t-med), border-color var(--t-fast), box-shadow var(--t-med), background-color var(--t-fast);
+  animation: rise .5s var(--t-med) both;
+}
+.tool-card:nth-child(1) { animation-delay: .16s; } .tool-card:nth-child(2) { animation-delay: .20s; }
+.tool-card:nth-child(3) { animation-delay: .24s; } .tool-card:nth-child(4) { animation-delay: .28s; }
+.tool-card:nth-child(5) { animation-delay: .32s; } .tool-card:nth-child(6) { animation-delay: .36s; }
+.tool-card:hover { transform: translateY(-3px); border-color: var(--border-strong); box-shadow: var(--shadow-lift); background: var(--surface-2); }
+/* 分类色顶条：hover 时点亮 */
+.tool-card::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--cat, var(--accent)), transparent 70%);
+  opacity: .45; transition: opacity var(--t-fast);
+}
+.tool-card:hover::before { opacity: 1; }
+.tool-card .t-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.tool-card .t-ico {
+  width: 38px; height: 38px; flex-shrink: 0; border-radius: var(--radius-m);
+  background: color-mix(in srgb, var(--cat, var(--accent)) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cat, var(--accent)) 30%, transparent);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 17px;
+}
+.tool-card .name { font-size: 15px; font-weight: 700; color: var(--text-1); }
+.tool-card .meta { color: var(--text-3); font-size: 11px; margin-top: 1px; font-variant-numeric: tabular-nums; letter-spacing: .3px; }
+.tool-card .desc {
+  color: var(--text-2); font-size: 12.5px; min-height: 40px; margin-bottom: 12px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tool-card .foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.badge { padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
+.badge.stable { background: var(--ok-soft); color: var(--ok); }
+.badge.beta { background: var(--accent-soft); color: var(--accent-bright); }
+.badge.internal { background: rgba(139,148,158,.13); color: var(--text-2); }
+.tool-card .ver { color: var(--text-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tool-card .compat {
+  margin-left: auto; color: var(--text-3); font-size: 11px;
+  border: 1px solid var(--border); border-radius: var(--radius-s); padding: 1px 7px;
+  font-variant-numeric: tabular-nums;
+}
+.tool-card:hover .compat { border-color: var(--border-strong); color: var(--text-2); }
+
+/* ================= 后台管理预览 ================= */
+.section-gap { height: 64px; }
+.preview-divider { display: flex; align-items: center; gap: 16px; margin: 0 0 30px; color: var(--text-3); font-size: 12px; letter-spacing: 2px; }
+.preview-divider::before, .preview-divider::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--border-strong), transparent); }
+.admin-wrap { border: 1px dashed var(--border-strong); border-radius: var(--radius-l); padding: 26px; }
+.admin-wrap > .cap { color: var(--text-3); font-size: 12px; margin-bottom: 18px; }
+.stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-card {
+  position: relative; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m);
+  padding: 16px 18px;
+}
+.stat-card::after {
+  content: ""; position: absolute; right: -18px; top: -18px; width: 64px; height: 64px; border-radius: 50%;
+  background: var(--accent-soft); filter: blur(2px);
+}
+.stat-card .num { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stat-card .label { color: var(--text-2); font-size: 12px; margin-top: 2px; }
+.stat-card .trend { font-size: 11.5px; margin-top: 6px; color: var(--ok); }
+.stat-card .trend.down { color: var(--danger); }
+
+.table-scroll { overflow-x: auto; border-radius: var(--radius-m); }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-m); overflow: hidden; }
+th, td { padding: 11px 14px; text-align: left; border-bottom: 1px solid var(--border); font-size: 12.5px; white-space: nowrap; }
+th { color: var(--text-3); font-weight: 600; background: var(--surface-2); font-size: 11.5px; letter-spacing: .5px; }
+tr:last-child td { border-bottom: 0; }
+tbody tr { transition: background-color var(--t-fast); }
+tbody tr:hover td { background: var(--surface-2); }
+td { font-variant-numeric: tabular-nums; color: var(--text-2); }
+td .t-name { color: var(--text-1); font-weight: 600; }
+.badge.PendingReview { background: var(--warn-soft); color: var(--warn); }
+.badge.Published { background: var(--ok-soft); color: var(--ok); }
+.btn-outline {
+  background: transparent; color: var(--text-2); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s); padding: 5px 12px; font: inherit; font-size: 12px; cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast), background-color var(--t-fast);
+}
+.btn-outline:hover { color: var(--text-1); border-color: #3A4656; background: var(--surface-2); }
+.btn-ghost-ok { color: var(--ok); border-color: rgba(76,195,138,.35); }
+.btn-ghost-ok:hover { background: var(--ok-soft); color: var(--ok); border-color: rgba(76,195,138,.55); }
+.btn-ghost-danger { color: var(--danger); border-color: rgba(244,112,103,.35); }
+.btn-ghost-danger:hover { background: var(--danger-soft); border-color: rgba(244,112,103,.55); }
+
+/* ================= 设计说明 ================= */
+.design-notes {
+  margin-top: 56px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-l); padding: 24px 26px;
+}
+.design-notes h3 { font-size: 14px; margin-bottom: 14px; color: var(--text-1); }
+.design-notes .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+.design-notes .note b { display: block; font-size: 12.5px; color: var(--accent-bright); margin-bottom: 4px; }
+.design-notes .note span { color: var(--text-2); font-size: 12.5px; }
+.swatches { display: flex; gap: 8px; margin-top: 8px; }
+.swatch { width: 26px; height: 26px; border-radius: var(--radius-s); border: 1px solid var(--border-strong); }
+
+/* ================= 动效 ================= */
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  html { scroll-behavior: auto; }
+}
+
+/* ================= 响应式 ================= */
+@media (max-width: 960px) {
+  .hero { flex-direction: column; }
+  .agent-card { width: 100%; }
+  .side-layout { flex-direction: column; }
+  .side-nav { width: 100%; position: static; display: flex; flex-wrap: wrap; gap: 4px; }
+  .side-nav .side-head { width: 100%; }
+  .side-item { width: auto; }
+  .side-item.active::before { display: none; }
+}
+@media (max-width: 560px) {
+  main { padding: 24px 16px 60px; }
+  .nav { padding: 0 16px; }
+  .nav a.tab { padding: 0 8px; }
+  .tools-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a class="brand" href="#">
+    <!-- 等距立方体：与 Agent 图标同源的品牌母题 -->
+    <svg class="cube" width="22" height="22" viewBox="0 0 32 32" aria-hidden="true">
+      <polygon points="16,3 28,10 16,17 4,10" fill="#9CC4FA"/>
+      <polygon points="4,10 16,17 16,29 4,22" fill="#5890E8"/>
+      <polygon points="28,10 16,17 16,29 28,22" fill="#3464B4"/>
+    </svg>
+    MaxHub
+  </a>
+  <a class="tab active" href="#">工具市场</a>
+  <a class="tab" href="#">发布工具</a>
+  <a class="tab" href="#">后台管理</a>
+  <span class="spacer"></span>
+  <span class="user-chip"><span class="avatar">吴</span>吴俊枫</span>
+</nav>
+
+<main>
+  <!-- ============ Hero ============ -->
+  <section class="hero">
+    <div class="hero-text">
+      <div class="hero-eyebrow">INTERNAL TOOL PLATFORM</div>
+      <h1 class="title">让每个 Max 场景<br><span class="grad">都跑在最好的工具上</span></h1>
+      <p class="subtitle">公司内部 3ds Max 脚本与插件分发平台。浏览、安装与更新由 MaxHub Agent 自动完成，无需手动拷贝文件。</p>
+      <div class="hero-stats">
+        <div class="hstat"><div class="num">24</div><div class="label">在架工具</div></div>
+        <div class="hstat"><div class="num"><em>+3</em></div><div class="label">本周更新</div></div>
+        <div class="hstat"><div class="num">1,286</div><div class="label">累计安装</div></div>
+        <div class="hstat"><div class="num">2019–2026</div><div class="label">Max 版本覆盖</div></div>
+      </div>
+    </div>
+    <div class="agent-card">
+      <div class="head">
+        <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true">
+          <polygon points="16,3 28,10 16,17 4,10" fill="#9CC4FA"/>
+          <polygon points="4,10 16,17 16,29 4,22" fill="#5890E8"/>
+          <polygon points="28,10 16,17 16,29 28,22" fill="#3464B4"/>
+        </svg>
+        <h2>MaxHub Agent</h2>
+        <span class="ver">v1.0.20</span>
+      </div>
+      <p>桌面客户端：自动识别本机 Max 版本，一键安装 / 卸载 / 更新脚本，安装后直接在 Max 面板中使用。</p>
+      <button class="btn-primary"><span class="dl-ico">⬇</span>下载最新版</button>
+      <div class="foot">Windows x64 · 约 12 MB · 签名校验通过</div>
+    </div>
+  </section>
+
+  <!-- ============ 工具市场 ============ -->
+  <div class="side-layout">
+    <aside class="side-nav">
+      <div class="side-head">分类</div>
+      <button class="side-item active"><span class="dot" style="background:var(--accent)"></span>全部工具<span class="count">24</span></button>
+      <button class="side-item"><span class="dot" style="background:var(--cat-rename)"></span>重命名<span class="count">5</span></button>
+      <button class="side-item"><span class="dot" style="background:var(--cat-io)"></span>导入导出<span class="count">4</span></button>
+      <button class="side-item"><span class="dot" style="background:var(--cat-mat)"></span>材质贴图<span class="count">3</span></button>
+      <button class="side-item"><span class="dot" style="background:var(--cat-uv)"></span>UV<span class="count">2</span></button>
+      <button class="side-item"><span class="dot" style="background:var(--cat-clean)"></span>清理优化<span class="count">4</span></button>
+      <button class="side-item"><span class="dot" style="background:var(--cat-anim)"></span>动画绑定<span class="count">3</span></button>
+      <button class="side-item"><span class="dot" style="background:var(--cat-light)"></span>灯光渲染<span class="count">2</span></button>
+      <button class="side-item"><span class="dot" style="background:var(--cat-scene)"></span>场景对象<span class="count">1</span></button>
+    </aside>
+
+    <div class="side-content">
+      <div class="market-toolbar">
+        <div class="search-box">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" placeholder="搜索工具名称、描述或编号…">
+        </div>
+        <select><option>全部 Max 版本</option><option>Max 2026</option><option>Max 2024</option><option>Max 2022</option></select>
+      </div>
+
+      <div class="tools-grid">
+        <div class="tool-card" style="--cat:var(--cat-rename)">
+          <div class="t-head">
+            <span class="t-ico">🏷️</span>
+            <div><div class="name">场景批量重命名</div><div class="meta">MaxTool 00001247</div></div>
+          </div>
+          <div class="desc">按前缀 / 后缀 / 序号规则批量重命名场景对象，支持层级保留与撤销。</div>
+          <div class="foot">
+            <span class="badge stable">稳定</span><span class="ver">v1.4.0</span>
+            <span class="compat">Max 2019–2026</span>
+          </div>
+        </div>
+
+        <div class="tool-card" style="--cat:var(--cat-io)">
+          <div class="t-head">
+            <span class="t-ico">📦</span>
+            <div><div class="name">快速导出</div><div class="meta">MaxTool 00003391</div></div>
+          </div>
+          <div class="desc">选中对象一键导出 FBX / OBJ / ABC，常用参数可保存为预设。</div>
+          <div class="foot">
+            <span class="badge stable">稳定</span><span class="ver">v1.2.1</span>
+            <span class="compat">Max 2020–2026</span>
+          </div>
+        </div>
+
+        <div class="tool-card" style="--cat:var(--cat-clean)">
+          <div class="t-head">
+            <span class="t-ico">🧹</span>
+            <div><div class="name">启动环境检查</div><div class="meta">MaxTool 00000518</div></div>
+          </div>
+          <div class="desc">Max 启动时自动检查插件环境、脚本加载与磁盘空间，异常时给出提示。</div>
+          <div class="foot">
+            <span class="badge beta">测试</span><span class="ver">v0.9.3</span>
+            <span class="compat">Max 2019–2026</span>
+          </div>
+        </div>
+
+        <div class="tool-card" style="--cat:var(--cat-mat)">
+          <div class="t-head">
+            <span class="t-ico">🎨</span>
+            <div><div class="name">材质贴图整理</div><div class="meta">MaxTool 00008812</div></div>
+          </div>
+          <div class="desc">扫描场景材质，归档散落贴图到统一目录并自动重链接位图路径。</div>
+          <div class="foot">
+            <span class="badge stable">稳定</span><span class="ver">v2.0.0</span>
+            <span class="compat">Max 2021–2026</span>
+          </div>
+        </div>
+
+        <div class="tool-card" style="--cat:var(--cat-uv)">
+          <div class="t-head">
+            <span class="t-ico">🗺️</span>
+            <div><div class="name">UV 检查器</div><div class="meta">MaxTool 00004106</div></div>
+          </div>
+          <div class="desc">高亮重叠 / 越界 / 翻转 UV 面，输出问题清单供逐项修复。</div>
+          <div class="foot">
+            <span class="badge beta">测试</span><span class="ver">v1.0.2</span>
+            <span class="compat">Max 2022–2026</span>
+          </div>
+        </div>
+
+        <div class="tool-card" style="--cat:var(--cat-light)">
+          <div class="t-head">
+            <span class="t-ico">💡</span>
+            <div><div class="name">灯光预设库</div><div class="meta">MaxTool 00007723</div></div>
+          </div>
+          <div class="desc">常用布光方案一键应用：三点布光、产品展示、夜景窗光等。</div>
+          <div class="foot">
+            <span class="badge internal">内部</span><span class="ver">v1.1.0</span>
+            <span class="compat">Max 2023–2026</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 后台管理预览 ============ -->
+  <div class="section-gap"></div>
+  <div class="preview-divider">后台管理页面同样风格</div>
+  <div class="admin-wrap">
+    <div class="cap">以下为「后台管理 → 使用统计 / 审核队列」在新风格下的效果预览。</div>
+
+    <div class="stat-cards">
+      <div class="stat-card"><div class="num">37</div><div class="label">活跃用户</div><div class="trend">▲ 较上周 +12%</div></div>
+      <div class="stat-card"><div class="num">486</div><div class="label">总下载次数</div><div class="trend">▲ 较上周 +8%</div></div>
+      <div class="stat-card"><div class="num">1,286</div><div class="label">总安装次数</div><div class="trend">▲ 较上周 +21%</div></div>
+      <div class="stat-card"><div class="num">3</div><div class="label">待审核</div><div class="trend down">● 需要处理</div></div>
+    </div>
+
+    <div class="table-scroll">
+    <table>
+      <thead><tr><th>工具</th><th>版本</th><th>提交人</th><th>提交时间</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="t-name">UV 检查器</span></td><td>v1.0.2</td><td>吴俊枫</td><td>2026-09-09 14:22</td>
+          <td><span class="badge PendingReview">待审核</span></td>
+          <td><button class="btn-outline btn-ghost-ok">通过</button> <button class="btn-outline btn-ghost-danger">驳回</button></td>
+        </tr>
+        <tr>
+          <td><span class="t-name">材质贴图整理</span></td><td>v2.0.0</td><td>李明</td><td>2026-09-08 10:05</td>
+          <td><span class="badge Published">已发布</span></td>
+          <td><button class="btn-outline">查看</button></td>
+        </tr>
+        <tr>
+          <td><span class="t-name">灯光预设库</span></td><td>v1.1.0</td><td>王芳</td><td>2026-09-07 16:40</td>
+          <td><span class="badge Published">已发布</span></td>
+          <td><button class="btn-outline">查看</button></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <!-- ============ 设计说明 ============ -->
+  <div class="design-notes">
+    <h3>设计说明（确认要点）</h3>
+    <div class="grid">
+      <div class="note">
+        <b>视觉方向</b>
+        <span>暗夜终端 × 克制玻璃拟物。背景融入 3ds Max 视口透视网格与品牌光晕，呼应产品域；信息密度保持专业后台水准。</span>
+      </div>
+      <div class="note">
+        <b>品牌延续</b>
+        <span>主色沿用 Agent 托盘的 #4C9FE0 蓝色阶梯，等距立方体 logo 与桌面端同源，Web 与桌面形成统一品牌。</span>
+        <div class="swatches">
+          <span class="swatch" style="background:#0A0D12"></span>
+          <span class="swatch" style="background:#11151C"></span>
+          <span class="swatch" style="background:#4C9FE0"></span>
+          <span class="swatch" style="background:#7CC0EA"></span>
+        </div>
+      </div>
+      <div class="note">
+        <b>创意点</b>
+        <span>① 分类色环：每个工具分类一个专属色相（顶条 + 图标底色），扫一眼即可识别；② 卡片 hover 微抬升 + 顶条点亮；③ Hero 渐变标题与数据带。</span>
+      </div>
+      <div class="note">
+        <b>动效策略</b>
+        <span>纯 CSS，无新增依赖：入场 stagger 上浮、150–280ms 缓动，尊重 prefers-reduced-motion；无持续重绘动画。</span>
+      </div>
+      <div class="note">
+        <b>响应式</b>
+        <span>1440 / 1024 桌面双栏 → 960px 侧栏转横排 → 560px 单列卡片，均已验证布局不破。</span>
+      </div>
+      <div class="note">
+        <b>可访问性</b>
+        <span>语义标签 + 键盘焦点环 + 表格数字等宽（tabular-nums）；正文对比度 ≥ 4.5:1。</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

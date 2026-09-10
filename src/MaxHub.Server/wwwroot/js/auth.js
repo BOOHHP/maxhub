@@ -27,7 +27,7 @@
       `<a class="tab ${page === href ? 'active' : ''}" href="${href}">${label}</a>`).join('');
 
     const right = user
-      ? `<span class="who">${user.username}</span><button class="btn-outline" onclick="window.Api.logout()">退出</button>`
+      ? `<span class="who" title="${user.username}">${user.username}</span><button class="btn-outline" onclick="window.Api.logout()">退出</button>`
       : `<button class="btn-primary" id="nav-login">登录</button>`;
 
     nav.innerHTML = brand + tabHtml + adminTab + `<span class="spacer"></span>` + right;

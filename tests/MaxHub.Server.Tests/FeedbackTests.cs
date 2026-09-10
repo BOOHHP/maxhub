@@ -93,6 +93,17 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
     }
 
     [Fact]
+    public async Task Publish_page_defines_esc_before_feedback_rendering()
+    {
+        // 回归：publish.html 的反馈跟踪区曾调用未定义的 esc()，导致列表渲染抛错空白
+        var html = await fixture.CreateClient().GetStringAsync("/publish.html");
+        var escDef = html.IndexOf("function esc(s)", StringComparison.Ordinal);
+        var feedbackRows = html.IndexOf("function feedbackRows", StringComparison.Ordinal);
+        Assert.True(escDef > 0, "publish.html must define esc()");
+        Assert.True(feedbackRows > escDef, "feedbackRows must come after esc definition");
+    }
+
+    [Fact]
     public async Task Anonymous_feedback_is_rejected()
     {
         var client = fixture.CreateClient();

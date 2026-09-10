@@ -5,13 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>发布工具 · MaxHub</title>
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="stylesheet" href="css/site.css?v=20260907.3">
+<link rel="stylesheet" href="css/site.css?v=20260910.1">
 <style>
   .publish-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .publish-layout > section { min-width: 0; }
   @media (max-width: 900px) { .publish-layout { grid-template-columns: 1fr; } }
-  .dropzone { border: 1.5px dashed var(--border-strong); border-radius: var(--radius-l); padding: 26px; text-align: center; color: var(--text-2); cursor: pointer; transition: border-color var(--t-fast), background-color var(--t-fast), color var(--t-fast); }
-  .dropzone:hover, .dropzone.drag { border-color: var(--accent); color: var(--text-1); background: var(--accent-soft); }
+  .dropzone { border: 1.5px dashed var(--border-strong); border-radius: var(--radius-l); padding: 30px; text-align: center; color: var(--text-2); cursor: pointer; transition: border-color var(--t-fast), background-color var(--t-fast), color var(--t-fast), box-shadow var(--t-fast); }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); color: var(--text-1); background: var(--accent-soft); box-shadow: var(--focus-ring); }
+  .dropzone .dz-ico { font-size: 26px; margin-bottom: 8px; }
   .dropzone .fname { color: var(--text-1); font-size: 13px; word-break: break-all; }
+  .publish-layout section { animation: rise .5s var(--t-med) both; }
+  .publish-layout section:nth-child(2) { animation-delay: .08s; }
+  .publish-layout section:nth-child(3) { animation-delay: .16s; }
 </style>
 </head>
 <body>
@@ -37,6 +42,7 @@
       </div>
 
       <div class="dropzone" id="dropzone">
+        <div class="dz-ico">📥</div>
         <div id="dz-hint">拖拽文件到此处，或点击选择</div>
         <div id="dz-file" class="fname" hidden></div>
       </div>
@@ -73,33 +79,39 @@
 
     <section>
       <h2 style="margin-top:0">我的提交</h2>
+      <div class="table-scroll">
       <table id="mine-table">
         <thead><tr><th>工具</th><th>版本</th><th>状态</th><th>提交时间</th><th>审核人</th><th>操作</th></tr></thead>
         <tbody></tbody>
       </table>
+      </div>
     </section>
 
     <section>
       <h2 style="margin-top:0">反馈跟踪</h2>
       <p class="subtitle" style="margin-bottom:10px">我发出的反馈与收到（作为工具上传者）的反馈及其处理进展。</p>
       <h3 style="margin:0 0 8px;font-size:14px">我发出的</h3>
+      <div class="table-scroll">
       <table id="my-feedback-table">
         <thead><tr><th>编号</th><th>对象</th><th>内容</th><th>状态</th><th>备注</th></tr></thead>
         <tbody></tbody>
       </table>
+      </div>
       <h3 style="margin:16px 0 8px;font-size:14px">我收到的</h3>
+      <div class="table-scroll">
       <table id="recv-feedback-table">
         <thead><tr><th>编号</th><th>反馈人</th><th>内容</th><th>状态</th><th>操作</th></tr></thead>
         <tbody></tbody>
       </table>
+      </div>
     </section>
   </div>
 </main>
 
 <div id="msg"></div>
 
-<script src="js/api.js?v=20260907.3"></script>
-<script src="js/auth.js?v=20260907.3"></script>
+<script src="js/api.js?v=20260910.1"></script>
+<script src="js/auth.js?v=20260910.1"></script>
 <script>
 const api = window.Api.api;
 const toast = window.Api.toast;
@@ -257,6 +269,10 @@ async function cancelSubmission(releaseId) {
 // ---- 反馈跟踪 ----
 const procBadge = { open: 'badge PendingReview', in_progress: 'badge beta', resolved: 'badge Published', wontfix: 'badge Withdrawn' };
 const procName = { open: '待处理', in_progress: '处理中', resolved: '已解决', wontfix: '暂不处理' };
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 function feedbackRows(items, mine) {
   return items.map(f => `
