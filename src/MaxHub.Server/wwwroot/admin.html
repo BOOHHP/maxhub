@@ -5,14 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>后台管理 · MaxHub</title>
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="stylesheet" href="css/site.css?v=20260910.3">
+<link rel="stylesheet" href="css/site.css?v=20260910.4">
 <style>
   .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px; }
   .stat-card { position: relative; overflow: hidden; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 16px 18px; }
   .stat-card::after { content: ""; position: absolute; right: -18px; top: -18px; width: 64px; height: 64px; border-radius: 50%; background: var(--accent-soft); filter: blur(2px); }
   .stat-card .num { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text-1); }
   .stat-card .label { color: var(--text-2); font-size: 12px; margin-top: 2px; }
-  section h2 { margin-top: 0; }
   .side-content section { animation: rise .4s var(--t-med) both; }
 </style>
 </head>
@@ -42,28 +41,42 @@
     </aside>
 
     <div class="side-content">
-      <section id="sec-review">
-        <h2>审核队列（<span id="pending-count">0</span>）</h2>
+      <section id="sec-review" class="panel">
+        <div class="panel-head">
+          <span class="panel-title">审核队列</span>
+          <span class="panel-desc">待审核 <b id="pending-count" style="color:var(--warn)">0</b> 项，通过后立即发布</span>
+        </div>
+        <div class="panel-body">
         <div class="table-scroll">
         <table id="pending-table">
           <thead><tr><th>工具</th><th>版本</th><th>提交人</th><th>提交时间</th><th>操作</th></tr></thead>
           <tbody></tbody>
         </table>
         </div>
+        </div>
       </section>
 
-      <section id="sec-releases" hidden>
-        <h2>版本管理</h2>
+      <section id="sec-releases" class="panel" hidden>
+        <div class="panel-head">
+          <span class="panel-title">版本管理</span>
+          <span class="panel-desc">全部版本；可编辑元数据与分类，已发布可撤回</span>
+        </div>
+        <div class="panel-body">
         <div class="table-scroll">
         <table id="all-table">
           <thead><tr><th>工具</th><th>版本</th><th>状态</th><th>频道</th><th>分类</th><th>签名</th><th>提交人</th><th>审核人</th><th>提交时间</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
         </div>
+        </div>
       </section>
 
-      <section id="sec-connectors" hidden>
-        <h2>Connector 制品</h2>
+      <section id="sec-connectors" class="panel" hidden>
+        <div class="panel-head">
+          <span class="panel-title">Connector 制品</span>
+          <span class="panel-desc">上传后立即签名并对 Agent 可见；需要管理员角色</span>
+        </div>
+        <div class="panel-body">
         <div class="table-scroll">
         <table id="connector-table">
           <thead><tr><th>版本</th><th>支持 Max</th><th>大小</th><th>签名</th></tr></thead>
@@ -77,23 +90,30 @@
           <input id="conn-max" placeholder="最高 2026" style="width:90px">
           <button class="btn-primary" id="conn-submit">上传并注册</button>
         </div>
-        <div class="hint">上传后立即签名并对 Agent 可见；需要管理员角色</div>
+        </div>
       </section>
 
-      <section id="sec-members" hidden>
-        <h2>成员角色</h2>
-        <p class="subtitle" style="margin-bottom:10px">在飞书授权登录过的人会出现在这里。勾选即保存；不能取消自己的管理员角色。</p>
+      <section id="sec-members" class="panel" hidden>
+        <div class="panel-head">
+          <span class="panel-title">成员角色</span>
+          <span class="panel-desc">飞书授权登录过的人会出现在这里；勾选即保存，不能取消自己的管理员角色</span>
+        </div>
+        <div class="panel-body">
         <div class="table-scroll">
         <table id="member-table">
           <thead><tr><th>用户</th><th>管理员</th><th>审核者</th><th>发布者</th></tr></thead>
           <tbody></tbody>
         </table>
         </div>
+        </div>
       </section>
 
-      <section id="sec-agent" hidden>
-        <h2>Agent 版本</h2>
-        <p class="subtitle" style="margin-bottom:10px">更新后立即生效，无需重启服务器。发布新版 Agent 到 GitHub 后在此登记。</p>
+      <section id="sec-agent" class="panel" hidden>
+        <div class="panel-head">
+          <span class="panel-title">Agent 版本</span>
+          <span class="panel-desc">发布新版 Agent 到 GitHub 后在此登记，更新立即生效、无需重启</span>
+        </div>
+        <div class="panel-body">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="agent-form">
           <input id="agent-version" placeholder="版本号 1.0.2" style="width:110px">
           <input id="agent-url" placeholder="GitHub Release 下载地址" style="flex:1;min-width:260px">
@@ -101,21 +121,30 @@
           <button class="btn-primary" id="agent-submit">保存</button>
         </div>
         <div class="hint" id="agent-current" style="margin-top:8px"></div>
+        </div>
       </section>
 
-      <section id="sec-feedbacks" hidden>
-        <h2>用户反馈</h2>
-        <p class="subtitle" style="margin-bottom:10px">工具反馈发给上传者并抄送管理员；平台反馈发给平台负责人。投递失败的记录可由管理员补发。</p>
+      <section id="sec-feedbacks" class="panel" hidden>
+        <div class="panel-head">
+          <span class="panel-title">用户反馈</span>
+          <span class="panel-desc">工具反馈发给上传者并抄送管理员；平台反馈发给平台负责人；投递失败可补发</span>
+        </div>
+        <div class="panel-body">
         <div class="table-scroll">
         <table id="feedback-table">
           <thead><tr><th>时间</th><th>类型</th><th>对象</th><th>反馈人</th><th>接收人</th><th>内容</th><th>处理状态</th><th>投递</th><th></th></tr></thead>
           <tbody></tbody>
         </table>
         </div>
+        </div>
       </section>
 
-      <section id="sec-stats" hidden>
-        <h2>使用统计</h2>
+      <section id="sec-stats" class="panel" hidden>
+        <div class="panel-head">
+          <span class="panel-title">使用统计</span>
+          <span class="panel-desc">按工具@版本聚合的下载与安装次数</span>
+        </div>
+        <div class="panel-body">
         <div class="stat-cards">
           <div class="stat-card"><div class="num" id="stat-users">—</div><div class="label">活跃用户</div></div>
           <div class="stat-card"><div class="num" id="stat-downloads">—</div><div class="label">总下载次数</div></div>
@@ -127,6 +156,7 @@
           <tbody></tbody>
         </table>
         </div>
+        </div>
       </section>
     </div>
   </div>
@@ -134,8 +164,8 @@
 
 <div id="msg"></div>
 
-<script src="js/api.js?v=20260910.3"></script>
-<script src="js/auth.js?v=20260910.3"></script>
+<script src="js/api.js?v=20260910.4"></script>
+<script src="js/auth.js?v=20260910.4"></script>
 <script>
 const api = window.Api.api;
 const toast = window.Api.toast;
