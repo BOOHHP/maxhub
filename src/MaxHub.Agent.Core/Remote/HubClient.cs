@@ -16,6 +16,7 @@ public sealed record ToolIndexItem(
     int MaxMaxYear = 2026);
 public sealed record RemoteInstallPlan(string ToolId, string Version, string Sha256, long SizeBytes, bool RestartRequired, string RiskLevel, string? Signature = null);
 public sealed record MySubmissionItem(string ReleaseId, string Name, string Version, string Status);
+public sealed record MyFeedbackItem(int Id, string Scope, string? ToolName, string Message, string Status, string StatusText, string? Note);
 public sealed record ConnectorInfo(string Version, int MinMaxYear, int MaxMaxYear, string Sha256, long SizeBytes, string? Signature = null);
 public sealed record AgentReleaseInfo(
     string Version, string DownloadUrl, string Sha256, string? FallbackDownloadUrl = null);
@@ -243,6 +244,22 @@ public sealed class HubClient(HttpClient http)
     {
         var response = await http.PostAsync($"/api/v1/releases/{releaseId}/cancel", null);
         return response.IsSuccessStatusCode;
+    }
+
+    /// <summary>我发出的反馈（含处理状态）。</summary>
+    public async Task<MyFeedbackItem[]> GetMyFeedbacksAsync()
+    {
+        var response = await http.GetAsync("/api/v1/my-feedbacks");
+        if (!response.IsSuccessStatusCode) return [];
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return [.. json.EnumerateArray().Select(f => new MyFeedbackItem(
+            f.GetProperty("id").GetInt32(),
+            f.GetProperty("scope").GetString() ?? "",
+            f.GetProperty("toolName").GetString(),
+            f.GetProperty("message").GetString() ?? "",
+            f.GetProperty("status").GetString() ?? "open",
+            f.GetProperty("statusText").GetString() ?? "",
+            f.GetProperty("note").GetString()))];
     }
 
     public async Task RegisterConnectorAsync(string zipPath, string version, int minMaxYear, int maxMaxYear)

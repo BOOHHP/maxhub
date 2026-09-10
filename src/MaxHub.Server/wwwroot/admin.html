@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>后台管理 · MaxHub</title>
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="stylesheet" href="css/site.css?v=20260910.4">
+<link rel="stylesheet" href="css/site.css?v=20260910.5">
 <style>
   .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 20px; }
   .stat-card { position: relative; overflow: hidden; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-m); padding: 16px 18px; }
@@ -162,10 +162,23 @@
   </div>
 </main>
 
+<!-- 状态变更弹窗（自绘，替代原生 prompt） -->
+<div id="status-modal" hidden style="position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55)">
+  <div style="background:var(--bg-card);border:1px solid var(--border-strong);border-radius:var(--radius-l);padding:20px 22px;width:400px;box-shadow:var(--shadow-lift)">
+    <h3 style="margin:0 0 4px;font-size:15px" id="status-modal-title">变更处理状态</h3>
+    <p style="color:var(--text-3);font-size:12px;margin-bottom:12px">备注（可选）将随状态回执反馈人</p>
+    <textarea id="status-modal-note" rows="3" style="width:100%" placeholder="例如：下版本修复 / 已排期 / 属预期行为…"></textarea>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn-outline" id="status-modal-cancel">取消</button>
+      <button class="btn-primary" id="status-modal-ok">确认变更</button>
+    </div>
+  </div>
+</div>
+
 <div id="msg"></div>
 
-<script src="js/api.js?v=20260910.4"></script>
-<script src="js/auth.js?v=20260910.4"></script>
+<script src="js/api.js?v=20260910.5"></script>
+<script src="js/auth.js?v=20260910.5"></script>
 <script>
 const api = window.Api.api;
 const toast = window.Api.toast;
@@ -514,14 +527,31 @@ function renderFeedbacks(items) {
     </tr>`).join('') || '<tr><td colspan="9" class="empty">暂无用户反馈</td></tr>';
 }
 
+let statusModalContext = null;
+function openStatusModal(id, status) {
+  document.getElementById('status-modal').hidden = false;
+  document.getElementById('status-modal-note').value = '';
+  document.getElementById('status-modal-title').textContent =
+    `变更处理状态 → ${{ open: '待处理', in_progress: '处理中', resolved: '已解决', wontfix: '暂不处理' }[status]}（#${id}）`;
+  document.getElementById('status-modal-note').value = '';
+  document.getElementById('status-modal-note').focus();
+  document.getElementById('status-modal-ok').onclick = async () => {
+    const note = document.getElementById('status-modal-note').value.trim();
+    closeModal();
+    const res = await api(`/api/v1/feedbacks/${id}/status`, {
+      method: 'PATCH', body: JSON.stringify({ status, note }),
+    });
+    toast(res.ok ? `已更新为「${{ open: '待处理', in_progress: '处理中', resolved: '已解决', wontfix: '暂不处理' }[status]}」并回执反馈人` : (res.status === 403 ? '仅接收人/管理员可变更' : '更新失败'), res.ok);
+    if (res.ok) loadFeedbacks();
+  };
+  document.getElementById('status-modal-cancel').onclick = closeStatusModal;
+}
+function closeStatusModal() {
+  document.getElementById('status-modal').hidden = true;
+  document.getElementById('status-modal-note').value = '';
+}
 async function setFeedbackStatus(id, status) {
-  const note = prompt('备注（可选，将随状态回执反馈人）：') ?? '';
-  const res = await api(`/api/v1/feedbacks/${id}/status`, {
-    method: 'PATCH', body: JSON.stringify({ status, note }),
-  });
-  const body = res.ok ? await res.json() : null;
-  toast(res.ok ? `已更新为「${{ open: '待处理', in_progress: '处理中', resolved: '已解决', wontfix: '暂不处理' }[status]}」并回执反馈人` : (res.status === 403 ? '仅接收人/管理员可变更' : '更新失败'), res.ok);
-  if (res.ok) loadFeedbacks();
+  openStatusModal(id, status);
 }
 
 async function redeliverFeedback(id) {

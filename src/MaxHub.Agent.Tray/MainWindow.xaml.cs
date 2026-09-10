@@ -11,6 +11,7 @@ public partial class MainWindow : Window
     private readonly AccountViewModel _account;
     private readonly ConnectorsViewModel _connectors;
     private readonly ToolsViewModel _tools;
+    private readonly FeedbackViewModel _feedback;
     private bool _balloonShown;
 
     // 与 App 中注册同名消息：第二个实例启动时广播它，本窗口回到前台
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
         _account = account;
         _connectors = connectors;
         _tools = tools;
+        _feedback = feedback;
         VersionText.Text = "v" + (System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?");
 
         AccountPage.DataContext = account;
@@ -97,6 +99,7 @@ public partial class MainWindow : Window
         ToolsPage.Visibility = Visibility.Collapsed;
         ReleaseNotesPage.Visibility = Visibility.Collapsed;
         ShowPageWithFade(FeedbackPage);
+        _ = _feedback.LoadMyFeedbacksAsync();
     }
 
     private void NavReleaseNotes_Checked(object sender, RoutedEventArgs e)
