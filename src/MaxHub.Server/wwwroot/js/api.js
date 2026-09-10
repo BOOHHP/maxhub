@@ -110,6 +110,7 @@ window.Api = (() => {
       history.replaceState(null, '', location.pathname);
       if (returnUrl && returnUrl !== location.href) {
         location.href = returnUrl;
+        return 'redirected';
       }
       return true;
     }

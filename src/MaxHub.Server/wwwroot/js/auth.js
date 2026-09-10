@@ -39,10 +39,8 @@
     // 处理飞书回调（若有）：登录成功后优先回跳登录前页面（如飞书卡片带来的反馈区），否则去工具市场
     const handled = await window.Api.handleCallback();
     if (handled) {
-      // handleCallback 内部已处理回跳；未回跳时默认去工具市场
-      if (!location.hash && location.pathname.endsWith('publish.html') === false) {
-        location.href = 'index.html';
-      }
+      // 'redirected' 表示已在回跳导航中，不要再覆盖跳转
+      if (handled !== 'redirected') location.href = 'index.html';
       return;
     }
     let user = null;
