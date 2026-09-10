@@ -75,6 +75,8 @@ window.Api = (() => {
   function hasRole(roles, role) { return Array.isArray(roles) && roles.includes(role); }
 
   async function startLogin() {
+    // 记录回跳地址（含锚点）：飞书卡片「去处理/查看进展」未登录时先登录，成功后回到原页面反馈区
+    try { sessionStorage.setItem('maxhubReturnUrl', location.href); } catch { /* ignore */ }
     const res = await api('/api/v1/auth/feishu/qr-sessions?client=web', { method: 'POST', retry: false });
     const s = await res.json();
     if (s.authorizeUrl && s.authorizeUrl.startsWith('https://')) {
@@ -99,7 +101,16 @@ window.Api = (() => {
       localStorage.setItem(tokenKey, polled.session.accessToken);
       localStorage.setItem(refreshKey, polled.session.refreshToken);
       localStorage.setItem(userKey, polled.session.user.username);
+      // 有回跳地址则回原页面（含锚点），否则由调用方决定去向
+      let returnUrl = null;
+      try {
+        returnUrl = sessionStorage.getItem('maxhubReturnUrl');
+        sessionStorage.removeItem('maxhubReturnUrl');
+      } catch { /* ignore */ }
       history.replaceState(null, '', location.pathname);
+      if (returnUrl && returnUrl !== location.href) {
+        location.href = returnUrl;
+      }
       return true;
     }
     toast('登录会话已过期，请重试', false);

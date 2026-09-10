@@ -90,6 +90,16 @@
     <section>
       <h2 style="margin-top:0">反馈跟踪</h2>
       <p class="subtitle" style="margin-bottom:10px">我发出的反馈与收到（作为工具上传者）的反馈及其处理进展。</p>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <label style="font-size:12px;color:var(--text-2)">状态筛选</label>
+        <select id="feedback-filter" onchange="loadFeedbacks()" style="width:140px">
+          <option value="">全部</option>
+          <option value="open">待处理</option>
+          <option value="in_progress">处理中</option>
+          <option value="resolved">已解决</option>
+          <option value="wontfix">暂不处理</option>
+        </select>
+      </div>
       <h3 style="margin:0 0 8px;font-size:14px">我发出的</h3>
       <div class="table-scroll">
       <table id="my-feedback-table">
@@ -288,12 +298,14 @@ function feedbackRows(items, mine) {
 }
 
 async function loadFeedbacks() {
+  const filter = document.getElementById('feedback-filter')?.value ?? '';
+  const apply = (items) => filter ? items.filter(f => f.status === filter) : items;
   const mineRes = await api('/api/v1/my-feedbacks');
   if (mineRes.ok)
-    document.querySelector('#my-feedback-table tbody').innerHTML = feedbackRows(await mineRes.json(), true);
+    document.querySelector('#my-feedback-table tbody').innerHTML = feedbackRows(apply(await mineRes.json()), true);
   const recvRes = await api('/api/v1/feedbacks/recipients');
   if (recvRes.ok)
-    document.querySelector('#recv-feedback-table tbody').innerHTML = feedbackRows(await recvRes.json(), false);
+    document.querySelector('#recv-feedback-table tbody').innerHTML = feedbackRows(apply(await recvRes.json()), false);
 }
 
 async function setFeedbackStatus(id, status) {

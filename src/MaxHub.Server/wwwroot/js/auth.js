@@ -36,10 +36,13 @@
   }
 
   window.addEventListener('DOMContentLoaded', async () => {
-    // 处理飞书回调（若有）：登录成功后统一跳转到工具市场
+    // 处理飞书回调（若有）：登录成功后优先回跳登录前页面（如飞书卡片带来的反馈区），否则去工具市场
     const handled = await window.Api.handleCallback();
     if (handled) {
-      location.href = 'index.html';
+      // handleCallback 内部已处理回跳；未回跳时默认去工具市场
+      if (!location.hash && location.pathname.endsWith('publish.html') === false) {
+        location.href = 'index.html';
+      }
       return;
     }
     let user = null;
