@@ -12,14 +12,21 @@ using Microsoft.Extensions.Hosting;
 
 namespace MaxHub.Server.Tests;
 
-/// <summary>记录投递目标与文本的假飞书发送器，用于验证接收人解析与送达状态。</summary>
+/// <summary>记录投递目标与文本/卡片的假飞书发送器，用于验证接收人解析与送达状态。</summary>
 public sealed class RecordingFeishuSender : IFeishuMessageSender
 {
     public List<(string EmployeeId, string? OpenId, string? UserId, string Text)> Sent { get; } = [];
+    public List<(string EmployeeId, string Card)> Cards { get; } = [];
 
     public Task SendTextAsync(EmployeeIdentity target, string text, CancellationToken cancellationToken = default)
     {
         lock (Sent) Sent.Add((target.EmployeeId, target.OpenId, target.UserId, text));
+        return Task.CompletedTask;
+    }
+
+    public Task SendCardAsync(EmployeeIdentity target, string cardJson, CancellationToken cancellationToken = default)
+    {
+        lock (Cards) Cards.Add((target.EmployeeId, cardJson));
         return Task.CompletedTask;
     }
 }
@@ -100,36 +107,51 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
         var submitter = await LoginAsync("emp-fb-sub", "反馈人");
         var admin = await LoginAsync("emp-admin", "管理员");
 
-        // 平台反馈提交（接收人=emp-admin）
+        // 平台反馈提交（接收人=emp-admin）：接收人收到生命周期卡片
         var res = await submitter.PostAsJsonAsync("/api/v1/feedback",
             new { scope = "platform", message = "反馈状态跟踪端到端验证内容。" });
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var feedbackId = (await res.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("feedbackId").GetInt32();
+
+        lock (fixture.Sender.Cards)
+        {
+            var adminCards = fixture.Sender.Cards.Where(c => c.EmployeeId == "emp-admin").ToList();
+            Assert.True(adminCards.Count >= 1, $"expected feedback card, got {fixture.Sender.Cards.Count} cards total");
+            var card = adminCards[^1]; // 最新一条（fixture 跨测试共享）
+            Assert.Contains("待处理", card.Card);
+            Assert.Contains("处理中", card.Card);
+            Assert.Contains("去处理", card.Card);
+            Assert.Contains("publish.html#feedbacks", card.Card);
+        }
 
         // 反馈人看到 open 状态
         var mine = await submitter.GetFromJsonAsync<JsonElement[]>("/api/v1/my-feedbacks");
         var myRow = mine!.Single(f => f.GetProperty("id").GetInt32() == feedbackId);
         Assert.Equal("open", myRow.GetProperty("status").GetString());
 
-        // 接收人（管理员）变更为 in_progress 并写备注；回执 mock 发送器收到消息（fire-and-forget，轮询等待）
-        lock (fixture.Sender.Sent) fixture.Sender.Sent.Clear();
+        // 接收人（管理员）变更为 in_progress 并写备注；回执卡片发给反馈人（fire-and-forget，轮询等待）
+        lock (fixture.Sender.Cards) fixture.Sender.Cards.Clear();
         var patch = await admin.PatchAsJsonAsync($"/api/v1/feedbacks/{feedbackId}/status",
             new { status = "in_progress", note = "排期处理中" });
         Assert.Equal(HttpStatusCode.OK, patch.StatusCode);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        List<(string EmployeeId, string? OpenId, string? UserId, string Text)> sent;
+        List<(string EmployeeId, string Card)> cards;
         do
         {
             await Task.Delay(100);
-            lock (fixture.Sender.Sent) sent = [.. fixture.Sender.Sent];
-        } while (sw.Elapsed.TotalSeconds < 5 && !sent.Any(s => s.EmployeeId == "emp-fb-sub" && s.Text.Contains("处理中")));
+            lock (fixture.Sender.Cards) cards = [.. fixture.Sender.Cards];
+        } while (sw.Elapsed.TotalSeconds < 5 && !cards.Any(c => c.EmployeeId == "emp-fb-sub"));
 
-        lock (fixture.Sender.Sent)
+        lock (fixture.Sender.Cards)
         {
-            var receipt = fixture.Sender.Sent.Single(s => s.EmployeeId == "emp-fb-sub");
-            Assert.Contains("处理中", receipt.Text);
-            Assert.Contains("排期处理中", receipt.Text);
+            var receipts = fixture.Sender.Cards.Where(c => c.EmployeeId == "emp-fb-sub").ToList();
+            Assert.True(receipts.Count >= 1, $"expected receipt card, got {fixture.Sender.Cards.Count} cards total");
+            var receipt = receipts[^1]; // 最新一条（fixture 跨测试共享，取最新）
+            Assert.Contains("MaxHub 反馈进展", receipt.Card);
+            Assert.Contains("**处理中**", receipt.Card); // 当前状态高亮
+            Assert.Contains("排期处理中", receipt.Card);
+            Assert.Contains("查看进展", receipt.Card);
         }
 
         // 反馈人看到更新后的状态与备注
@@ -196,7 +218,7 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
         await reviewer.PostAsJsonAsync($"/api/v1/releases/{releaseId}/review", new { approve = true, channel = "stable" });
 
         int before;
-        lock (fixture.Sender.Sent) before = fixture.Sender.Sent.Count;
+        lock (fixture.Sender.Cards) before = fixture.Sender.Cards.Count;
 
         var viewer = await LoginAsync("emp-viewer", "王五");
         var response = await viewer.PostAsJsonAsync("/api/v1/feedback", new
@@ -212,17 +234,18 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("delivered", body.GetProperty("deliveryStatus").GetString());
 
-        lock (fixture.Sender.Sent)
+        lock (fixture.Sender.Cards)
         {
-            var delta = fixture.Sender.Sent.Skip(before).ToList();
+            var delta = fixture.Sender.Cards.Skip(before).ToList();
             var recipients = delta.Select(s => s.EmployeeId).OrderBy(x => x).ToArray();
             Assert.Contains("emp-pub", recipients); // 上传者
             Assert.Contains("emp-admin", recipients); // 管理员抄送
             Assert.DoesNotContain("emp-viewer", recipients); // 反馈人不收自己
-            var text = delta.First(s => s.EmployeeId == "emp-pub").Text;
-            Assert.Contains("王五", text);
-            Assert.Contains("批量重命名很好用", text);
-            Assert.Contains("Max 2025", text);
+            var card = delta.First(s => s.EmployeeId == "emp-pub").Card;
+            Assert.Contains("王五", card);
+            Assert.Contains("批量重命名很好用", card);
+            Assert.Contains("待处理", card); // 初始状态
+            Assert.Contains("publish.html#feedbacks", card); // 去处理按钮
         }
     }
 
@@ -230,7 +253,7 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
     public async Task Platform_feedback_goes_to_admins_only()
     {
         int before;
-        lock (fixture.Sender.Sent) before = fixture.Sender.Sent.Count;
+        lock (fixture.Sender.Cards) before = fixture.Sender.Cards.Count;
 
         var user = await LoginAsync("emp-viewer", "王五");
         var response = await user.PostAsJsonAsync("/api/v1/feedback", new
@@ -241,9 +264,9 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
         });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        lock (fixture.Sender.Sent)
+        lock (fixture.Sender.Cards)
         {
-            var recipients = fixture.Sender.Sent.Skip(before).Select(s => s.EmployeeId).Distinct().ToArray();
+            var recipients = fixture.Sender.Cards.Skip(before).Select(s => s.EmployeeId).Distinct().ToArray();
             Assert.Equal(["emp-admin"], recipients);
         }
     }

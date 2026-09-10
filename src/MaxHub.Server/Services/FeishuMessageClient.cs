@@ -8,6 +8,9 @@ namespace MaxHub.Server.Services;
 public interface IFeishuMessageSender
 {
     Task SendTextAsync(EmployeeIdentity target, string text, CancellationToken cancellationToken = default);
+
+    /// <summary>发送交互卡片（content 为飞书卡片 JSON 字符串）；发送失败静默由调用方兜底。</summary>
+    Task SendCardAsync(EmployeeIdentity target, string cardJson, CancellationToken cancellationToken = default);
 }
 
 public sealed class FeishuMessagingDisabledException() : Exception("飞书消息未配置");
@@ -64,6 +67,49 @@ public sealed class FeishuMessageClient(HttpClient http, FeishuAuthOptions optio
             if (string.IsNullOrWhiteSpace(id) || !seen.Add(type + ":" + id))
                 continue;
             yield return (type, id!);
+        }
+    }
+
+    public async Task SendCardAsync(EmployeeIdentity target, string cardJson, CancellationToken cancellationToken = default)
+    {
+        if (!options.IsConfigured)
+            throw new FeishuMessagingDisabledException();
+
+        var token = await GetTenantTokenAsync(cancellationToken);
+        FeishuMessagingException? last = null;
+        foreach (var (type, receiveId) in CandidateIds(target))
+        {
+            try
+            {
+                await PostCardAsync(type, receiveId, cardJson, token, cancellationToken);
+                return;
+            }
+            catch (FeishuMessagingException ex)
+            {
+                last = ex;
+                if (!ex.InvalidReceiver)
+                    throw;
+            }
+        }
+        throw last ?? new FeishuMessagingException("无可用飞书接收标识", invalidReceiver: false);
+    }
+
+    private async Task PostCardAsync(string type, string receiveId, string cardJson, string token, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post,
+            $"{BaseUrl}/open-apis/im/v1/messages?receive_id_type={type}")
+        {
+            Content = JsonContent.Create(new { receive_id = receiveId, msg_type = "interactive", content = cardJson }),
+        };
+        request.Headers.Authorization = new("Bearer", token);
+        using var response = await http.SendAsync(request, cancellationToken);
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var json = JsonDocument.Parse(body);
+        var code = json.RootElement.TryGetProperty("code", out var codeProp) ? codeProp.GetInt32() : -1;
+        if (code != 0)
+        {
+            var msg = json.RootElement.TryGetProperty("msg", out var msgProp) ? msgProp.GetString() ?? body : body;
+            throw new FeishuMessagingException($"飞书卡片发送失败（{code}）：{msg}", invalidReceiver: true);
         }
     }
 

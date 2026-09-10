@@ -113,6 +113,9 @@ function render() {
     document.getElementById('who').textContent = user ? `当前身份：${user.username}` : '';
     loadMine();
     loadFeedbacks();
+    // 飞书卡片「去处理/查看进展」按钮带 #feedbacks 锚点：登录后滚动到反馈跟踪区
+    if (location.hash === '#feedbacks')
+      setTimeout(() => document.querySelector('#my-feedback-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400);
   }
 }
 

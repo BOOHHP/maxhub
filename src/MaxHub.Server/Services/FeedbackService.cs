@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MaxHub.Server.Data;
 using MaxHub.Server.Domain;
 using Microsoft.EntityFrameworkCore;
@@ -54,6 +55,7 @@ public sealed class FeedbackService(
             ClientVersion = clientVersion,
             MaxYear = maxYear,
             DeliveryStatus = "pending",
+            Status = "open",
             AtUtc = DateTimeOffset.UtcNow,
         };
         db.Feedbacks.Add(row);
@@ -117,6 +119,102 @@ public sealed class FeedbackService(
             .Where(f => f.ToEmployeeIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Contains(employeeId, StringComparer.Ordinal))
             .OrderByDescending(f => f.AtUtc).Take(take).ToList();
+    }
+
+    /// <summary>构建反馈生命周期卡片：详情 + 状态链（当前高亮）+ 按钮。portalBase 形如 http://10.2.13.8:5100。</summary>
+    /// <param name="forSubmitter">true=回执视角（反馈人查看进展）；false=接收人视角（去处理）。</param>
+    public string BuildCard(FeedbackRow row, string portalBase, bool forSubmitter = false)
+    {
+        var steps = new (string Key, string Label)[]
+        {
+            ("open", "待处理"), ("in_progress", "处理中"), ("resolved", "已解决"), ("wontfix", "暂不处理"),
+        };
+        var status = row.Status ?? "open";
+        var chain = string.Join("  →  ", steps.Select(s =>
+            s.Key == status ? $"**{s.Label}** ✅" : s.Label));
+        var subject = row.Scope == "tool" ? $"工具「{row.ToolName ?? "未知"}」" : "MaxHub 平台";
+        var url = $"{portalBase.TrimEnd('/')}/publish.html#feedbacks";
+        var noteLine = string.IsNullOrWhiteSpace(row.StatusNote) ? "" : $"\n**备注：**{row.StatusNote}";
+
+        var card = new
+        {
+            config = new { wide_screen_mode = true },
+            header = new
+            {
+                template = status == "resolved" ? "green" : status == "wontfix" ? "grey" : "blue",
+                title = new { tag = "plain_text", content = forSubmitter
+                    ? $"MaxHub 反馈进展（#{row.Id}）"
+                    : row.Scope == "tool" ? "MaxHub 工具反馈" : "MaxHub 平台反馈" },
+            },
+            elements = new object[]
+            {
+                new
+                {
+                    tag = "div",
+                    text = new { tag = "lark_md", content =
+                        $"**对象：**{subject}\n**反馈人：**{row.FromUsername}\n**内容：**{row.Message}{noteLine}" },
+                },
+                new { tag = "hr" },
+                new
+                {
+                    tag = "div",
+                    text = new { tag = "lark_md", content = $"**处理状态：**{chain}" },
+                },
+                new
+                {
+                    tag = "note",
+                    elements = new object[] { new { tag = "plain_text", content = forSubmitter
+                        ? "点击下方按钮查看该反馈的最新进展"
+                        : "点击下方按钮打开 MaxHub 网页，在「反馈跟踪」区查看或更新状态" } },
+                },
+                new
+                {
+                    tag = "action",
+                    actions = new object[]
+                    {
+                        new
+                        {
+                            tag = "button",
+                            text = new { tag = "plain_text", content = forSubmitter ? "查看进展" : "去处理" },
+                            type = "primary",
+                            url = url,
+                        },
+                    },
+                },
+            },
+        };
+        return JsonSerializer.Serialize(card, new JsonSerializerOptions
+        {
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        });
+    }
+
+    /// <summary>以卡片形式投递给全部接收人；卡片失败时回退纯文本，保证送达。</summary>
+    public async Task<(string Status, string? Error)> DeliverCardAsync(FeedbackRow row, string portalBase)
+    {
+        var card = BuildCard(row, portalBase);
+        string? firstError = null;
+        var delivered = 0;
+        foreach (var employeeId in row.ToEmployeeIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var identity = users.ResolveIdentity(employeeId);
+            try
+            {
+                await sender.SendCardAsync(identity, card);
+                delivered++;
+            }
+            catch (FeishuMessagingDisabledException)
+            {
+                return UpdateStatus(row, "skipped", null);
+            }
+            catch (Exception ex)
+            {
+                firstError ??= $"{employeeId}: {ex.Message}";
+            }
+        }
+        return firstError is null
+            ? UpdateStatus(row, "delivered", null)
+            : UpdateStatus(row, delivered > 0 ? "partial" : "failed", firstError);
     }
 
     /// <summary>解析接收人：tool 发给最新已发布版本上传者并抄送管理员；platform 发给配置接收人。</summary>

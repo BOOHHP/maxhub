@@ -8,7 +8,7 @@ namespace MaxHub.Server.Services;
 /// 审核通过后通知提交者，并向全部登录过的用户推送新工具上架。
 /// 通知失败不阻断提交流程：审核队列始终是权威来源，后台仍能看到待审核项。
 /// </summary>
-public sealed class ReviewNotifier(RoleService roles, IUserDirectory users, IFeishuMessageSender sender)
+public sealed class ReviewNotifier(RoleService roles, IUserDirectory users, IFeishuMessageSender sender, FeedbackService? feedback = null)
 {
     public async Task NotifyAsync(EmployeeIdentity submitter, string toolName, string version)
     {
@@ -72,5 +72,24 @@ public sealed class ReviewNotifier(RoleService roles, IUserDirectory users, IFei
         {
             // 回执失败不影响主流程
         }
+    }
+
+    /// <summary>状态变更回执：优先发生命周期卡片，卡片失败回退纯文本；均失败静默。</summary>
+    public async Task SendReceiptAsync(EmployeeIdentity target, FeedbackRow row, string portalBase)
+    {
+        try
+        {
+            await sender.SendCardAsync(target, feedback.BuildCard(row, portalBase, forSubmitter: true));
+            return;
+        }
+        catch
+        {
+            // 卡片失败回退文本
+        }
+        var statusName = FeedbackService.StatusText(row.Status ?? "open");
+        var subject = row.Scope == "tool" ? $"工具「{row.ToolName ?? "未知"}」的反馈" : "平台反馈";
+        var text = $"【MaxHub 反馈进展】你关于{subject}的反馈（#{row.Id}）状态更新为：{statusName}" +
+                   (string.IsNullOrWhiteSpace(row.StatusNote) ? "" : $"\n备注：{row.StatusNote}");
+        await SendToAsync(target, text);
     }
 }

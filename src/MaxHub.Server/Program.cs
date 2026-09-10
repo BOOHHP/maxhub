@@ -47,7 +47,8 @@ builder.Services.AddSingleton(new FeedbackRateLimiter(builder.Configuration.GetV
 builder.Services.AddSingleton(sp => new ReviewNotifier(
     sp.GetRequiredService<RoleService>(),
     sp.GetRequiredService<IUserDirectory>(),
-    sp.GetRequiredService<IFeishuMessageSender>()));
+    sp.GetRequiredService<IFeishuMessageSender>(),
+    sp.GetRequiredService<FeedbackService>()));
 builder.Services.AddSingleton(sp => new FeedbackService(
     sp.GetRequiredService<IDbContextFactory<MaxHubDb>>(),
     sp.GetRequiredService<RegistryStore>(),
@@ -662,7 +663,9 @@ app.MapPost("/api/v1/feedback", async (HttpContext ctx, SubmitFeedbackRequest re
         return Results.BadRequest(new { errors = new[] { "暂无可用接收人，请联系管理员。" } });
     var row = feedback.Save(scope, toolId, toolName, user, recipients, message,
         request.Client ?? "unknown", request.ClientVersion, request.MaxYear);
-    var (status, error) = await feedback.DeliverAsync(row);
+    // 优先发交互卡片（含状态生命周期与去处理按钮）；失败回退纯文本
+    var portalBase = $"{ctx.Request.Scheme}://{ctx.Request.Host.Value}";
+    var (status, error) = await feedback.DeliverCardAsync(row, portalBase);
     return Results.Ok(new { feedbackId = row.Id, deliveryStatus = status, deliveryError = error });
 });
 
@@ -727,14 +730,11 @@ app.MapPatch("/api/v1/feedbacks/{id:int}/status", async (HttpContext ctx, int id
     if (updated is null)
         return Results.BadRequest(new { errors = new[] { "非法状态。" } });
 
-    // 飞书回执反馈人（fire-and-forget，失败不影响状态变更）
-    var statusName = FeedbackService.StatusText(updated.Status ?? "open");
-    var subject = updated.Scope == "tool" ? $"工具「{updated.ToolName ?? "未知"}」的反馈" : "平台反馈";
-    var text = $"【MaxHub 反馈进展】你关于{subject}的反馈（#{updated.Id}）状态更新为：{statusName}" +
-               (string.IsNullOrWhiteSpace(updated.StatusNote) ? "" : $"\n备注：{updated.StatusNote}");
-    var notifier = app.Services.GetRequiredService<ReviewNotifier>();
+    // 飞书回执反馈人：优先卡片（含生命周期与查看按钮），失败回退纯文本（fire-and-forget）
+    var portalBase = $"{ctx.Request.Scheme}://{ctx.Request.Host.Value}";
     var fromIdentity = app.Services.GetRequiredService<IUserDirectory>().ResolveIdentity(updated.FromEmployeeId);
-    _ = notifier.SendToAsync(fromIdentity, text);
+    var notifier = app.Services.GetRequiredService<ReviewNotifier>();
+    _ = notifier.SendReceiptAsync(fromIdentity, updated, portalBase);
 
     return Results.Ok(new { status = updated.Status, note = updated.StatusNote, changedAtUtc = updated.StatusChangedAtUtc });
 });
