@@ -998,11 +998,14 @@ public sealed class FeedbackViewModel : ViewModelBase
         _services = services;
         _account = account;
         SubmitCommand = new RelayCommand(SubmitAsync, () => !_busy && _account.IsLoggedIn);
+        RefreshFeedbacksCommand = new RelayCommand(() => LoadMyFeedbacksAsync(), () => !_busy && _account.IsLoggedIn);
+        account.LoggedInChanged += () => _ = LoadMyFeedbacksAsync();
     }
 
     public string Message { get => _message; set { Set(ref _message, value); SubmitCommand.RaiseCanExecuteChanged(); } }
     public string Status { get => _status; private set => Set(ref _status, value); }
     public RelayCommand SubmitCommand { get; }
+    public RelayCommand RefreshFeedbacksCommand { get; }
     public System.Collections.ObjectModel.ObservableCollection<MyFeedbackRowViewModel> MyFeedbacks { get; } = [];
 
     /// <summary>加载我发出的反馈（登录后），展示处理进展。</summary>

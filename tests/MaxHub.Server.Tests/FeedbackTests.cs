@@ -98,9 +98,9 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
         // 回归：publish.html 的反馈跟踪区曾调用未定义的 esc()，导致列表渲染抛错空白
         var html = await fixture.CreateClient().GetStringAsync("/publish.html");
         var escDef = html.IndexOf("function esc(s)", StringComparison.Ordinal);
-        var feedbackRows = html.IndexOf("function feedbackRows", StringComparison.Ordinal);
+        var feedbackRows = html.IndexOf("function feedbackRowHtml", StringComparison.Ordinal);
         Assert.True(escDef > 0, "publish.html must define esc()");
-        Assert.True(feedbackRows > escDef, "feedbackRows must come after esc definition");
+        Assert.True(feedbackRows > escDef, "feedback rendering must come after esc definition");
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
             Assert.Contains("待处理", card.Card);
             Assert.Contains("处理中", card.Card);
             Assert.Contains("去处理", card.Card);
-            Assert.Contains("publish.html#feedbacks", card.Card);
+            Assert.Contains("publish.html#fb-", card.Card);
         }
 
         // 反馈人看到 open 状态
@@ -256,7 +256,7 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
             Assert.Contains("王五", card);
             Assert.Contains("批量重命名很好用", card);
             Assert.Contains("待处理", card); // 初始状态
-            Assert.Contains("publish.html#feedbacks", card); // 去处理按钮
+            Assert.Contains("publish.html#fb-", card); // 去处理按钮
         }
     }
 

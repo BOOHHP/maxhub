@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>发布工具 · MaxHub</title>
 <link rel="icon" type="image/png" href="favicon.png">
-<link rel="stylesheet" href="css/site.css?v=20260910.5">
+<link rel="stylesheet" href="css/site.css?v=20260910.6">
 <style>
   .publish-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
   .publish-layout > section { min-width: 0; }
@@ -122,6 +122,7 @@
           <tbody></tbody>
         </table>
         </div>
+        <div id="my-feedback-table-pager" hidden style="display:flex;align-items:center;justify-content:center;margin-top:8px"></div>
         <p class="panel-sub" style="margin-top:18px">我收到的</p>
         <div class="table-scroll">
         <table id="recv-feedback-table">
@@ -129,6 +130,7 @@
           <tbody></tbody>
         </table>
         </div>
+        <div id="recv-feedback-table-pager" hidden style="display:flex;align-items:center;justify-content:center;margin-top:8px"></div>
       </div>
     </section>
   </div>
@@ -149,8 +151,8 @@
 
 <div id="msg"></div>
 
-<script src="js/api.js?v=20260910.5"></script>
-<script src="js/auth.js?v=20260910.5"></script>
+<script src="js/api.js?v=20260910.6"></script>
+<script src="js/auth.js?v=20260910.6"></script>
 <script>
 const api = window.Api.api;
 const toast = window.Api.toast;
@@ -308,14 +310,17 @@ async function cancelSubmission(releaseId) {
 // ---- 反馈跟踪 ----
 const procBadge = { open: 'badge PendingReview', in_progress: 'badge beta', resolved: 'badge Published', wontfix: 'badge Withdrawn' };
 const procName = { open: '待处理', in_progress: '处理中', resolved: '已解决', wontfix: '暂不处理' };
+const FEEDBACK_PAGE_SIZE = 20;
+let feedbackCache = { mine: [], recv: [] };
+let feedbackPage = { mine: 0, recv: 0 };
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function feedbackRows(items, mine) {
-  return items.map(f => `
-    <tr>
+function feedbackRowHtml(f, mine) {
+  return `
+    <tr id="fb-row-${f.id}">
       <td style="white-space:nowrap">#${f.id}</td>
       <td>${mine ? (f.scope === 'tool' ? esc(f.toolName || '未知工具') : '平台') : esc(f.fromUsername)}</td>
       <td style="max-width:340px;white-space:pre-wrap">${esc(f.message)}</td>
@@ -323,18 +328,61 @@ function feedbackRows(items, mine) {
         ${f.note ? `<div style="color:var(--text-3);font-size:11px;margin-top:2px">${esc(f.note)}</div>` : ''}</td>
       <td>${mine ? '' : ['open', 'in_progress', 'resolved', 'wontfix'].filter(s => s !== f.status)
         .map(s => `<button class="btn-outline" style="padding:1px 6px;font-size:11px;margin:0 2px 2px 0" onclick="setFeedbackStatus(${f.id}, '${s}')">${procName[s]}</button>`).join('')}</td>
-    </tr>`).join('') || '<tr><td colspan="5" class="empty">暂无反馈</td></tr>';
+    </tr>`;
+}
+
+function renderFeedbackTable(tableId, key, mine) {
+  const filter = document.getElementById('feedback-filter')?.value ?? '';
+  const filtered = filter ? feedbackCache[key].filter(f => f.status === filter) : feedbackCache[key];
+  const start = feedbackPage[key] * FEEDBACK_PAGE_SIZE;
+  const pageItems = filtered.slice(start, start + FEEDBACK_PAGE_SIZE);
+  const total = filtered.length;
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  tbody.innerHTML = pageItems.map(f => feedbackRowHtml(f, key === 'mine')).join('')
+    || '<tr><td colspan="5" class="empty">暂无反馈</td></tr>';
+  // 分页条：多于一页时显示
+  const pagerId = `#${tableId}-pager`;
+  let pager = document.querySelector(pagerId);
+  if (total > FEEDBACK_PAGE_SIZE) {
+    const page = feedbackPage[key];
+    const pages = Math.ceil(total / FEEDBACK_PAGE_SIZE);
+    pager.hidden = false;
+    pager.innerHTML = `
+      <button class="btn-outline" style="padding:2px 10px;font-size:11px" ${page === 0 ? 'disabled' : ''} onclick="feedbackPage['${key}']--; loadFeedbacksRender()">上一页</button>
+      <span style="color:var(--text-3);font-size:12px;margin:0 8px">第 ${page + 1} / ${pages} 页 · 共 ${total} 条</span>
+      <button class="btn-outline" style="padding:2px 10px;font-size:11px" ${page + 1 >= pages ? 'disabled' : ''} onclick="feedbackPage['${key}']++; loadFeedbacksRender()">下一页</button>`;
+  } else {
+    pager.hidden = true;
+  }
+}
+
+function loadFeedbacksRender() {
+  renderFeedbackTable('my-feedback-table', 'mine', true);
+  renderFeedbackTable('recv-feedback-table', 'recv', false);
 }
 
 async function loadFeedbacks() {
   const filter = document.getElementById('feedback-filter')?.value ?? '';
   const apply = (items) => filter ? items.filter(f => f.status === filter) : items;
   const mineRes = await api('/api/v1/my-feedbacks');
-  if (mineRes.ok)
-    document.querySelector('#my-feedback-table tbody').innerHTML = feedbackRows(apply(await mineRes.json()), true);
+  if (mineRes.ok) feedbackCache.mine = apply(await mineRes.json());
   const recvRes = await api('/api/v1/feedbacks/recipients');
-  if (recvRes.ok)
-    document.querySelector('#recv-feedback-table tbody').innerHTML = feedbackRows(apply(await recvRes.json()), false);
+  if (recvRes.ok) feedbackCache.recv = apply(await recvRes.json());
+  feedbackPage = { mine: 0, recv: 0 };
+  loadFeedbacksRender();
+  // 卡片锚点（#fb-<id>）：滚动到对应行并高亮，提示最新变更
+  highlightFromHash();
+}
+
+function highlightFromHash() {
+  const m = location.hash.match(/^#fb-(\d+)$/);
+  if (!m) return;
+  const row = document.getElementById(`fb-row-${m[1]}`);
+  if (!row) return;
+  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  row.style.transition = 'background-color 0.4s';
+  row.style.backgroundColor = 'rgba(76,159,224,.18)';
+  setTimeout(() => { row.style.backgroundColor = ''; }, 3000);
 }
 
 let statusModalContext = null;

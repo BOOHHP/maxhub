@@ -133,7 +133,8 @@ public sealed class FeedbackService(
         var chain = string.Join("  →  ", steps.Select(s =>
             s.Key == status ? $"**{s.Label}** ✅" : s.Label));
         var subject = row.Scope == "tool" ? $"工具「{row.ToolName ?? "未知"}」" : "MaxHub 平台";
-        var url = $"{portalBase.TrimEnd('/')}/publish.html#feedbacks";
+        // 锚点带反馈 id：网页加载后滚动到该行并高亮，提示最新变更
+        var url = $"{portalBase.TrimEnd('/')}/publish.html#fb-{row.Id}";
         var noteLine = string.IsNullOrWhiteSpace(row.StatusNote) ? "" : $"\n**备注：**{row.StatusNote}";
 
         var card = new

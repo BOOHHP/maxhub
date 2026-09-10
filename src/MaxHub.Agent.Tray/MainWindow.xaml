@@ -522,7 +522,12 @@
 
                 <!-- 我的反馈：处理进展跟踪 -->
                 <StackPanel Grid.Row="1" Margin="0,20,0,0">
-                    <TextBlock Text="我的反馈" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <DockPanel Margin="0,0,0,8">
+                        <TextBlock Text="我的反馈" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        <Button DockPanel.Dock="Right" Content="⟳ 刷新" Width="72" Height="24" FontSize="11"
+                                Style="{StaticResource OutlineButton}" HorizontalAlignment="Right"
+                                Command="{Binding RefreshFeedbacksCommand}"/>
+                    </DockPanel>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <ItemsControl ItemsSource="{Binding MyFeedbacks}">
                             <ItemsControl.ItemTemplate>
