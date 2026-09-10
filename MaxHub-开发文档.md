@@ -407,6 +407,14 @@ Connector 提交反馈反复报“Agent 无响应”，分阶段定位并解决�
 - UI：后台反馈表与发布页「反馈跟踪」区块均渲染状态徽章（复用网页 token 配色）与状态变更按钮；备注随内容展示。
 - 测试 71/71（Server，新增端到端：open→接收人改 in_progress→回执断言→反馈人可见→非接收人 403→非法状态 400）。
 
+### 反馈飞书交互卡片（生命周期可视化）
+
+- 反馈投递与状态回执升级为飞书交互卡片：详情 + 状态链（待处理→处理中→已解决/暂不处理，当前状态加粗✅高亮）+ `open_url` 按钮（跳发布页 `#feedbacks` 锚点，自动滚动到反馈跟踪区）。
+- 内网部署限制：飞书无法回调内网，故按钮为跳转网页处理而非卡片内直接改状态。
+- 卡片 JSON 用 `UnsafeRelaxedJsonEscaping` 序列化，避免中文被转义成 \uXXXX。
+- 卡片发送失败自动回退纯文本，保证送达；`IFeishuMessageSender` 新增 `SendCardAsync`（msg_type=interactive）。
+- 生产端到端验证：提交反馈收到卡片（delivered），状态改 in_progress 后反馈人收到回执卡片（处理中高亮+备注）。
+
 ## 5. 关键架构决策
 
 ### 5.1 使用 MaxScript Connector，而非 Autodesk SDK 插件
