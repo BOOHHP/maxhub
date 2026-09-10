@@ -998,39 +998,11 @@ public sealed class FeedbackViewModel : ViewModelBase
         _services = services;
         _account = account;
         SubmitCommand = new RelayCommand(SubmitAsync, () => !_busy && _account.IsLoggedIn);
-        RefreshFeedbacksCommand = new RelayCommand(() => LoadMyFeedbacksAsync(), () => !_busy && _account.IsLoggedIn);
-        account.LoggedInChanged += () => _ = LoadMyFeedbacksAsync();
     }
 
     public string Message { get => _message; set { Set(ref _message, value); SubmitCommand.RaiseCanExecuteChanged(); } }
     public string Status { get => _status; private set => Set(ref _status, value); }
     public RelayCommand SubmitCommand { get; }
-    public RelayCommand RefreshFeedbacksCommand { get; }
-    public System.Collections.ObjectModel.ObservableCollection<MyFeedbackRowViewModel> MyFeedbacks { get; } = [];
-
-    /// <summary>加载我发出的反馈（登录后），展示处理进展。</summary>
-    public async Task LoadMyFeedbacksAsync()
-    {
-        if (!_account.IsLoggedIn)
-        {
-            MyFeedbacks.Clear();
-            return;
-        }
-        try
-        {
-            var items = await _services.Hub.GetMyFeedbacksAsync();
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                MyFeedbacks.Clear();
-                foreach (var item in items)
-                    MyFeedbacks.Add(new MyFeedbackRowViewModel(item));
-            });
-        }
-        catch
-        {
-            // 列表加载失败不阻塞反馈提交
-        }
-    }
 
     private async Task SubmitAsync()
     {
@@ -1049,14 +1021,11 @@ public sealed class FeedbackViewModel : ViewModelBase
             var outcome = await _services.Hub.SubmitFeedbackAsync("platform", null, text, "agent", version, null);
             Status = outcome.Success
                 ? outcome.DeliveryStatus == "delivered"
-                    ? "✓ 已提交并通过飞书送达，可在下方「我的反馈」跟踪处理进展。"
-                    : $"✓ 已保存（飞书通知状态：{outcome.DeliveryStatus}），可在下方「我的反馈」跟踪进展。"
+                    ? "✓ 已提交并通过飞书送达，感谢反馈！"
+                    : $"✓ 已保存（飞书通知状态：{outcome.DeliveryStatus}），管理员可在后台查看。"
                 : $"✗ {outcome.Error}";
             if (outcome.Success)
-            {
                 Message = "";
-                await LoadMyFeedbacksAsync();
-            }
         }
         catch (Exception ex)
         {
@@ -1068,26 +1037,4 @@ public sealed class FeedbackViewModel : ViewModelBase
             SubmitCommand.RaiseCanExecuteChanged();
         }
     }
-}
-
-/// <summary>反馈页：我发出的反馈行，状态着色与网页一致。</summary>
-public sealed class MyFeedbackRowViewModel : ViewModelBase
-{
-    public MyFeedbackRowViewModel(MyFeedbackItem item) => Item = item;
-
-    public MyFeedbackItem Item { get; }
-    public string Title => Item.Scope == "tool" ? $"#{Item.Id} 工具「{Item.ToolName ?? "未知"}」" : $"#{Item.Id} 平台反馈";
-    public string Message => Item.Message;
-    public string StatusText => Item.StatusText;
-    public string Note => Item.Note ?? "";
-    public bool HasNote => !string.IsNullOrEmpty(Item.Note);
-
-    /// <summary>状态色与网页徽章一致：黄=待处理、蓝=处理中、绿=已解决、灰=暂不处理。</summary>
-    public System.Windows.Media.Brush StatusBrush => Item.Status switch
-    {
-        "open" => System.Windows.Application.Current.Resources["Status.Warning"] as System.Windows.Media.Brush ?? System.Windows.Media.Brushes.Goldenrod,
-        "in_progress" => System.Windows.Application.Current.Resources["Accent.Primary"] as System.Windows.Media.Brush ?? System.Windows.Media.Brushes.CornflowerBlue,
-        "resolved" => System.Windows.Application.Current.Resources["Status.Success"] as System.Windows.Media.Brush ?? System.Windows.Media.Brushes.LightGreen,
-        _ => System.Windows.Application.Current.Resources["Text.Secondary"] as System.Windows.Media.Brush ?? System.Windows.Media.Brushes.Gray,
-    };
 }

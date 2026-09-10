@@ -738,39 +738,55 @@ app.MapPatch("/api/v1/feedbacks/{id:int}/status", async (HttpContext ctx, int id
 
     return Results.Ok(new { status = updated.Status, note = updated.StatusNote, changedAtUtc = updated.StatusChangedAtUtc });});
 
-app.MapGet("/api/v1/my-feedbacks", (HttpContext ctx) =>
+app.MapGet("/api/v1/my-feedbacks", (HttpContext ctx, int page = 0, int pageSize = 20) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
-    return Results.Ok(feedback.ListMine(user.EmployeeId).Select(f => new
+    var size = Math.Clamp(pageSize, 1, 100);
+    var (items, total) = feedback.ListMine(user.EmployeeId, Math.Max(0, page), size);
+    return Results.Ok(new
     {
-        id = f.Id,
-        scope = f.Scope,
-        toolName = f.ToolName,
-        message = f.Message,
-        status = f.Status ?? "open",
-        statusText = FeedbackService.StatusText(f.Status ?? "open"),
-        note = f.StatusNote,
-        statusChangedAtUtc = f.StatusChangedAtUtc,
-        atUtc = f.AtUtc,
-    }));
+        total,
+        page,
+        pageSize = size,
+        items = items.Select(f => new
+        {
+            id = f.Id,
+            scope = f.Scope,
+            toolName = f.ToolName,
+            message = f.Message,
+            status = f.Status ?? "open",
+            statusText = FeedbackService.StatusText(f.Status ?? "open"),
+            note = f.StatusNote,
+            statusChangedAtUtc = f.StatusChangedAtUtc,
+            atUtc = f.AtUtc,
+        }),
+    });
 });
 
 // 我是接收人的反馈：可变更其处理状态（供发布页使用，普通上传者无需进后台）
-app.MapGet("/api/v1/feedbacks/recipients", (HttpContext ctx) =>
+app.MapGet("/api/v1/feedbacks/recipients", (HttpContext ctx, int page = 0, int pageSize = 20) =>
 {
     if (CurrentUser(ctx) is not { } user) return Results.Unauthorized();
-    return Results.Ok(feedback.ListForRecipient(user.EmployeeId).Select(f => new
+    var size = Math.Clamp(pageSize, 1, 100);
+    var (items, total) = feedback.ListForRecipient(user.EmployeeId, page, size);
+    return Results.Ok(new
     {
-        id = f.Id,
-        scope = f.Scope,
-        toolName = f.ToolName,
-        fromUsername = f.FromUsername,
-        message = f.Message,
-        status = f.Status ?? "open",
-        statusText = FeedbackService.StatusText(f.Status ?? "open"),
-        note = f.StatusNote,
-        atUtc = f.AtUtc,
-    }));
+        total,
+        page,
+        pageSize = size,
+        items = items.Select(f => new
+        {
+            id = f.Id,
+            scope = f.Scope,
+            toolName = f.ToolName,
+            fromUsername = f.FromUsername,
+            message = f.Message,
+            status = f.Status ?? "open",
+            statusText = FeedbackService.StatusText(f.Status ?? "open"),
+            note = f.StatusNote,
+            atUtc = f.AtUtc,
+        }),
+    });
 });
 
 // ---- 下载（服务端按认证主体记账） ----

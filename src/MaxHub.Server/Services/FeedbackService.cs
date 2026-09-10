@@ -103,22 +103,24 @@ public sealed class FeedbackService(
         return row;
     }
 
-    /// <summary>反馈人查看自己的反馈（按时间倒序）。</summary>
-    public IReadOnlyList<FeedbackRow> ListMine(string employeeId, int take = 100)
+    /// <summary>反馈人查看自己的反馈（按时间倒序，服务端分页）。</summary>
+    public (IReadOnlyList<FeedbackRow> Items, int Total) ListMine(string employeeId, int page = 0, int pageSize = 20)
     {
         using var db = dbFactory.CreateDbContext();
-        return db.Feedbacks.Where(f => f.FromEmployeeId == employeeId).ToList()
-            .OrderByDescending(f => f.AtUtc).Take(take).ToList();
+        var query = db.Feedbacks.Where(f => f.FromEmployeeId == employeeId).ToList()
+            .OrderByDescending(f => f.AtUtc).ToList();
+        return (query.Skip(page * pageSize).Take(pageSize).ToList(), query.Count);
     }
 
-    /// <summary>我是接收人的反馈（工具上传者/平台接收人），可变更其处理状态。</summary>
-    public IReadOnlyList<FeedbackRow> ListForRecipient(string employeeId, int take = 100)
+    /// <summary>我是接收人的反馈（工具上传者/平台接收人），可变更其处理状态（服务端分页）。</summary>
+    public (IReadOnlyList<FeedbackRow> Items, int Total) ListForRecipient(string employeeId, int page = 0, int pageSize = 20)
     {
         using var db = dbFactory.CreateDbContext();
-        return db.Feedbacks.ToList()
+        var query = db.Feedbacks.ToList()
             .Where(f => f.ToEmployeeIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Contains(employeeId, StringComparer.Ordinal))
-            .OrderByDescending(f => f.AtUtc).Take(take).ToList();
+            .OrderByDescending(f => f.AtUtc).ToList();
+        return (query.Skip(page * pageSize).Take(pageSize).ToList(), query.Count);
     }
 
     /// <summary>构建反馈生命周期卡片：详情 + 状态链（当前高亮）+ 按钮。portalBase 形如 http://10.2.13.8:5100。</summary>

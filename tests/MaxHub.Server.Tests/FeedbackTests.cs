@@ -135,9 +135,10 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
             Assert.Contains("publish.html#fb-", card.Card);
         }
 
-        // 反馈人看到 open 状态
-        var mine = await submitter.GetFromJsonAsync<JsonElement[]>("/api/v1/my-feedbacks");
-        var myRow = mine!.Single(f => f.GetProperty("id").GetInt32() == feedbackId);
+        // 反馈人看到 open 状态（响应为分页结构 {items,total,...}）
+        var minePage = await submitter.GetFromJsonAsync<JsonElement>("/api/v1/my-feedbacks");
+        var mine = minePage.GetProperty("items");
+        var myRow = mine.EnumerateArray().Single(f => f.GetProperty("id").GetInt32() == feedbackId);
         Assert.Equal("open", myRow.GetProperty("status").GetString());
 
         // 接收人（管理员）变更为 in_progress 并写备注；回执卡片发给反馈人（fire-and-forget，轮询等待）
@@ -166,8 +167,9 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
         }
 
         // 反馈人看到更新后的状态与备注
-        mine = await submitter.GetFromJsonAsync<JsonElement[]>("/api/v1/my-feedbacks");
-        myRow = mine!.Single(f => f.GetProperty("id").GetInt32() == feedbackId);
+        minePage = await submitter.GetFromJsonAsync<JsonElement>("/api/v1/my-feedbacks");
+        mine = minePage.GetProperty("items");
+        myRow = mine.EnumerateArray().Single(f => f.GetProperty("id").GetInt32() == feedbackId);
         Assert.Equal("in_progress", myRow.GetProperty("status").GetString());
         Assert.Equal("排期处理中", myRow.GetProperty("note").GetString());
 
@@ -181,6 +183,11 @@ public class FeedbackTests(FeedbackFixture fixture) : IClassFixture<FeedbackFixt
         var bad = await admin.PatchAsJsonAsync($"/api/v1/feedbacks/{feedbackId}/status",
             new { status = "hacked" });
         Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+
+        // 服务端分页：pageSize 生效、total 正确
+        var paged = await submitter.GetFromJsonAsync<JsonElement>("/api/v1/my-feedbacks?page=0&pageSize=1");
+        Assert.Equal(1, paged.GetProperty("items").GetArrayLength());
+        Assert.True(paged.GetProperty("total").GetInt32() >= 1);
     }
 
     [Fact]
